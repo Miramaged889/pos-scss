@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import {
   Package,
@@ -12,18 +12,29 @@ import {
   TrendingUp,
   Eye,
   DollarSign,
+  X,
+  Check,
 } from "lucide-react";
 
 import DataTable from "../../../components/Common/DataTable";
 import StatsCard from "../../../components/Common/StatsCard";
+import { ProductForm } from "../../../components/Forms";
 import { formatCurrencyEnglish, formatNumberEnglish } from "../../../utils";
+import { deleteProduct } from "../../../store/slices/inventorySlice";
 
 const InventoryManagement = () => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
   const { products } = useSelector((state) => state.inventory);
+  const dispatch = useDispatch();
+
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [showProductForm, setShowProductForm] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [formMode, setFormMode] = useState("create");
 
   // Calculate inventory stats
   const totalProducts = products.length;
@@ -54,6 +65,44 @@ const InventoryManagement = () => {
     { value: "beverages", label: t("beverages") },
     { value: "desserts", label: t("desserts") },
   ];
+
+  // Handle actions
+  const handleAddProduct = () => {
+    setFormMode("create");
+    setSelectedProduct(null);
+    setShowProductForm(true);
+  };
+
+  const handleViewProduct = (product) => {
+    setSelectedProduct(product);
+    setShowViewModal(true);
+  };
+
+  const handleEditProduct = (product) => {
+    setSelectedProduct(product);
+    setFormMode("edit");
+    setShowProductForm(true);
+  };
+
+  const handleDeleteProduct = (product) => {
+    setSelectedProduct(product);
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (selectedProduct) {
+      dispatch(deleteProduct(selectedProduct.id));
+      setShowDeleteModal(false);
+      setSelectedProduct(null);
+    }
+  };
+
+  const closeModals = () => {
+    setShowViewModal(false);
+    setShowProductForm(false);
+    setShowDeleteModal(false);
+    setSelectedProduct(null);
+  };
 
   const getStockStatus = (product) => {
     if (product.stock === 0) {
@@ -114,11 +163,7 @@ const InventoryManagement = () => {
       header: t("product"),
       accessor: "name",
       render: (product) => (
-        <div
-          className={`flex items-center gap-3 ${
-            isRTL ? "flex-row" : ""
-          }`}
-        >
+        <div className={`flex items-center gap-3 ${isRTL ? "flex-row" : ""}`}>
           <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 dark:from-blue-600 dark:to-purple-700 rounded-lg flex items-center justify-center shadow-md flex-shrink-0">
             <Package className="w-5 h-5 text-white" />
           </div>
@@ -181,7 +226,6 @@ const InventoryManagement = () => {
             isRTL ? "justify-start flex-row-reverse" : "justify-center"
           }`}
         >
-
           <span className="font-semibold text-green-600 dark:text-green-400">
             {formatCurrencyEnglish(product.price, t("currency"))}
           </span>
@@ -237,25 +281,28 @@ const InventoryManagement = () => {
     {
       header: t("actions"),
       accessor: "actions",
-      render: () => (
+      render: (product) => (
         <div
           className={`flex items-center gap-2 ${
             isRTL ? "justify-start flex-row-reverse" : "justify-center"
           }`}
         >
           <button
+            onClick={() => handleViewProduct(product)}
             className="p-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-all duration-200 hover:scale-110"
             title={t("viewProduct")}
           >
             <Eye className="w-4 h-4" />
           </button>
           <button
+            onClick={() => handleEditProduct(product)}
             className="p-2 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-all duration-200 hover:scale-110"
             title={t("editProduct")}
           >
             <Edit className="w-4 h-4" />
           </button>
           <button
+            onClick={() => handleDeleteProduct(product)}
             className="p-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-all duration-200 hover:scale-110"
             title={t("deleteProduct")}
           >
@@ -283,6 +330,7 @@ const InventoryManagement = () => {
           </p>
         </div>
         <button
+          onClick={handleAddProduct}
           className={`inline-flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-all duration-200 hover:scale-105 shadow-md ${
             isRTL ? "flex-row-reverse" : ""
           }`}
@@ -359,6 +407,220 @@ const InventoryManagement = () => {
           pageSize={10}
         />
       </div>
+
+      {/* Product Form Modal */}
+      <ProductForm
+        isOpen={showProductForm}
+        onClose={closeModals}
+        product={selectedProduct}
+        mode={formMode}
+      />
+
+      {/* View Product Modal */}
+      {showViewModal && selectedProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <div
+                className={`flex items-center justify-between ${
+                  isRTL ? "flex-row-reverse" : ""
+                }`}
+              >
+                <div
+                  className={`flex items-center gap-3 ${
+                    isRTL ? "flex-row-reverse" : ""
+                  }`}
+                >
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 dark:from-blue-600 dark:to-purple-700 rounded-lg flex items-center justify-center shadow-md">
+                    <Package className="w-5 h-5 text-white" />
+                  </div>
+                  <div className={isRTL ? "text-right" : "text-left"}>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {t("productDetails")}
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {isRTL
+                        ? selectedProduct.name
+                        : selectedProduct.nameEn || selectedProduct.name}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={closeModals}
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                </button>
+              </div>
+            </div>
+            <div className="p-6 space-y-6">
+              {/* Basic Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t("productNameArabic")}
+                  </label>
+                  <p className="text-gray-900 dark:text-white">
+                    {selectedProduct.name}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t("productNameEnglish")}
+                  </label>
+                  <p className="text-gray-900 dark:text-white">
+                    {selectedProduct.nameEn || "—"}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t("category")}
+                  </label>
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
+                    {t(selectedProduct.category)}
+                  </span>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t("sku")}
+                  </label>
+                  <p className="text-gray-900 dark:text-white font-mono">
+                    {selectedProduct.sku || "—"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Stock & Pricing */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t("currentStock")}
+                  </label>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {formatNumberEnglish(selectedProduct.stock)}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t("minimumStock")}
+                  </label>
+                  <p className="text-xl font-semibold text-gray-900 dark:text-white">
+                    {formatNumberEnglish(selectedProduct.minStock)}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t("price")}
+                  </label>
+                  <p className="text-xl font-semibold text-green-600 dark:text-green-400">
+                    {formatCurrencyEnglish(
+                      selectedProduct.price,
+                      t("currency")
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {/* Additional Information */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t("supplier")}
+                  </label>
+                  <p className="text-gray-900 dark:text-white">
+                    {selectedProduct.supplier || t("noSupplier")}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t("totalWorth")}
+                  </label>
+                  <p className="text-xl font-semibold text-gray-900 dark:text-white">
+                    {formatCurrencyEnglish(
+                      selectedProduct.price * selectedProduct.stock,
+                      t("currency")
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t("status")}
+                  </label>
+                  {(() => {
+                    const stockStatus = getStockStatus(selectedProduct);
+                    return (
+                      <span
+                        className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${stockStatus.bg} ${stockStatus.color}`}
+                      >
+                        <div
+                          className={`w-2 h-2 rounded-full ${
+                            isRTL ? "ml-1.5" : "mr-1.5"
+                          } ${stockStatus.color.replace("text-", "bg-")}`}
+                        ></div>
+                        {stockStatus.label}
+                      </span>
+                    );
+                  })()}
+                </div>
+                {selectedProduct.description && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      {t("description")}
+                    </label>
+                    <p className="text-gray-900 dark:text-white">
+                      {selectedProduct.description}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && selectedProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
+                  <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {t("deleteProduct")}
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    {isRTL
+                      ? selectedProduct.name
+                      : selectedProduct.nameEn || selectedProduct.name}
+                  </p>
+                </div>
+              </div>
+              <p className="text-gray-700 dark:text-gray-300 mb-6">
+                {t("areYouSureDeleteProduct")} {t("thisActionCannotBeUndone")}
+              </p>
+              <div className={`flex gap-3 ${isRTL ? "flex-row-reverse" : ""}`}>
+                <button
+                  onClick={handleConfirmDelete}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {t("delete")}
+                </button>
+                <button
+                  onClick={closeModals}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                  {t("cancel")}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
