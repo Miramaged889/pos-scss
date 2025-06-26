@@ -52,6 +52,7 @@ export const formatDate = (date, locale = "ar-SA", options = {}) => {
     year: "numeric",
     month: "long",
     day: "numeric",
+    calendar: "gregory", // Force Gregorian calendar
   };
 
   return new Intl.DateTimeFormat(locale, {
@@ -96,30 +97,67 @@ export const formatDateTime = (date, locale = "ar-SA") => {
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    calendar: "gregory", // Force Gregorian calendar
   }).format(new Date(date));
 };
 
 /**
- * Format date and time with English numbers
+ * Format date with English numbers and Gregorian calendar
  * @param {string|Date} date - The date to format
- * @param {string} locale - The locale for formatting (default: 'ar-SA')
- * @returns {string} - Formatted date and time string with English numbers
+ * @returns {string} - Formatted date string with English numbers and Gregorian calendar
  */
-export const formatDateTimeEnglish = (date, locale = "ar-SA") => {
+export const formatDateEnglish = (date) => {
   if (!date) return "";
 
-  const formatted = new Intl.DateTimeFormat(locale, {
+  // Force Gregorian calendar with English locale
+  const formatted = new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    calendar: "gregory", // Explicitly force Gregorian calendar
+  }).format(new Date(date));
+
+  return formatted;
+};
+
+/**
+ * Format time with English numbers
+ * @param {string|Date} date - The date to format
+ * @returns {string} - Formatted time string with English numbers
+ */
+export const formatTimeEnglish = (date) => {
+  if (!date) return "";
+
+  // Force English locale for time
+  const formatted = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(date));
+
+  return formatted;
+};
+
+/**
+ * Format date and time with English numbers and Gregorian calendar
+ * @param {string|Date} date - The date to format
+ * @returns {string} - Formatted date and time string with English numbers and Gregorian calendar
+ */
+export const formatDateTimeEnglish = (date) => {
+  if (!date) return "";
+
+  // Force Gregorian calendar with English locale
+  const formatted = new Intl.DateTimeFormat("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: true,
+    calendar: "gregory", // Explicitly force Gregorian calendar
   }).format(new Date(date));
 
-  // Replace Arabic-Indic digits with English digits
-  return formatted.replace(/[\u0660-\u0669]/g, (match) => {
-    return String.fromCharCode(match.charCodeAt(0) - 0x0660 + 0x0030);
-  });
+  return formatted;
 };
 
 /**

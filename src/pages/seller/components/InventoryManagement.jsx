@@ -116,20 +116,20 @@ const InventoryManagement = () => {
       render: (product) => (
         <div
           className={`flex items-center gap-3 ${
-            isRTL ? "flex-row-reverse" : ""
+            isRTL ? "flex-row" : ""
           }`}
         >
-          <div className={`w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 dark:from-blue-600 dark:to-purple-700 rounded-lg flex items-center justify-center shadow-md ${
-            isRTL ? "order-last" : ""
-          }`}>
-            <Package className="w-6 h-6 text-white" />
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 dark:from-blue-600 dark:to-purple-700 rounded-lg flex items-center justify-center shadow-md flex-shrink-0">
+            <Package className="w-5 h-5 text-white" />
           </div>
-          <div className={isRTL ? "text-right" : "text-left"}>
-            <div className="font-medium text-gray-900 dark:text-white">
+          <div
+            className={`min-w-0 flex-1 ${isRTL ? "text-right" : "text-left"}`}
+          >
+            <div className="font-medium text-gray-900 dark:text-white truncate">
               {isRTL ? product.name : product.nameEn || product.name}
             </div>
             {product.sku && (
-              <div className="text-sm text-gray-500 dark:text-gray-400">
+              <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
                 {t("sku")}: {product.sku}
               </div>
             )}
@@ -141,9 +141,11 @@ const InventoryManagement = () => {
       header: t("category"),
       accessor: "category",
       render: (product) => (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-          {t(product.category)}
-        </span>
+        <div className={`flex ${isRTL ? "justify-start" : "justify-center"}`}>
+          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 whitespace-nowrap">
+            {t(product.category)}
+          </span>
+        </div>
       ),
     },
     {
@@ -151,14 +153,10 @@ const InventoryManagement = () => {
       accessor: "stock",
       render: (product) => {
         return (
-          <div
-            className={`flex items-center gap-2 ${
-              isRTL ? "flex-row-reverse" : ""
-            }`}
-          >
-            <span className="font-medium text-gray-900 dark:text-white text-center">
+          <div className={`${isRTL ? "text-right" : "text-center"}`}>
+            <div className="font-bold text-lg text-gray-900 dark:text-white mb-1">
               {formatNumberEnglish(product.stock)}
-            </span>
+            </div>
           </div>
         );
       },
@@ -167,9 +165,11 @@ const InventoryManagement = () => {
       header: t("minStock"),
       accessor: "minStock",
       render: (product) => (
-        <span className="text-gray-900 dark:text-white text-center font-medium">
-          {formatNumberEnglish(product.minStock)}
-        </span>
+        <div className={`${isRTL ? "text-right" : "text-center"}`}>
+          <span className="font-semibold text-gray-900 dark:text-white text-base">
+            {formatNumberEnglish(product.minStock)}
+          </span>
+        </div>
       ),
     },
     {
@@ -178,32 +178,39 @@ const InventoryManagement = () => {
       render: (product) => (
         <div
           className={`flex items-center gap-1 ${
-            isRTL ? "flex-row-reverse" : ""
+            isRTL ? "justify-start flex-row-reverse" : "justify-center"
           }`}
         >
-          <DollarSign className="w-4 h-4 text-green-600 dark:text-green-400" />
-          <span className="font-medium text-green-600 dark:text-green-400">
+
+          <span className="font-semibold text-green-600 dark:text-green-400">
             {formatCurrencyEnglish(product.price, t("currency"))}
           </span>
         </div>
       ),
     },
     {
-      header: t("totalValue"),
+      header: t("totalWorth"),
       accessor: "value",
       render: (product) => (
-        <span className="font-medium text-gray-900 dark:text-white">
-          {formatCurrencyEnglish(product.price * product.stock, t("currency"))}
-        </span>
+        <div className={`${isRTL ? "text-right" : "text-center"}`}>
+          <span className="font-semibold text-gray-900 dark:text-white">
+            {formatCurrencyEnglish(
+              product.price * product.stock,
+              t("currency")
+            )}
+          </span>
+        </div>
       ),
     },
     {
       header: t("supplier"),
       accessor: "supplier",
       render: (product) => (
-        <span className="text-sm text-gray-600 dark:text-gray-400">
-          {product.supplier || t("noSupplier")}
-        </span>
+        <div className={`${isRTL ? "text-right" : "text-center"}`}>
+          <span className="text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md inline-block">
+            {product.supplier || t("noSupplier")}
+          </span>
+        </div>
       ),
     },
     {
@@ -212,11 +219,18 @@ const InventoryManagement = () => {
       render: (product) => {
         const stockStatus = getStockStatus(product);
         return (
-          <span
-            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${stockStatus.bg} ${stockStatus.color} border border-current border-opacity-20`}
-          >
-            {stockStatus.label}
-          </span>
+          <div className={`flex ${isRTL ? "justify-start" : "justify-center"}`}>
+            <span
+              className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${stockStatus.bg} ${stockStatus.color} border border-current border-opacity-20 whitespace-nowrap`}
+            >
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  isRTL ? "ml-1.5" : "mr-1.5"
+                } ${stockStatus.color.replace("text-", "bg-")}`}
+              ></div>
+              {stockStatus.label}
+            </span>
+          </div>
         );
       },
     },
@@ -226,23 +240,23 @@ const InventoryManagement = () => {
       render: () => (
         <div
           className={`flex items-center gap-2 ${
-            isRTL ? "flex-row-reverse" : ""
+            isRTL ? "justify-start flex-row-reverse" : "justify-center"
           }`}
         >
           <button
-            className="p-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-all duration-200 hover:scale-110"
+            className="p-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-all duration-200 hover:scale-110"
             title={t("viewProduct")}
           >
             <Eye className="w-4 h-4" />
           </button>
           <button
-            className="p-1 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30 rounded transition-all duration-200 hover:scale-110"
+            className="p-2 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-all duration-200 hover:scale-110"
             title={t("editProduct")}
           >
             <Edit className="w-4 h-4" />
           </button>
           <button
-            className="p-1 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-all duration-200 hover:scale-110"
+            className="p-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-all duration-200 hover:scale-110"
             title={t("deleteProduct")}
           >
             <Trash2 className="w-4 h-4" />
@@ -257,7 +271,7 @@ const InventoryManagement = () => {
       {/* Header */}
       <div
         className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 ${
-          isRTL ? "sm:flex-row-reverse" : ""
+          isRTL ? "flex-row" : ""
         }`}
       >
         <div className={isRTL ? "text-right" : "text-left"}>

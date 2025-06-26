@@ -179,7 +179,7 @@ const SellerHome = () => {
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-700 dark:to-purple-700 rounded-xl shadow-soft dark:shadow-soft-dark p-6 text-white transition-all duration-300 hover:shadow-lg dark:hover:shadow-xl">
         <div
           className={`flex items-center justify-between ${
-            isRTL ? "flex-row-reverse" : ""
+            isRTL ? "flex-row" : ""
           }`}
         >
           <div className={isRTL ? "text-right" : "text-left"}>

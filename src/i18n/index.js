@@ -234,6 +234,11 @@ const resources = {
       productSelectionRequired: "اختيار المنتج مطلوب",
       quantityMustBeGreaterThanZero: "الكمية يجب أن تكون أكبر من صفر",
 
+      // Order Actions & Modals
+      order: "الطلب",
+      areYouSureDeleteOrder: "هل أنت متأكد من حذف هذا الطلب؟",
+      thisActionCannotBeUndone: "لا يمكن التراجع عن هذا الإجراء.",
+
       // Actions & Buttons
       createOrder: "إنشاء طلب",
       viewOrder: "عرض الطلب",
@@ -270,6 +275,12 @@ const resources = {
       managePaymentsAndTransactions: "إدارة المدفوعات والمعاملات",
       manageProductReturns: "إدارة مرتجعات المنتجات",
       managePurchaseOrders: "إدارة أوامر الشراء",
+      manageAllCustomerOrders: "إدارة جميع طلبات العملاء",
+      ordersManagement: "إدارة الطلبات",
+      allOrdersCount: "إجمالي عدد الطلبات",
+      awaitingProcessing: "في انتظار المعالجة",
+      successfullyCompleted: "مكتملة بنجاح",
+      totalEarnings: "إجمالي الأرباح",
       noDataFound: "لا توجد بيانات",
       tryAdjustingSearchCriteria: "حاول تعديل معايير البحث",
       results: "نتيجة",
@@ -320,6 +331,8 @@ const resources = {
       deleteProduct: "حذف المنتج",
       productsList: "قائمة المنتجات",
       manageYourProducts: "إدارة منتجاتك",
+      totalValue: "القيمة الإجمالية",
+      productStatus: "حالة المنتج",
 
       // General
       generateInvoice: "إنشاء فاتورة",
@@ -565,6 +578,11 @@ const resources = {
       productSelectionRequired: "Product selection is required",
       quantityMustBeGreaterThanZero: "Quantity must be greater than zero",
 
+      // Order Actions & Modals
+      order: "Order",
+      areYouSureDeleteOrder: "Are you sure you want to delete this order?",
+      thisActionCannotBeUndone: "This action cannot be undone.",
+
       // Actions & Buttons
       createOrder: "Create Order",
       viewOrder: "View Order",
@@ -601,8 +619,14 @@ const resources = {
       managePaymentsAndTransactions: "Manage payments and transactions",
       manageProductReturns: "Manage product returns",
       managePurchaseOrders: "Manage purchase orders",
+      manageAllCustomerOrders: "Manage all customer orders",
+      ordersManagement: "Orders Management",
+      allOrdersCount: "Total orders count",
+      awaitingProcessing: "Awaiting processing",
+      successfullyCompleted: "Successfully completed",
+      totalEarnings: "Total earnings",
       noDataFound: "No data found",
-      tryAdjustingSearchCriteria: "Try adjusting your search criteria",
+      tryAdjustingSearchCriteria: "Try adjusting search criteria",
       results: "results",
 
       // Pagination
