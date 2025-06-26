@@ -159,6 +159,33 @@ const resources = {
       thisWeek: "هذا الأسبوع",
       thisMonth: "هذا الشهر",
       fromLastPeriod: "من الفترة السابقة",
+      exportReport: "تصدير التقرير",
+      sevenDaysAgo: "قبل 7 أيام",
+      thirtyDaysAgo: "قبل 30 يوماً",
+      revenueChart: "مخطط الإيرادات",
+      ordersChart: "مخطط الطلبات",
+      salesTrend: "اتجاه المبيعات",
+      dailySales: "المبيعات اليومية",
+      weeklySales: "المبيعات الأسبوعية",
+      monthlySales: "المبيعات الشهرية",
+      revenue: "الإيرادات",
+      orderCount: "عدد الطلبات",
+      categoryDistribution: "توزيع الفئات",
+      topProductsChart: "مخطط أفضل المنتجات",
+      salesAnalytics: "تحليلات المبيعات",
+      chartView: "عرض المخططات",
+      tableView: "عرض الجدول",
+      sales: "المبيعات",
+      week: "الأسبوع",
+
+      // Days of the week
+      sunday: "الأحد",
+      monday: "الاثنين",
+      tuesday: "الثلاثاء",
+      wednesday: "الأربعاء",
+      thursday: "الخميس",
+      friday: "الجمعة",
+      saturday: "السبت",
 
       // Profile & Settings
       profile: "الملف الشخصي",
@@ -247,7 +274,6 @@ const resources = {
       editCustomer: "تعديل العميل",
       viewTransaction: "عرض المعاملة",
       downloadReceipt: "تحميل الإيصال",
-      exportReport: "تصدير التقرير",
 
       // Search & Filter
       searchOrders: "البحث في الطلبات",
@@ -302,7 +328,6 @@ const resources = {
       fromYesterday: "من الأمس",
       needsAttention: "يحتاج انتباه",
       newThisWeek: "جديد هذا الأسبوع",
-      revenue: "الإيرادات",
       avgOrderValue: "متوسط قيمة الطلب",
       remaining: "متبقي",
       margin: "هامش",
@@ -311,8 +336,6 @@ const resources = {
       inactive: "غير نشط",
 
       // Date Ranges
-      sevenDaysAgo: "منذ 7 أيام",
-      thirtyDaysAgo: "منذ 30 يوماً",
 
       // Inventory Management
       inventoryManagement: "Inventory Management",
@@ -370,6 +393,7 @@ const resources = {
       saving: "جاري الحفظ",
       areYouSureDeleteProduct: "هل أنت متأكد من حذف هذا المنتج؟",
       productNameRequired: "اسم المنتج مطلوب",
+
     },
   },
   en: {
@@ -528,6 +552,33 @@ const resources = {
       thisWeek: "This Week",
       thisMonth: "This Month",
       fromLastPeriod: "from last period",
+      exportReport: "Export Report",
+      sevenDaysAgo: "7 days ago",
+      thirtyDaysAgo: "30 days ago",
+      revenueChart: "Revenue Chart",
+      ordersChart: "Orders Chart",
+      salesTrend: "Sales Trend",
+      dailySales: "Daily Sales",
+      weeklySales: "Weekly Sales",
+      monthlySales: "Monthly Sales",
+      revenue: "Revenue",
+      orderCount: "Order Count",
+      categoryDistribution: "Category Distribution",
+      topProductsChart: "Top Products Chart",
+      salesAnalytics: "Sales Analytics",
+      chartView: "Chart View",
+      tableView: "Table View",
+      sales: "Sales",
+      week: "Week",
+
+      // Days of the week
+      sunday: "Sunday",
+      monday: "Monday",
+      tuesday: "Tuesday",
+      wednesday: "Wednesday",
+      thursday: "Thursday",
+      friday: "Friday",
+      saturday: "Saturday",
 
       // Profile & Settings
       profile: "Profile",
@@ -619,7 +670,6 @@ const resources = {
       editCustomer: "Edit Customer",
       viewTransaction: "View Transaction",
       downloadReceipt: "Download Receipt",
-      exportReport: "Export Report",
 
       // Search & Filter
       searchOrders: "Search orders",
@@ -683,7 +733,6 @@ const resources = {
       fromYesterday: "from yesterday",
       needsAttention: "needs attention",
       newThisWeek: "new this week",
-      revenue: "Revenue",
       avgOrderValue: "Average Order Value",
       remaining: "remaining",
       margin: "margin",
@@ -692,8 +741,6 @@ const resources = {
       inactive: "Inactive",
 
       // Date Ranges
-      sevenDaysAgo: "7 days ago",
-      thirtyDaysAgo: "30 days ago",
 
       // Inventory Management
       inventoryManagement: "Inventory Management",
@@ -742,6 +789,8 @@ const resources = {
       saving: "Saving",
       areYouSureDeleteProduct: "Are you sure you want to delete this product?",
       productNameRequired: "Product name is required",
+
+      // Days of the week
     },
   },
 };
