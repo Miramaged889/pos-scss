@@ -14,7 +14,7 @@ import "./i18n";
 
 import LoginPage from "./pages/LoginPage";
 import SellerDashboard from "./pages/seller/SellerDashboard";
-import KitchenDashboard from "./pages/KitchenDashboard";
+import KitchenDashboard from "./pages/kitchen/KitchenDashboard";
 import DeliveryDashboard from "./pages/DeliveryDashboard";
 
 const AppContent = () => {
