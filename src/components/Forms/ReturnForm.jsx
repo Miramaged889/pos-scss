@@ -12,7 +12,7 @@ import {
   User,
 } from "lucide-react";
 import FormField from "./FormField";
-import { getOrders } from "../../utils/localStorage";
+import { getOrders, generateUniqueReturnId } from "../../utils/localStorage";
 
 const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const { t } = useTranslation();
@@ -119,7 +119,7 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
     if (validateForm()) {
       const returnData = {
         ...formData,
-        id: editData?.id || Date.now(),
+        id: editData?.id || generateUniqueReturnId(),
         returnDate: editData?.returnDate || new Date().toISOString(),
       };
 

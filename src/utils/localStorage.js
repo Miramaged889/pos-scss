@@ -8,6 +8,7 @@ const STORAGE_KEYS = {
   ORDERS: "sales_app_orders",
   PRODUCTS: "sales_app_products",
   RETURNS: "sales_app_returns",
+  PURCHASE_ORDERS: "sales_app_purchase_orders",
   FORM_DRAFTS: "sales_app_form_drafts",
 };
 
@@ -315,7 +316,7 @@ export const migrateReturnIds = () => {
     return returns; // No migration needed
   }
 
-  console.log("Migrating return IDs from timestamp to sequential format...");
+  console.log("Migrating return IDs from timestamp to RTN-001 format...");
 
   // Sort returns by creation date to maintain chronological order
   const sortedReturns = [...returns].sort((a, b) => {
@@ -333,7 +334,7 @@ export const migrateReturnIds = () => {
       const idPart = currentId.replace("RTN-", "");
       if (idPart.length > 10) {
         // It's a timestamp
-        const newId = `RTN-${index + 1}`;
+        const newId = `RTN-${String(index + 1).padStart(3, "0")}`;
         console.log(`Migrating return ID: ${currentId} → ${newId}`);
         hasChanges = true;
         return {
@@ -381,7 +382,7 @@ export const generateUniqueReturnId = () => {
 
   const maxId = validReturnIds.length > 0 ? Math.max(...validReturnIds) : 0;
 
-  return `RTN-${maxId + 1}`;
+  return `RTN-${String(maxId + 1).padStart(3, "0")}`;
 };
 
 export const addReturn = (returnData) => {
@@ -413,6 +414,65 @@ export const deleteReturn = (returnId) => {
   const filteredReturns = returns.filter((r) => r.id !== returnId);
   saveReturns(filteredReturns);
   return filteredReturns;
+};
+
+/**
+ * Purchase Order Management Functions
+ */
+export const getPurchaseOrders = () => {
+  return getFromStorage(STORAGE_KEYS.PURCHASE_ORDERS, []);
+};
+
+export const savePurchaseOrders = (purchaseOrders) => {
+  return setToStorage(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+};
+
+export const generateUniquePurchaseOrderId = () => {
+  const purchaseOrders = getPurchaseOrders();
+
+  // Generate sequential purchase order ID starting from 1
+  const validPOIds = purchaseOrders
+    .map((po) => po.id)
+    .filter((id) => id && typeof id === "string" && id.startsWith("PO-"))
+    .map((id) => parseInt(id.replace("PO-", "")) || 0);
+
+  const maxId = validPOIds.length > 0 ? Math.max(...validPOIds) : 0;
+
+  return `PO-${String(maxId + 1).padStart(3, "0")}`;
+};
+
+export const addPurchaseOrder = (purchaseOrderData) => {
+  const purchaseOrders = getPurchaseOrders();
+  const newPurchaseOrder = {
+    ...purchaseOrderData,
+    id: purchaseOrderData.id || generateUniquePurchaseOrderId(),
+    poNumber: purchaseOrderData.poNumber || generateUniquePurchaseOrderId(),
+    orderDate: purchaseOrderData.orderDate || new Date().toISOString(),
+    status: purchaseOrderData.status || "pending",
+  };
+  purchaseOrders.push(newPurchaseOrder);
+  savePurchaseOrders(purchaseOrders);
+  return newPurchaseOrder;
+};
+
+export const updatePurchaseOrder = (purchaseOrderId, updates) => {
+  const purchaseOrders = getPurchaseOrders();
+  const index = purchaseOrders.findIndex((po) => po.id === purchaseOrderId);
+  if (index !== -1) {
+    purchaseOrders[index] = { ...purchaseOrders[index], ...updates };
+    savePurchaseOrders(purchaseOrders);
+    return purchaseOrders[index];
+  }
+  return null;
+};
+
+export const deletePurchaseOrder = (purchaseOrderId) => {
+  const purchaseOrders = getPurchaseOrders();
+  const filteredPurchaseOrders = purchaseOrders.filter(
+    (po) => po.id !== purchaseOrderId
+  );
+  savePurchaseOrders(filteredPurchaseOrders);
+  return filteredPurchaseOrders;
 };
 
 /**
@@ -505,6 +565,7 @@ export const exportData = () => {
     orders: getOrders(),
     products: getProducts(),
     returns: getReturns(),
+    purchaseOrders: getPurchaseOrders(),
     formDrafts: getFromStorage(STORAGE_KEYS.FORM_DRAFTS, {}),
     exportedAt: new Date().toISOString(),
   };
@@ -519,6 +580,7 @@ export const importData = (data) => {
     if (data.orders) saveOrders(data.orders);
     if (data.products) saveProducts(data.products);
     if (data.returns) saveReturns(data.returns);
+    if (data.purchaseOrders) savePurchaseOrders(data.purchaseOrders);
     if (data.formDrafts)
       setToStorage(STORAGE_KEYS.FORM_DRAFTS, data.formDrafts);
     return true;

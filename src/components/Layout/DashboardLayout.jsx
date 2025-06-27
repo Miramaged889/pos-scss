@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation, Link } from "react-router-dom";
@@ -17,6 +17,8 @@ import {
   Truck,
   Sun,
   Moon,
+  ChevronDown,
+  User,
 } from "lucide-react";
 
 import { logout } from "../../store/slices/authSlice";
@@ -24,6 +26,8 @@ import { toggleLanguage, toggleTheme } from "../../store/slices/languageSlice";
 
 const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -35,9 +39,24 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
     (state) => state.language
   );
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setUserDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
   const handleLogout = () => {
     dispatch(logout());
     navigate("/login");
+    setUserDropdownOpen(false);
   };
 
   const handleLanguageToggle = () => {
@@ -46,6 +65,97 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
 
   const handleThemeToggle = () => {
     dispatch(toggleTheme());
+  };
+
+  const handleSettingsClick = () => {
+    navigate(`/${role}/settings`);
+    setUserDropdownOpen(false);
+  };
+
+  // Initialize default seller profile if it doesn't exist
+  const initializeSellerProfile = () => {
+    try {
+      const existingProfile = localStorage.getItem("sellerProfile");
+      if (!existingProfile) {
+        const defaultProfile = [
+          {
+            id: 1,
+            email: user?.email || "seller@example.com",
+            firstName: "Seller",
+            lastName: "User",
+            name: "Seller User",
+            role: role || "seller",
+            phone: "+966 50 123 4567",
+            address: "Riyadh, Saudi Arabia",
+            joinDate: new Date().toISOString(),
+          },
+        ];
+        localStorage.setItem("sellerProfile", JSON.stringify(defaultProfile));
+      }
+    } catch (error) {
+      console.error("Error initializing seller profile:", error);
+    }
+  };
+
+  const getUserName = () => {
+    try {
+      // Get seller profile from localStorage
+      const sellerProfileData = localStorage.getItem("sellerProfile");
+
+      if (sellerProfileData) {
+        const sellerProfile = JSON.parse(sellerProfileData);
+
+        console.log("sellerProfile from localStorage:", sellerProfile);
+        console.log("Current user email:", user?.email);
+
+        let profile = null;
+
+        // Handle both object and array formats
+        if (Array.isArray(sellerProfile)) {
+          // Array format: find by email or use first
+          profile =
+            sellerProfile.find((p) => p.email === user?.email) ||
+            sellerProfile[0];
+        } else if (
+          typeof sellerProfile === "object" &&
+          sellerProfile !== null
+        ) {
+          // Direct object format
+          profile = sellerProfile;
+        }
+
+        if (profile) {
+          if (profile.name) return profile.name;
+          if (profile.fullName) return profile.fullName;
+          if (profile.firstName && profile.lastName) {
+            return `${profile.firstName} ${profile.lastName}`;
+          }
+          if (profile.firstName) return profile.firstName;
+          if (profile.lastName) return profile.lastName;
+        }
+      } else {
+        // Initialize profile if it doesn't exist
+        initializeSellerProfile();
+      }
+    } catch (error) {
+      console.error("Error reading sellerProfile from localStorage:", error);
+    }
+
+    // Fallback to user data
+    if (user?.name) return user.name;
+    if (user?.email) {
+      return user.email.split("@")[0];
+    }
+    return t("user");
+  };
+
+  const getUserInitials = () => {
+    const name = getUserName();
+    const words = name.split(" ");
+    if (words.length >= 2) {
+      return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
+    }
+    return name.charAt(0).toUpperCase();
   };
 
   const getRoleIcon = (role) => {
@@ -102,7 +212,7 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
             : "-translate-x-full"
         } fixed inset-y-0 ${
           isRTL ? "right-0" : "left-0"
-        } z-50 w-64 bg-white dark:bg-gray-800 shadow-lg dark:shadow-soft-dark transition-all duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}
+        } z-50 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}
       >
         <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-3">
@@ -151,7 +261,7 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top navbar */}
-        <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 transition-colors duration-300">
+        <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 transition-colors duration-300">
           <div className="flex items-center justify-between h-16 px-4">
             <div className="flex items-center gap-4">
               <button
@@ -165,7 +275,9 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
               </h2>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div
+              className={`flex items-center gap-2 ${isRTL ? "flex-row" : ""}`}
+            >
               {/* Theme Toggle */}
               <button
                 onClick={handleThemeToggle}
@@ -183,32 +295,113 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
                 )}
               </button>
 
-              {/* Language Toggle */}
-              <button
-                onClick={handleLanguageToggle}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-all duration-200 hover:scale-105"
-              >
-                <Globe className="w-4 h-4" />
-                {currentLanguage === "en" ? "العربية" : "English"}
-              </button>
 
-              {/* User Menu */}
-              <div className="flex items-center gap-3 px-3 py-2 text-sm text-gray-600 dark:text-gray-300">
-                <div className="flex items-center gap-2">
+              {/* User Dropdown Menu */}
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                  className={`flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-all duration-200 hover:scale-105 ${
+                    isRTL ? "flex-row" : ""
+                  }`}
+                >
                   <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
                     <span className="text-white text-xs font-bold">
-                      {user?.email?.charAt(0).toUpperCase()}
+                      {getUserInitials()}
                     </span>
                   </div>
-                  <span className="hidden sm:inline">{user?.email}</span>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200 hover:scale-105"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span className="hidden sm:inline">{t("logout")}</span>
+                  <div
+                    className={`hidden sm:block ${
+                      isRTL ? "text-right" : "text-left"
+                    }`}
+                  >
+                    <div className="font-medium">{getUserName()}</div>
+                  </div>
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform duration-200 ${
+                      userDropdownOpen ? "rotate-180" : ""
+                    }`}
+                  />
                 </button>
+
+                {/* Dropdown Menu */}
+                {userDropdownOpen && (
+                  <div
+                    className={`absolute top-full mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 py-2 z-50 ${
+                      isRTL ? "left-0" : "right-0"
+                    }`}
+                  >
+                    {/* User Info Section */}
+                    <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                      <div
+                        className={`flex items-center gap-3 ${
+                          isRTL ? "flex-row" : ""
+                        }`}
+                      >
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                          <span className="text-white text-sm font-bold">
+                            {getUserInitials()}
+                          </span>
+                        </div>
+                        <div
+                          className={`flex-1 min-w-0 ${
+                            isRTL ? "text-right" : "text-left"
+                          }`}
+                        >
+                          <div className="font-medium text-gray-900 dark:text-white truncate">
+                            {getUserName()}
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                            {user?.email}
+                          </div>
+                          <div className="text-xs text-blue-600 dark:text-blue-400 capitalize">
+                            {t(role)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Menu Items */}
+                    <div className="py-2">
+                      <button
+                        onClick={handleSettingsClick}
+                        className={`w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200 ${
+                          isRTL ? "flex-row-reverse text-right" : "text-left"
+                        }`}
+                      >
+                        <Settings className="w-4 h-4" />
+                        {t("settings")}
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          handleLanguageToggle();
+                          setUserDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200 ${
+                          isRTL ? "flex-row-reverse text-right" : "text-left"
+                        }`}
+                      >
+                        <Globe className="w-4 h-4" />
+                        <span className="flex items-center gap-2">
+                          {t("language")}:{" "}
+                          {currentLanguage === "en" ? "العربية" : "English"}
+                        </span>
+                      </button>
+
+                      <div className="border-t border-gray-200 dark:border-gray-700 my-2"></div>
+
+                      <button
+                        onClick={handleLogout}
+                        className={`w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200 ${
+                          isRTL ? "flex-row-reverse text-right" : "text-left"
+                        }`}
+                      >
+                        <LogOut className="w-4 h-4" />
+                        {t("logout")}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

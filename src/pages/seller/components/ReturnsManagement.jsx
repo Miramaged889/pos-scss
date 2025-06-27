@@ -183,12 +183,12 @@ const ReturnsManagement = () => {
 
   const formatReturnId = (returnId) => {
     // Since we have auto-migration in localStorage, just return the ID as-is
-    // The migration ensures all IDs are in RTN-1, RTN-2 format
+    // The migration ensures all IDs are in RTN-001, RTN-002 format
     if (typeof returnId === "string" && returnId.startsWith("RTN-")) {
       return returnId;
     }
-    // Fallback for numeric IDs
-    return `RTN-${String(returnId)}`;
+    // Fallback for numeric IDs - format as RTN-001
+    return `RTN-${String(returnId).padStart(3, "0")}`;
   };
 
   const getStatusBadge = (status) => {
