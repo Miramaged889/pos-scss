@@ -17,8 +17,14 @@ const NewSalesOrder = () => {
 
   const handleOrderSubmit = (orderData) => {
     try {
-      // Add order to store
+      // Create order with Redux (which internally uses localStorage)
       dispatch(addOrder(orderData));
+
+      // Load orders from localStorage to get the created order with ID
+      const storedOrders = JSON.parse(
+        localStorage.getItem("sales_app_orders") || "[]"
+      );
+      const createdOrder = storedOrders[0]; // Most recent order (added at beginning)
 
       // Update inventory stock
       orderData.products.forEach((product) => {
@@ -34,8 +40,15 @@ const NewSalesOrder = () => {
       // Show success message
       toast.success(t("orderCreatedSuccessfully"));
 
-      // Navigate to orders list
-      navigate("/seller/orders");
+      // Navigate to checkout page with order data including ID
+      navigate("/seller/checkout", {
+        state: {
+          orderData: {
+            ...orderData,
+            id: createdOrder?.id || `ORD-${Date.now()}`, // Fallback
+          },
+        },
+      });
     } catch (error) {
       console.error("Error creating order:", error);
       toast.error(t("errorCreatingOrder"));

@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from "react";
-import { useSelector, useDispatch } from "react-redux";
+import { useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { X, Check, Package, Tag, DollarSign, Truck } from "lucide-react";
 import FormField from "./FormField";
-import { addProduct, updateProduct } from "../../store/slices/inventorySlice";
+import {
+  addProduct as addProductToStorage,
+  updateProduct as updateProductInStorage,
+  saveFormDraft,
+  getFormDraft,
+  clearFormDraft,
+} from "../../utils/localStorage";
 
 const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
-  const dispatch = useDispatch();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -25,7 +30,7 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Initialize form data when editing
+  // Load form draft or product data when component mounts
   useEffect(() => {
     if (product && mode === "edit") {
       setFormData({
@@ -39,22 +44,52 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
         sku: product.sku || "",
         description: product.description || "",
       });
-    } else {
-      // Reset form for create mode
-      setFormData({
-        name: "",
-        nameEn: "",
-        category: "",
-        stock: "",
-        minStock: "",
-        price: "",
-        supplier: "",
-        sku: "",
-        description: "",
-      });
+    } else if (mode === "create") {
+      // Try to load draft for new product form
+      const draft = getFormDraft("product_create");
+      if (draft) {
+        setFormData({
+          name: draft.name || "",
+          nameEn: draft.nameEn || "",
+          category: draft.category || "",
+          stock: draft.stock || "",
+          minStock: draft.minStock || "",
+          price: draft.price || "",
+          supplier: draft.supplier || "",
+          sku: draft.sku || "",
+          description: draft.description || "",
+        });
+      } else {
+        // Reset form for new product
+        setFormData({
+          name: "",
+          nameEn: "",
+          category: "",
+          stock: "",
+          minStock: "",
+          price: "",
+          supplier: "",
+          sku: "",
+          description: "",
+        });
+      }
     }
     setErrors({});
   }, [product, mode, isOpen]);
+
+  // Auto-save form draft when form data changes (for create mode only)
+  useEffect(() => {
+    if (mode === "create" && isOpen) {
+      const timeoutId = setTimeout(() => {
+        // Only save if form has some data
+        if (formData.name || formData.nameEn || formData.category) {
+          saveFormDraft("product_create", formData);
+        }
+      }, 1000); // Save after 1 second of inactivity
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [formData, mode, isOpen]);
 
   const categoryOptions = [
     { value: "main", label: t("mainCourse") },
@@ -127,22 +162,64 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
       };
 
       if (mode === "edit" && product) {
-        dispatch(
-          updateProduct({
-            productId: product.id,
-            updates: productData,
-          })
-        );
+        // Update existing product in local storage
+        updateProductInStorage(product.id, productData);
       } else {
-        dispatch(addProduct(productData));
+        // Add new product to local storage
+        addProductToStorage(productData);
+        // Clear the form draft after successful submission
+        clearFormDraft("product_create");
+      }
+
+      // Reset form if creating new product
+      if (mode === "create") {
+        setFormData({
+          name: "",
+          nameEn: "",
+          category: "",
+          stock: "",
+          minStock: "",
+          price: "",
+          supplier: "",
+          sku: "",
+          description: "",
+        });
+        setErrors({});
       }
 
       onClose();
     } catch (error) {
       console.error("Error saving product:", error);
+      setErrors({ submit: t("errorSavingProduct") });
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleClose = () => {
+    // Save draft before closing if in create mode and form has data
+    if (
+      mode === "create" &&
+      (formData.name || formData.nameEn || formData.category)
+    ) {
+      saveFormDraft("product_create", formData);
+    }
+    onClose();
+  };
+
+  const clearDraft = () => {
+    clearFormDraft("product_create");
+    setFormData({
+      name: "",
+      nameEn: "",
+      category: "",
+      stock: "",
+      minStock: "",
+      price: "",
+      supplier: "",
+      sku: "",
+      description: "",
+    });
   };
 
   if (!isOpen) return null;
@@ -176,15 +253,35 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
                 </p>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              disabled={isSubmitting}
-            >
-              <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-            </button>
+            <div className="flex items-center gap-2">
+              {mode === "create" && getFormDraft("product_create") && (
+                <button
+                  onClick={clearDraft}
+                  className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                  title={t("clearDraft")}
+                >
+                  {t("clearDraft")}
+                </button>
+              )}
+              <button
+                onClick={handleClose}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                disabled={isSubmitting}
+              >
+                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Draft indicator */}
+        {mode === "create" && getFormDraft("product_create") && (
+          <div className="px-6 py-2 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800">
+            <p className="text-sm text-blue-600 dark:text-blue-400">
+              📝 {t("draftRestored")} - {t("formDataSavedAutomatically")}
+            </p>
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -309,6 +406,15 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
             </div>
           </div>
 
+          {/* Error Message */}
+          {errors.submit && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <span className="text-sm text-red-600 dark:text-red-400">
+                {errors.submit}
+              </span>
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div
             className={`flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700 ${
@@ -322,7 +428,11 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
                 isRTL ? "flex-row-reverse" : ""
               }`}
             >
-              <Check className="w-4 h-4" />
+              {isSubmitting ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Check className="w-4 h-4" />
+              )}
               {isSubmitting
                 ? t("saving")
                 : mode === "edit"
@@ -331,7 +441,7 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
             </button>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               disabled={isSubmitting}
               className={`flex items-center gap-2 px-6 py-2 bg-gray-600 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-700 dark:hover:bg-gray-600 transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed ${
                 isRTL ? "flex-row-reverse" : ""

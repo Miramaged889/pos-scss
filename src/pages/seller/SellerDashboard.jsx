@@ -20,6 +20,7 @@ import { useAutoRefresh } from "../../hooks";
 // Import seller components
 import SellerHome from "./components/SellerHome";
 import NewSalesOrder from "./components/NewSalesOrder";
+import CheckoutPage from "./components/CheckoutPage";
 import OrdersList from "./components/OrdersList";
 import InventoryManagement from "./components/InventoryManagement";
 import CustomerManagement from "./components/CustomerManagement";
@@ -70,9 +71,9 @@ const SellerDashboard = () => {
       current: false,
     },
     {
-      name: t("payments"),
+      name: t("invoices"),
       icon: CreditCard,
-      href: "/seller/payments",
+      href: "/seller/invoices",
       current: false,
     },
     {
@@ -106,10 +107,11 @@ const SellerDashboard = () => {
       <Routes>
         <Route path="/" element={<SellerHome />} />
         <Route path="/new-order" element={<NewSalesOrder />} />
+        <Route path="/checkout" element={<CheckoutPage />} />
         <Route path="/orders" element={<OrdersList />} />
         <Route path="/inventory" element={<InventoryManagement />} />
         <Route path="/customers" element={<CustomerManagement />} />
-        <Route path="/payments" element={<PaymentManagement />} />
+        <Route path="/invoices" element={<PaymentManagement />} />
         <Route path="/returns" element={<ReturnsManagement />} />
         <Route path="/supplier-purchase" element={<SupplierPurchase />} />
         <Route path="/reports" element={<SalesReports />} />

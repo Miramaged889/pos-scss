@@ -57,7 +57,7 @@ const StatsCard = ({
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg dark:hover:shadow-xl transition-all duration-300 hover:scale-[1.02] group">
       <div
         className={`flex items-center justify-between ${
-          isRTL ? "flex-row-reverse" : ""
+          isRTL ? "flex-row" : ""
         }`}
       >
         <div className="flex-1">
@@ -78,7 +78,7 @@ const StatsCard = ({
           {change && (
             <div
               className={`flex items-center mt-2 ${
-                isRTL ? "justify-end" : "justify-start"
+                isRTL ? "justify-start" : "justify-start"
               }`}
             >
               <div
@@ -119,7 +119,7 @@ const StatsCard = ({
           className={`p-3 rounded-xl ${selectedColor.bg} ${
             selectedColor.border
           } border group-hover:scale-110 transition-all duration-300 ${
-            isRTL ? "ml-4" : "mr-0"
+            isRTL ? "ml-0" : "mr-0"
           }`}
         >
           <Icon className={`w-6 h-6 ${selectedColor.icon}`} />

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import {
@@ -24,7 +24,11 @@ import {
   formatDateTimeEnglish,
   formatNumberEnglish,
 } from "../../../utils";
-import { deleteOrder, updateOrder } from "../../../store/slices/ordersSlice";
+import {
+  deleteOrder,
+  updateOrder,
+  loadOrdersFromStorage,
+} from "../../../store/slices/ordersSlice";
 
 const OrdersList = () => {
   const { t } = useTranslation();
@@ -40,13 +44,20 @@ const OrdersList = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editFormData, setEditFormData] = useState({});
 
+  // Load orders from localStorage on component mount
+  useEffect(() => {
+    dispatch(loadOrdersFromStorage());
+  }, [dispatch]);
+
   // Filter orders based on status and search term
   const filteredOrders = orders.filter((order) => {
     const matchesStatus =
       statusFilter === "all" || order.status === statusFilter;
     const matchesSearch =
-      order.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.id.toString().includes(searchTerm);
+      order.customer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.phone?.includes(searchTerm) ||
+      (order.id &&
+        order.id.toString().toLowerCase().includes(searchTerm.toLowerCase()));
     return matchesStatus && matchesSearch;
   });
 
@@ -148,8 +159,8 @@ const OrdersList = () => {
       accessor: "id",
       render: (order) => (
         <div className={`${isRTL ? "text-right" : "text-center"}`}>
-          <span className="font-mono text-sm font-medium text-blue-600 dark:text-blue-400">
-            #{formatNumberEnglish(order.id)}
+          <span className="font-mono text-sm font-bold text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded border border-blue-200 dark:border-blue-800">
+            {order.id}
           </span>
         </div>
       ),

@@ -12,3 +12,6 @@ export const store = configureStore({
     inventory: inventorySlice,
   },
 });
+
+// Export as default for easier importing
+export default store;

@@ -19,6 +19,27 @@ export const isValidSaudiPhone = (phone) => {
 };
 
 /**
+ * Validate international phone number (general validation)
+ * @param {string} phone - The phone number to validate
+ * @returns {boolean} - True if valid, false otherwise
+ */
+export const isValidPhone = (phone) => {
+  // Remove all non-digit characters except +
+  const cleaned = phone.replace(/[^\d+]/g, "");
+
+  // Check for international format (+XXX...) or local format
+  const internationalRegex = /^\+\d{10,15}$/; // International format
+  const localRegex = /^\d{10,15}$/; // Local format
+  const saudiRegex = /^((\+966)|0)?5\d{8}$/; // Saudi specific
+
+  return (
+    internationalRegex.test(cleaned) ||
+    localRegex.test(cleaned) ||
+    saudiRegex.test(phone.replace(/\s/g, ""))
+  );
+};
+
+/**
  * Validate required field
  * @param {*} value - The value to validate
  * @returns {boolean} - True if valid, false otherwise

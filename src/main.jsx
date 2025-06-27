@@ -1,11 +1,19 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { Provider } from "react-redux";
 import App from "./App.jsx";
+import store from "./store";
 import "./index.css";
 import "./i18n";
+import { initializeDefaultData } from "./utils/localStorage";
+
+// Initialize default data in localStorage if not present
+initializeDefaultData();
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <App />
+    <Provider store={store}>
+      <App />
+    </Provider>
   </React.StrictMode>
 );

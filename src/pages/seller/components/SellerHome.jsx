@@ -112,7 +112,11 @@ const SellerHome = () => {
     {
       header: t("orderId"),
       accessor: "id",
-      render: (order) => `#${formatNumberEnglish(order.id)}`,
+      render: (order) => (
+        <span className="font-mono text-sm font-bold text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded border border-blue-200 dark:border-blue-800">
+          {order.id}
+        </span>
+      ),
     },
     {
       header: t("customer"),
