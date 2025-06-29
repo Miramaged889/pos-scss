@@ -16,16 +16,15 @@ import { getFromStorage as getFromLocalStorage } from "../../../utils/localStora
 
 const KitchenHome = () => {
   const { t } = useTranslation();
-  const { theme, currentLanguage } = useSelector((state) => state.language);
+  const { theme, currentLanguage, isRTL } = useSelector(
+    (state) => state.language
+  );
   const [orders, setOrders] = useState([]);
   const [kitchenSettings, setKitchenSettings] = useState({});
 
   // Format number based on language
   const formatNumber = (num) => {
-    if (currentLanguage === "ar") {
-      return num.toLocaleString("ar-SA");
-    }
-    return num.toString();
+    return num.toLocaleString(isRTL ? "ar-SA" : "en-US");
   };
 
   // Load kitchen settings and orders from localStorage
@@ -115,19 +114,26 @@ const KitchenHome = () => {
   ];
 
   return (
-    <div className={`space-y-6 ${theme === "dark" ? "dark" : ""}`}>
+    <div
+      className={`space-y-6 ${theme === "dark" ? "dark" : ""}`}
+      dir={isRTL ? "rtl" : "ltr"}
+    >
       {/* Auto-refresh notification */}
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center">
-            <RefreshCw className="w-5 h-5 text-blue-600 dark:text-blue-400 mr-2" />
+            <RefreshCw
+              className={`w-5 h-5 text-blue-600 dark:text-blue-400 ${
+                isRTL ? "ml-2" : "mr-2"
+              }`}
+            />
             <span className="text-sm text-blue-800 dark:text-blue-200">
               {t("autoRefreshNotification")}
             </span>
           </div>
           {priorityOrders.length > 0 && kitchenSettings.showPriorityAlerts && (
             <div className="flex items-center text-red-600 dark:text-red-400">
-              <AlertTriangle className="w-4 h-4 mr-1" />
+              <AlertTriangle className={`w-4 h-4 ${isRTL ? "ml-1" : "mr-1"}`} />
               <span className="text-sm font-medium">
                 {formatNumber(priorityOrders.length)} {t("priorityOrders")}
               </span>
@@ -189,13 +195,25 @@ const KitchenHome = () => {
             {t("quickActions")}
           </h4>
           <div className="space-y-2">
-            <button className="w-full text-left px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors">
+            <button
+              className={`w-full text-${
+                isRTL ? "right" : "left"
+              } px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors`}
+            >
               {t("markAllReady")}
             </button>
-            <button className="w-full text-left px-3 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors">
+            <button
+              className={`w-full text-${
+                isRTL ? "right" : "left"
+              } px-3 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors`}
+            >
               {t("printTodayOrders")}
             </button>
-            <button className="w-full text-left px-3 py-2 text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors">
+            <button
+              className={`w-full text-${
+                isRTL ? "right" : "left"
+              } px-3 py-2 text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors`}
+            >
               {t("exportReport")}
             </button>
           </div>
@@ -226,7 +244,9 @@ const KitchenHome = () => {
       </div>
 
       {/* Today's Orders Overview */}
-      <TodaysOrders isHome={true} />
+      <div aria-label={t("todayOrdersOverview")}>
+        <TodaysOrders isHome={true} />
+      </div>
     </div>
   );
 };

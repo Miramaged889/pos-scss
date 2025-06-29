@@ -16,7 +16,7 @@ import {
   Check,
   AlertTriangle,
 } from "lucide-react";
-
+import { Link } from "react-router-dom";
 import DataTable from "../../../components/Common/DataTable";
 import StatsCard from "../../../components/Common/StatsCard";
 import {
@@ -328,14 +328,15 @@ const OrdersList = () => {
             {t("manageAllCustomerOrders")}
           </p>
         </div>
-        <button
+        <Link
+          to="/seller/new-order"
           className={`inline-flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-all duration-200 hover:scale-105 shadow-md ${
             isRTL ? "flex-row" : ""
           }`}
         >
           <Plus className="w-4 h-4" />
           {t("newOrder")}
-        </button>
+        </Link>
       </div>
 
       {/* Stats */}

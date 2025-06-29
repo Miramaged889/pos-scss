@@ -248,7 +248,7 @@ const CustomerForm = ({
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
           <div
             className={`flex items-center gap-3 ${
-              isRTL ? "flex-row-reverse" : ""
+              isRTL ? "flex-row" : ""
             }`}
           >
             <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
@@ -429,7 +429,7 @@ const CustomerForm = ({
                 <label
                   htmlFor="vip"
                   className={`flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer ${
-                    isRTL ? "flex-row-reverse" : ""
+                    isRTL ? "flex-row" : ""
                   }`}
                 >
                   <Star className="w-4 h-4 text-yellow-500" />
@@ -464,7 +464,7 @@ const CustomerForm = ({
           {/* Actions */}
           <div
             className={`flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700 ${
-              isRTL ? "flex-row-reverse" : ""
+            isRTL ? "flex-row" : ""
             }`}
           >
             <button
@@ -478,7 +478,7 @@ const CustomerForm = ({
               type="submit"
               disabled={isLoading}
               className={`flex-1 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
-                isRTL ? "flex-row-reverse" : ""
+                isRTL ? "flex-row" : ""
               }`}
             >
               {isLoading ? (

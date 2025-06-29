@@ -231,12 +231,12 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div
             className={`flex items-center justify-between ${
-              isRTL ? "flex-row-reverse" : ""
+              isRTL ? "flex-row" : ""
             }`}
           >
             <div
               className={`flex items-center gap-3 ${
-                isRTL ? "flex-row-reverse" : ""
+                isRTL ? "flex-row" : ""
               }`}
             >
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 dark:from-blue-600 dark:to-purple-700 rounded-lg flex items-center justify-center shadow-md">
@@ -335,7 +335,7 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
           <div>
             <h4
               className={`text-lg font-medium text-gray-900 dark:text-white mb-4 flex items-center gap-2 ${
-                isRTL ? "text-right flex-row-reverse" : "text-left"
+                isRTL ? "text-right flex-row" : "text-left"
               }`}
             >
               <Tag className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -380,7 +380,7 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
           <div>
             <h4
               className={`text-lg font-medium text-gray-900 dark:text-white mb-4 flex items-center gap-2 ${
-                isRTL ? "text-right flex-row-reverse" : "text-left"
+                isRTL ? "text-right flex-row" : "text-left"
               }`}
             >
               <Truck className="w-5 h-5 text-green-600 dark:text-green-400" />
@@ -418,14 +418,14 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
           {/* Action Buttons */}
           <div
             className={`flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700 ${
-              isRTL ? "flex-row-reverse" : ""
+              isRTL ? "flex-row" : ""
             }`}
           >
             <button
               type="submit"
               disabled={isSubmitting}
               className={`flex items-center gap-2 px-6 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed ${
-                isRTL ? "flex-row-reverse" : ""
+                isRTL ? "flex-row" : ""
               }`}
             >
               {isSubmitting ? (
@@ -444,7 +444,7 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
               onClick={handleClose}
               disabled={isSubmitting}
               className={`flex items-center gap-2 px-6 py-2 bg-gray-600 dark:bg-gray-700 text-white rounded-lg hover:bg-gray-700 dark:hover:bg-gray-600 transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed ${
-                isRTL ? "flex-row-reverse" : ""
+                isRTL ? "flex-row" : ""
               }`}
             >
               <X className="w-4 h-4" />

@@ -259,7 +259,7 @@ const OrderForm = ({
         <div className="flex items-center justify-between mb-6">
           <div
             className={`flex items-center gap-3 ${
-              isRTL ? "flex-row-reverse" : ""
+              isRTL ? "flex-row" : ""
             }`}
           >
             <ShoppingCart className="w-6 h-6 text-blue-600 dark:text-blue-400" />
@@ -343,7 +343,7 @@ const OrderForm = ({
           <div>
             <div
               className={`flex items-center justify-between mb-4 ${
-                isRTL ? "flex-row-reverse" : ""
+                isRTL ? "flex-row" : ""
               }`}
             >
               <h3 className="text-lg font-medium text-gray-900 dark:text-white">
@@ -353,7 +353,7 @@ const OrderForm = ({
                 type="button"
                 onClick={addOrderItem}
                 className={`flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors ${
-                  isRTL ? "flex-row-reverse" : ""
+                  isRTL ? "flex-row" : ""
                 }`}
               >
                 <Plus className="w-4 h-4" />
@@ -485,7 +485,7 @@ const OrderForm = ({
           {/* Submit */}
           <div
             className={`flex justify-end gap-4 ${
-              isRTL ? "flex-row-reverse" : "flex-row"
+              isRTL ? "flex-row" : "flex-row"
             }`}
           >
             {onClose && (

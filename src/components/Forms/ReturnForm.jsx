@@ -290,7 +290,7 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
             }
             error={errors.description}
             required
-            placeholder={t("describeIssueDetail")}
+            placeholder={t("desribelssueDetails")}
             rows={3}
           />
 
