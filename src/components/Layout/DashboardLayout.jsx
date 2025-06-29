@@ -105,9 +105,7 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
       if (sellerProfileData) {
         const sellerProfile = JSON.parse(sellerProfileData);
 
-        console.log("sellerProfile from localStorage:", sellerProfile);
-        console.log("Current user email:", user?.email);
-
+ 
         let profile = null;
 
         // Handle both object and array formats
