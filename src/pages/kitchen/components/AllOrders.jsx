@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
 import {
@@ -22,15 +22,15 @@ const AllOrders = () => {
   const [dateRange, setDateRange] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
 
-  useEffect(() => {
-    loadOrders();
-  }, []);
-
-  const loadOrders = () => {
+  const loadOrders = useCallback(() => {
     const allOrders = getOrders();
     setOrders(allOrders);
     applyFilters(allOrders, searchTerm, statusFilter, dateRange, sortBy);
-  };
+  }, [searchTerm, statusFilter, dateRange, sortBy]);
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
 
   const applyFilters = (ordersList, search, status, date, sort) => {
     let filtered = [...ordersList];

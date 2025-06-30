@@ -13,6 +13,8 @@ const generateMockInventory = () => [
     supplier: "مؤسسة اللحوم الطازجة",
     sku: "BF001",
     description: "برجر لحم طازج مع الخضار",
+    imageUrl:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
     lastUpdated: new Date().toISOString(),
   },
   {
@@ -26,6 +28,8 @@ const generateMockInventory = () => [
     supplier: "مزرعة الدواجن الذهبية",
     sku: "GC002",
     description: "دجاج مشوي مع التوابل الخاصة",
+    imageUrl:
+      "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?w=500",
     lastUpdated: new Date().toISOString(),
   },
   {
@@ -39,6 +43,8 @@ const generateMockInventory = () => [
     supplier: "مطعم الإيطالي",
     sku: "PZ003",
     description: "بيتزا بالجبن والطماطم والريحان",
+    imageUrl:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
     lastUpdated: new Date().toISOString(),
   },
   {
@@ -52,6 +58,8 @@ const generateMockInventory = () => [
     supplier: "مطعم الإيطالي",
     sku: "PA004",
     description: "معكرونة بالكريمة واللحم المقدد",
+    imageUrl:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
     lastUpdated: new Date().toISOString(),
   },
   {
@@ -65,6 +73,8 @@ const generateMockInventory = () => [
     supplier: "شركة المأكولات البحرية",
     sku: "FS005",
     description: "سمك سلمون طازج مشوي مع الليمون",
+    imageUrl:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
     lastUpdated: new Date().toISOString(),
   },
 
@@ -80,6 +90,8 @@ const generateMockInventory = () => [
     supplier: "مستودع الخضار",
     sku: "FF006",
     description: "بطاطس مقلية ذهبية مقرمشة",
+    imageUrl:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
     lastUpdated: new Date().toISOString(),
   },
   {
@@ -93,6 +105,8 @@ const generateMockInventory = () => [
     supplier: "مستودع الخضار",
     sku: "GS007",
     description: "سلطة خضار طازجة مشكلة",
+    imageUrl:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
     lastUpdated: new Date().toISOString(),
   },
   {
@@ -106,6 +120,8 @@ const generateMockInventory = () => [
     supplier: "مطبخ التوابل",
     sku: "SR008",
     description: "أرز أبيض بالزعفران الفاخر",
+    imageUrl:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
     lastUpdated: new Date().toISOString(),
   },
   {
@@ -117,6 +133,8 @@ const generateMockInventory = () => [
     minStock: 15,
     price: 12,
     supplier: "مخبز الأصالة",
+    imageUrl:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
     sku: "GB009",
     description: "خبز محمص بالثوم والأعشاب",
     lastUpdated: new Date().toISOString(),
@@ -134,6 +152,8 @@ const generateMockInventory = () => [
     supplier: "مصنع العصائر الطبيعية",
     sku: "OJ010",
     description: "عصير برتقال طبيعي 100%",
+    imageUrl:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
     lastUpdated: new Date().toISOString(),
   },
   {
@@ -147,6 +167,8 @@ const generateMockInventory = () => [
     supplier: "محمصة القهوة الذهبية",
     sku: "AC011",
     description: "قهوة عربية أصيلة بالهيل",
+    imageUrl:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
     lastUpdated: new Date().toISOString(),
   },
   {
@@ -160,6 +182,8 @@ const generateMockInventory = () => [
     supplier: "مصنع العصائر الطبيعية",
     sku: "MJ012",
     description: "عصير مانجو طبيعي بدون إضافات",
+    imageUrl:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
     lastUpdated: new Date().toISOString(),
   },
   {
@@ -173,6 +197,8 @@ const generateMockInventory = () => [
     supplier: "شركة الشاي الفاخر",
     sku: "GT013",
     description: "شاي أخضر عضوي عالي الجودة",
+    imageUrl:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
     lastUpdated: new Date().toISOString(),
   },
   {
@@ -186,6 +212,8 @@ const generateMockInventory = () => [
     supplier: "شركة المياه الصافية",
     sku: "MW014",
     description: "مياه معدنية طبيعية",
+    imageUrl:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
     lastUpdated: new Date().toISOString(),
   },
 
@@ -201,6 +229,8 @@ const generateMockInventory = () => [
     supplier: "مطعم الإيطالي",
     sku: "TR015",
     description: "حلوى تيراميسو إيطالية أصيلة",
+    imageUrl:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
     lastUpdated: new Date().toISOString(),
   },
   {
@@ -214,7 +244,9 @@ const generateMockInventory = () => [
     supplier: "حلويات الشام",
     sku: "NK016",
     description: "كنافة نابلسية بالجبن الأبيض",
-    lastUpdated: new Date().toISOString(),
+    imageUrl:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
+      lastUpdated: new Date().toISOString(),
   },
   {
     id: 17,
@@ -227,6 +259,8 @@ const generateMockInventory = () => [
     supplier: "مصنع الآيس كريم",
     sku: "VI017",
     description: "آيس كريم فانيليا كريمي",
+    imageUrl:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
     lastUpdated: new Date().toISOString(),
   },
   {
@@ -240,6 +274,8 @@ const generateMockInventory = () => [
     supplier: "مخبز الحلويات الفاخرة",
     sku: "CC018",
     description: "كيك شوكولاتة غني وطري",
+    imageUrl:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
     lastUpdated: new Date().toISOString(),
   },
   {
@@ -253,6 +289,8 @@ const generateMockInventory = () => [
     supplier: "حلويات الشام",
     sku: "BK019",
     description: "بقلاوة شرقية بالفستق والعسل",
+    imageUrl:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
     lastUpdated: new Date().toISOString(),
   },
   {
@@ -266,7 +304,9 @@ const generateMockInventory = () => [
     supplier: "حلويات الشام",
     sku: "MH020",
     description: "مهلبية تقليدية بالورد والفستق",
-    lastUpdated: new Date().toISOString(),
+    imageUrl:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
+      lastUpdated: new Date().toISOString(),
   },
 ];
 

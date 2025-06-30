@@ -335,13 +335,6 @@ const CustomerForm = ({
                 required
               />
 
-              <FormField
-                label={t("company")}
-                type="text"
-                value={formData.company}
-                onChange={handleFieldChange("company")}
-                placeholder={t("enterCompanyName")}
-              />
 
               <div className="md:col-span-2">
                 <FormField

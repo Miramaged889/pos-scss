@@ -88,10 +88,6 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.supplier.trim()) {
-      newErrors.supplier = t("supplierRequired");
-    }
-
     if (!formData.expectedDelivery) {
       newErrors.expectedDelivery = t("expectedDeliveryRequired");
     }
@@ -181,7 +177,7 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
           {/* Supplier and Delivery Info */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <FormField
-              label={t("supplier")}
+              label={`${t("supplier")} (${t("optional")})`}
               name="supplier"
               type="select"
               value={formData.supplier}
@@ -189,7 +185,6 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
                 setFormData((prev) => ({ ...prev, supplier: e.target.value }))
               }
               error={errors.supplier}
-              required
               icon={<Building className="w-4 h-4" />}
               options={[
                 { value: "", label: t("selectSupplier") },

@@ -5,6 +5,7 @@ import { TrendingUp, TrendingDown } from "lucide-react";
 const StatsCard = ({
   title,
   value,
+  // eslint-disable-next-line no-unused-vars
   icon: Icon,
   change,
   changeText,
@@ -78,15 +79,11 @@ const StatsCard = ({
           </p>
           {(change !== undefined || subtitle) && (
             <div
-              className={`flex items-center mt-2 ${
-                isRTL ? "flex-row" : ""
-              }`}
+              className={`flex items-center mt-2 ${isRTL ? "flex-row" : ""}`}
             >
               {change !== undefined && (
                 <div
-                  className={`flex items-center ${
-                    isRTL ? "flex-row" : ""
-                  } ${
+                  className={`flex items-center ${isRTL ? "flex-row" : ""} ${
                     trend === "up"
                       ? "text-green-600 dark:text-green-400"
                       : "text-red-600 dark:text-red-400"

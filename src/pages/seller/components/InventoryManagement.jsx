@@ -30,6 +30,7 @@ const InventoryManagement = () => {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
@@ -39,7 +40,7 @@ const InventoryManagement = () => {
   // Calculate inventory stats
   const totalProducts = products.length;
   const lowStockProducts = products.filter(
-    (product) => product.stock <= product.minStock
+    (product) => product.stock <= product.minStock && product.stock > 0
   );
   const outOfStockProducts = products.filter((product) => product.stock === 0);
   const totalValue = products.reduce(
@@ -53,9 +54,26 @@ const InventoryManagement = () => {
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.nameEn?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.sku?.toLowerCase().includes(searchTerm.toLowerCase());
+
     const matchesCategory =
       categoryFilter === "all" || product.category === categoryFilter;
-    return matchesSearch && matchesCategory;
+
+    let matchesStatus = true;
+    switch (statusFilter) {
+      case "inStock":
+        matchesStatus = product.stock > product.minStock;
+        break;
+      case "lowStock":
+        matchesStatus = product.stock <= product.minStock && product.stock > 0;
+        break;
+      case "outOfStock":
+        matchesStatus = product.stock === 0;
+        break;
+      default:
+        matchesStatus = true;
+    }
+
+    return matchesSearch && matchesCategory && matchesStatus;
   });
 
   const categories = [
@@ -64,6 +82,13 @@ const InventoryManagement = () => {
     { value: "side", label: t("sideDish") },
     { value: "beverages", label: t("beverages") },
     { value: "desserts", label: t("desserts") },
+  ];
+
+  const statusOptions = [
+    { value: "all", label: t("allStatus") },
+    { value: "inStock", label: t("inStock") },
+    { value: "lowStock", label: t("lowStock") },
+    { value: "outOfStock", label: t("outOfStock") },
   ];
 
   // Handle actions
@@ -164,9 +189,17 @@ const InventoryManagement = () => {
       accessor: "name",
       render: (product) => (
         <div className={`flex items-center gap-3 ${isRTL ? "flex-row" : ""}`}>
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 dark:from-blue-600 dark:to-purple-700 rounded-lg flex items-center justify-center shadow-md flex-shrink-0">
-            <Package className="w-5 h-5 text-white" />
-          </div>
+          {product.imageUrl ? (
+            <img
+              src={product.imageUrl}
+              alt={product.name}
+              className="w-10 h-10 rounded-lg object-cover shadow-md flex-shrink-0"
+            />
+          ) : (
+            <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center flex-shrink-0">
+              <span className="text-gray-400 dark:text-gray-500">?</span>
+            </div>
+          )}
           <div
             className={`min-w-0 flex-1 ${isRTL ? "text-right" : "text-left"}`}
           >
@@ -354,6 +387,7 @@ const InventoryManagement = () => {
             isRTL ? "sm:flex-row-reverse" : ""
           }`}
         >
+          {/* Search Input */}
           <div className="flex-1">
             <div className="relative">
               <Search
@@ -372,6 +406,8 @@ const InventoryManagement = () => {
               />
             </div>
           </div>
+
+          {/* Category Filter */}
           <div className="sm:w-48">
             <div className="relative">
               <Filter
@@ -389,6 +425,30 @@ const InventoryManagement = () => {
                 {categories.map((category) => (
                   <option key={category.value} value={category.value}>
                     {category.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Status Filter */}
+          <div className="sm:w-48">
+            <div className="relative">
+              <AlertTriangle
+                className={`absolute top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-4 h-4 ${
+                  isRTL ? "right-3" : "left-3"
+                }`}
+              />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className={`w-full py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all duration-200 appearance-none ${
+                  isRTL ? "pr-10 pl-4 text-right" : "pl-10 pr-4 text-left"
+                }`}
+              >
+                {statusOptions.map((status) => (
+                  <option key={status.value} value={status.value}>
+                    {status.label}
                   </option>
                 ))}
               </select>

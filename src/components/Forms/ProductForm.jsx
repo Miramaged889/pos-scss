@@ -25,8 +25,10 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
     supplier: "",
     sku: "",
     description: "",
+    imageUrl: "",
   });
 
+  const [imagePreview, setImagePreview] = useState(null);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -43,7 +45,9 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
         supplier: product.supplier || "",
         sku: product.sku || "",
         description: product.description || "",
+        imageUrl: product.imageUrl || "",
       });
+      setImagePreview(product.imageUrl || null);
     } else if (mode === "create") {
       // Try to load draft for new product form
       const draft = getFormDraft("product_create");
@@ -58,7 +62,9 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
           supplier: draft.supplier || "",
           sku: draft.sku || "",
           description: draft.description || "",
+          imageUrl: draft.imageUrl || "",
         });
+        setImagePreview(draft.imageUrl || null);
       } else {
         // Reset form for new product
         setFormData({
@@ -71,7 +77,9 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
           supplier: "",
           sku: "",
           description: "",
+          imageUrl: "",
         });
+        setImagePreview(null);
       }
     }
     setErrors({});
@@ -108,6 +116,19 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
     }
   };
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result;
+        setFormData((prev) => ({ ...prev, imageUrl: base64String }));
+        setImagePreview(base64String);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const validateForm = () => {
     const newErrors = {};
 
@@ -135,6 +156,10 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
       newErrors.price = t("validPriceRequired");
     }
 
+    if (!formData.imageUrl) {
+      newErrors.imageUrl = t("productImageRequired");
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -159,6 +184,7 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
         supplier: formData.supplier.trim() || null,
         sku: formData.sku.trim() || null,
         description: formData.description.trim() || null,
+        imageUrl: formData.imageUrl || null,
       };
 
       if (mode === "edit" && product) {
@@ -183,6 +209,7 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
           supplier: "",
           sku: "",
           description: "",
+          imageUrl: "",
         });
         setErrors({});
       }
@@ -219,6 +246,7 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
       supplier: "",
       sku: "",
       description: "",
+      imageUrl: "",
     });
   };
 
@@ -235,12 +263,10 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
             }`}
           >
             <div
-              className={`flex items-center gap-3 ${
-                isRTL ? "flex-row" : ""
-              }`}
+              className={`flex items-center gap-3 ${isRTL ? "flex-row" : ""}`}
             >
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 dark:from-blue-600 dark:to-purple-700 rounded-lg flex items-center justify-center shadow-md">
-                <Package className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
+                <Package className="w-6 h-6 text-blue-600 dark:text-blue-400" />
               </div>
               <div className={isRTL ? "text-right" : "text-left"}>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -285,6 +311,60 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Image Upload Section */}
+          <div className="space-y-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              {t("productImage")}
+            </label>
+            <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-gray-400 dark:hover:border-gray-500 transition-colors">
+              {imagePreview ? (
+                <div className="relative group">
+                  <img
+                    src={imagePreview}
+                    alt="Product preview"
+                    className="max-h-48 rounded-lg object-contain"
+                  />
+                  <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImagePreview(null);
+                        setFormData((prev) => ({ ...prev, imageUrl: "" }));
+                      }}
+                      className="text-white hover:text-red-500 transition-colors"
+                    >
+                      {t("remove")}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                    id="product-image"
+                  />
+                  <label
+                    htmlFor="product-image"
+                    className="cursor-pointer text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                  >
+                    {t("uploadImage")}
+                  </label>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    {t("dragAndDropOrClick")}
+                  </p>
+                </div>
+              )}
+            </div>
+            {errors.imageUrl && (
+              <p className="text-sm text-red-600 dark:text-red-400">
+                {errors.imageUrl}
+              </p>
+            )}
+          </div>
+
           {/* Basic Information */}
           <div>
             <h4
