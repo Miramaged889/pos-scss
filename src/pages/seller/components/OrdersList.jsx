@@ -29,6 +29,13 @@ import {
   updateOrder,
   loadOrdersFromStorage,
 } from "../../../store/slices/ordersSlice";
+import { getFromStorage, setToStorage } from "../../../utils/localStorage";
+
+// Constants for localStorage keys
+const STORAGE_KEYS = {
+  ORDERS: "sales_app_orders",
+  CUSTOMERS: "sales_app_customers",
+};
 
 const OrdersList = () => {
   const { t } = useTranslation();
@@ -96,9 +103,55 @@ const OrdersList = () => {
     setShowDeleteModal(true);
   };
 
-  // Save edited order
+  // Helper function to ensure customer exists
+  const ensureCustomerExists = (orderData) => {
+    const customers = getFromStorage(STORAGE_KEYS.CUSTOMERS, []);
+    const customerExists = customers.some(
+      (c) =>
+        (c.name &&
+          orderData.customer &&
+          c.name.toLowerCase() === orderData.customer.toLowerCase()) ||
+        (c.phone && orderData.phone && c.phone === orderData.phone)
+    );
+
+    if (!customerExists && orderData.customer) {
+      // Generate new customer ID
+      const maxId =
+        customers.length > 0
+          ? Math.max(
+              ...customers
+                .map((c) => c.id)
+                .filter((id) => id.startsWith("CUST-"))
+                .map((id) => parseInt(id.replace("CUST-", "")) || 0)
+            )
+          : 2;
+      const newCustomerId = `CUST-${maxId + 1}`;
+
+      // Create new customer
+      const newCustomer = {
+        id: newCustomerId,
+        name: orderData.customer,
+        email: "",
+        phone: orderData.phone || "",
+        address: orderData.deliveryAddress || "",
+        company: "",
+        notes: `Auto-created from order #${orderData.id}`,
+        vip: false,
+        status: "active",
+        joinDate: orderData.createdAt || new Date().toISOString(),
+        dateOfBirth: "",
+        preferredContactMethod: "phone",
+      };
+
+      // Save updated customers list
+      setToStorage(STORAGE_KEYS.CUSTOMERS, [...customers, newCustomer]);
+    }
+  };
+
+  // Save edited order and ensure customer exists
   const handleSaveEdit = () => {
     if (selectedOrder) {
+      ensureCustomerExists(editFormData);
       dispatch(
         updateOrder({
           orderId: selectedOrder.id,

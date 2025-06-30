@@ -24,6 +24,7 @@ import {
 const WasteLog = () => {
   const { t } = useTranslation();
   const { theme } = useSelector((state) => state.language);
+  const { products } = useSelector((state) => state.inventory);
   const [wasteItems, setWasteItems] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -31,6 +32,7 @@ const WasteLog = () => {
   const [filters, setFilters] = useState({
     dateRange: "today",
     reason: "all",
+    product: "all",
   });
 
   // Load waste items from localStorage
@@ -106,7 +108,10 @@ const WasteLog = () => {
     const reasonMatch =
       filters.reason === "all" || item.reason === filters.reason;
 
-    return dateMatch && reasonMatch;
+    const productMatch =
+      filters.product === "all" || item.productId === filters.product;
+
+    return dateMatch && reasonMatch && productMatch;
   });
 
   // Calculate statistics
@@ -245,7 +250,7 @@ const WasteLog = () => {
 
       {/* Filters */}
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               {t("dateRange")}
@@ -278,6 +283,25 @@ const WasteLog = () => {
               {reasonOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {t("product")}
+            </label>
+            <select
+              value={filters.product}
+              onChange={(e) =>
+                setFilters({ ...filters, product: e.target.value })
+              }
+              className="block w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            >
+              <option value="all">{t("allProducts")}</option>
+              {products.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {`${product.name} / ${product.nameEn}`}
                 </option>
               ))}
             </select>

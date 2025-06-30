@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
@@ -23,32 +23,243 @@ import {
   formatDateTimeEnglish,
   formatNumberEnglish,
 } from "../../../utils";
+import { getFromStorage, setToStorage } from "../../../utils/localStorage";
+
+// Constants for localStorage keys
+const STORAGE_KEYS = {
+  ORDERS: "sales_app_orders",
+  CUSTOMERS: "sales_app_customers",
+  SALES_DATA: "seller_sales_data",
+  SETTINGS: "seller_settings",
+};
 
 const SellerHome = () => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
-  const { orders } = useSelector((state) => state.orders);
   const { products } = useSelector((state) => state.inventory);
 
-  // Calculate stats
-  const todayOrders = orders.filter(
-    (order) =>
-      new Date(order.createdAt).toDateString() === new Date().toDateString()
+  // State management
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [orders, setOrders] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [salesData, setSalesData] = useState({
+    todayOrders: [],
+    yesterdayOrders: [],
+    pendingOrders: [],
+    completedOrders: [],
+    todayRevenue: 0,
+    yesterdayRevenue: 0,
+    orderChange: 0,
+    revenueChange: 0,
+    avgOrderValue: 0,
+    newCustomersThisWeek: 0,
+  });
+
+  // Calculate statistics based on current data
+  const calculateStatistics = useCallback(
+    (currentOrders, currentCustomers) => {
+      try {
+        console.log("Calculating statistics with:", {
+          ordersCount: currentOrders.length,
+          customersCount: currentCustomers.length,
+          orders: currentOrders,
+          customers: currentCustomers,
+        });
+
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const weekAgo = new Date(today);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+        // Filter orders by date
+        const todayOrders = currentOrders.filter(
+          (order) =>
+            new Date(order.createdAt).toDateString() === today.toDateString()
+        );
+
+        const yesterdayOrders = currentOrders.filter(
+          (order) =>
+            new Date(order.createdAt).toDateString() ===
+            yesterday.toDateString()
+        );
+
+        const completedOrders = currentOrders.filter(
+          (order) => order.status === "completed"
+        );
+
+        const pendingOrders = currentOrders.filter(
+          (order) => order.status === "pending"
+        );
+
+        console.log("Filtered orders:", {
+          todayOrders,
+          yesterdayOrders,
+          completedOrders,
+          pendingOrders,
+        });
+
+        // Calculate revenues
+        const todayRevenue = todayOrders.reduce(
+          (sum, order) => sum + (Number(order.total) || 0),
+          0
+        );
+        const yesterdayRevenue = yesterdayOrders.reduce(
+          (sum, order) => sum + (Number(order.total) || 0),
+          0
+        );
+
+        // Calculate changes
+        const orderChange = yesterdayOrders.length
+          ? ((todayOrders.length - yesterdayOrders.length) /
+              yesterdayOrders.length) *
+            100
+          : 0;
+
+        const revenueChange = yesterdayRevenue
+          ? ((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100
+          : 0;
+
+        // Calculate new customers this week
+        const newCustomersThisWeek = currentCustomers.filter(
+          (customer) => new Date(customer.createdAt) >= weekAgo
+        ).length;
+
+        // Calculate average order value for this month
+        const thisMonthOrders = completedOrders.filter(
+          (order) => new Date(order.createdAt) >= thisMonth
+        );
+
+        console.log("This month orders:", {
+          thisMonthOrders,
+          thisMonth: thisMonth.toISOString(),
+        });
+
+        const totalOrderValue = thisMonthOrders.reduce(
+          (sum, order) => sum + (Number(order.total) || 0),
+          0
+        );
+
+        const avgOrderValue =
+          thisMonthOrders.length > 0
+            ? totalOrderValue / thisMonthOrders.length
+            : 0;
+
+        console.log("Calculations:", {
+          todayRevenue,
+          yesterdayRevenue,
+          totalOrderValue,
+          avgOrderValue,
+          customersCount: currentCustomers.length,
+          newCustomersThisWeek,
+        });
+
+        const newSalesData = {
+          todayOrders,
+          yesterdayOrders,
+          pendingOrders,
+          completedOrders,
+          todayRevenue,
+          yesterdayRevenue,
+          orderChange,
+          revenueChange,
+          avgOrderValue,
+          newCustomersThisWeek,
+        };
+
+        // Store the calculated data in localStorage
+        setToStorage(STORAGE_KEYS.SALES_DATA, newSalesData);
+
+        return newSalesData;
+      } catch (err) {
+        console.error("Error calculating statistics:", err);
+        throw new Error(t("errorCalculatingStats"));
+      }
+    },
+    [t]
   );
 
-  const completedOrders = orders.filter(
-    (order) => order.status === "completed"
-  );
+  // Load data from localStorage
+  const loadData = useCallback(async () => {
+    try {
+      setIsLoading(true);
 
-  const pendingOrders = orders.filter((order) => order.status === "pending");
+      // Load data from localStorage
+      const savedOrders = getFromStorage(STORAGE_KEYS.ORDERS, []);
+      const savedCustomers = getFromStorage(STORAGE_KEYS.CUSTOMERS, []);
 
-  const totalRevenue = completedOrders.reduce(
-    (sum, order) => sum + order.total,
-    0
-  );
+      console.log("Loaded data from localStorage:", {
+        savedOrders,
+        savedCustomers,
+      });
 
-  const todayRevenue = todayOrders.reduce((sum, order) => sum + order.total, 0);
+      // Validate and set orders
+      if (Array.isArray(savedOrders)) {
+        // Ensure all orders have proper date format and numbers
+        const validOrders = savedOrders.map((order) => ({
+          ...order,
+          createdAt: order.createdAt || new Date().toISOString(),
+          total: Number(order.total || 0),
+          status: order.status || "pending",
+        }));
+        setOrders(validOrders);
+        console.log("Validated orders:", validOrders);
+      }
 
+      // Validate and set customers
+      if (Array.isArray(savedCustomers)) {
+        // Ensure all customers have proper date format
+        const validCustomers = savedCustomers.map((customer) => ({
+          ...customer,
+          createdAt: customer.createdAt || new Date().toISOString(),
+        }));
+        setCustomers(validCustomers);
+        console.log("Validated customers:", validCustomers);
+      }
+
+      // Calculate new statistics with validated data
+      const newSalesData = calculateStatistics(
+        Array.isArray(savedOrders) ? savedOrders : [],
+        Array.isArray(savedCustomers) ? savedCustomers : []
+      );
+      setSalesData(newSalesData);
+
+      setError(null);
+    } catch (err) {
+      console.error("Error loading data:", err);
+      setError(t("errorLoadingData"));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [calculateStatistics, t]);
+
+  // Initialize data and set up auto-refresh
+  useEffect(() => {
+    loadData();
+
+    // Refresh data every minute
+    const intervalId = setInterval(loadData, 60000);
+
+    // Cleanup on unmount
+    return () => clearInterval(intervalId);
+  }, [loadData]);
+
+  // Save data when it changes
+  useEffect(() => {
+    if (!isLoading && !error) {
+      console.log("Saving data to localStorage:", {
+        orders,
+        customers,
+      });
+      // Don't save back to localStorage as we're reading from sales_app keys
+      // setToStorage(STORAGE_KEYS.ORDERS, orders);
+      // setToStorage(STORAGE_KEYS.CUSTOMERS, customers);
+    }
+  }, [orders, customers, isLoading, error]);
+
+  // Handle low stock products
   const lowStockProducts = products.filter(
     (product) => product.stock <= product.minStock
   );
@@ -57,51 +268,53 @@ const SellerHome = () => {
   const stats = [
     {
       title: t("todayOrders"),
-      value: formatNumberEnglish(todayOrders.length),
+      value: formatNumberEnglish(salesData.todayOrders.length || 0),
       icon: ShoppingCart,
       color: "blue",
-      change: 12,
+      change: Number(salesData.orderChange.toFixed(1)),
       changeText: t("fromYesterday"),
+      trend: salesData.orderChange >= 0 ? "up" : "down",
     },
     {
       title: t("todayRevenue"),
-      value: formatCurrencyEnglish(todayRevenue, t("currency")),
+      value: formatCurrencyEnglish(salesData.todayRevenue || 0, t("currency")),
       icon: DollarSign,
       color: "green",
-      change: 8.5,
+      change: Number(salesData.revenueChange.toFixed(1)),
       changeText: t("fromYesterday"),
+      trend: salesData.revenueChange >= 0 ? "up" : "down",
     },
     {
       title: t("pendingOrders"),
-      value: formatNumberEnglish(pendingOrders.length),
+      value: formatNumberEnglish(salesData.pendingOrders.length || 0),
       icon: Clock,
       color: "yellow",
       subtitle: t("needsAttention"),
     },
     {
-      title: t("totalRevenue"),
-      value: formatCurrencyEnglish(totalRevenue, t("currency")),
+      title: t("avgOrderValue"),
+      value: formatCurrencyEnglish(salesData.avgOrderValue || 0, t("currency")),
       icon: TrendingUp,
       color: "purple",
-      change: 15.3,
-      changeText: t("thisMonth"),
+      subtitle: t("thisMonth"),
     },
     {
       title: t("totalProducts"),
-      value: formatNumberEnglish(products.length),
+      value: formatNumberEnglish(products.length || 0),
       icon: Package,
       color: "indigo",
-      subtitle: `${formatNumberEnglish(lowStockProducts.length)} ${t(
+      subtitle: `${formatNumberEnglish(lowStockProducts.length || 0)} ${t(
         "lowStock"
       )}`,
     },
     {
       title: t("totalCustomers"),
-      value: formatNumberEnglish(156),
+      value: formatNumberEnglish(customers.length || 0),
       icon: Users,
       color: "pink",
-      change: 5,
+      change: salesData.newCustomersThisWeek,
       changeText: t("newThisWeek"),
+      trend: "up",
     },
   ];
 
@@ -125,7 +338,7 @@ const SellerHome = () => {
     {
       header: t("total"),
       accessor: "total",
-      render: (order) => formatCurrencyEnglish(order.total, t("currency")),
+      render: (order) => formatCurrencyEnglish(order.total || 0, t("currency")),
     },
     {
       header: t("status"),
@@ -154,28 +367,55 @@ const SellerHome = () => {
     {
       header: t("actions"),
       accessor: "actions",
-      render: () => (
+      render: (order) => (
         <div
           className={`flex items-center gap-2 ${
             isRTL ? "flex-row-reverse" : ""
           }`}
         >
-          <button
+          <Link
+            to={`/seller/orders/${order.id}`}
             className="p-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors duration-200"
             title={t("viewOrder")}
           >
             <Eye className="w-4 h-4" />
-          </button>
-          <button
+          </Link>
+          <Link
+            to={`/seller/orders/${order.id}/edit`}
             className="p-1 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors duration-200"
             title={t("editOrder")}
           >
             <Edit className="w-4 h-4" />
-          </button>
+          </Link>
         </div>
       ),
     },
   ];
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-red-600 text-center">
+          <AlertTriangle className="w-12 h-12 mx-auto mb-4" />
+          <p>{error}</p>
+          <button
+            onClick={loadData}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            {t("tryAgain")}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

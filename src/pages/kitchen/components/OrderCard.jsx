@@ -206,7 +206,7 @@ const OrderCard = ({ order, priority, onStatusUpdate }) => {
       {priority === "medium" && (
         <div className="mt-2 px-2 py-1 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs text-yellow-800 dark:text-yellow-200 text-center">
           <Clock className="w-3 h-3 inline mr-1" />
-          {t("delayedOrder")}
+          {t("delayedOrders")}
         </div>
       )}
     </div>

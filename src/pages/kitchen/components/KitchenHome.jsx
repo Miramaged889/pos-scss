@@ -13,19 +13,13 @@ import {
 import StatsCard from "../../../components/Common/StatsCard";
 import TodaysOrders from "./TodaysOrders";
 import { getFromStorage as getFromLocalStorage } from "../../../utils/localStorage";
+import { formatNumberEnglish } from "../../../utils";
 
 const KitchenHome = () => {
   const { t } = useTranslation();
-  const { theme, currentLanguage, isRTL } = useSelector(
-    (state) => state.language
-  );
+  const { theme, isRTL } = useSelector((state) => state.language);
   const [orders, setOrders] = useState([]);
   const [kitchenSettings, setKitchenSettings] = useState({});
-
-  // Format number based on language
-  const formatNumber = (num) => {
-    return num.toLocaleString(isRTL ? "ar-SA" : "en-US");
-  };
 
   // Load kitchen settings and orders from localStorage
   useEffect(() => {
@@ -81,34 +75,34 @@ const KitchenHome = () => {
   const stats = [
     {
       title: t("pendingOrders"),
-      value: formatNumber(pendingOrders.length),
+      value: formatNumberEnglish(pendingOrders.length),
       icon: Clock,
       color: "yellow",
-      change: formatNumber(2),
+      change: formatNumberEnglish(2),
       trend: "up",
     },
     {
       title: t("preparing"),
-      value: formatNumber(preparingOrders.length),
+      value: formatNumberEnglish(preparingOrders.length),
       icon: ChefHat,
       color: "blue",
-      change: formatNumber(1),
+      change: formatNumberEnglish(1),
       trend: "up",
     },
     {
       title: t("readyForDelivery"),
-      value: formatNumber(readyOrders.length),
+      value: formatNumberEnglish(readyOrders.length),
       icon: CheckCircle,
       color: "green",
-      change: formatNumber(1),
+      change: formatNumberEnglish(1),
       trend: "down",
     },
     {
       title: t("averagePreparationTime"),
-      value: `${formatNumber(avgPrepTime)} ${t("minutes")}`,
+      value: `${formatNumberEnglish(avgPrepTime)} ${t("minutes")}`,
       icon: Timer,
       color: "purple",
-      change: formatNumber(avgPrepTime > 20 ? 2 : 1),
+      change: formatNumberEnglish(avgPrepTime > 20 ? 2 : 1),
       trend: avgPrepTime > 20 ? "up" : "down",
     },
   ];
@@ -135,7 +129,8 @@ const KitchenHome = () => {
             <div className="flex items-center text-red-600 dark:text-red-400">
               <AlertTriangle className={`w-4 h-4 ${isRTL ? "ml-1" : "mr-1"}`} />
               <span className="text-sm font-medium">
-                {formatNumber(priorityOrders.length)} {t("priorityOrders")}
+                {formatNumberEnglish(priorityOrders.length)}{" "}
+                {t("priorityOrders")}
               </span>
             </div>
           )}
@@ -161,7 +156,7 @@ const KitchenHome = () => {
                 {t("totalOrders")}
               </span>
               <span className="font-medium text-gray-900 dark:text-white">
-                {formatNumber(todayOrders.length)}
+                {formatNumberEnglish(todayOrders.length)}
               </span>
             </div>
             <div className="flex justify-between items-center">
@@ -169,7 +164,7 @@ const KitchenHome = () => {
                 {t("completedOrders")}
               </span>
               <span className="font-medium text-green-600 dark:text-green-400">
-                {formatNumber(completedOrders.length)}
+                {formatNumberEnglish(completedOrders.length)}
               </span>
             </div>
             <div className="flex justify-between items-center">
@@ -177,7 +172,7 @@ const KitchenHome = () => {
                 {t("completionRate")}
               </span>
               <span className="font-medium">
-                {formatNumber(
+                {formatNumberEnglish(
                   todayOrders.length > 0
                     ? Math.round(
                         (completedOrders.length / todayOrders.length) * 100
@@ -227,7 +222,7 @@ const KitchenHome = () => {
             {priorityOrders.length > 0 && (
               <div className="p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                 <p className="text-sm text-red-800 dark:text-red-200">
-                  {formatNumber(priorityOrders.length)}{" "}
+                  {formatNumberEnglish(priorityOrders.length)}{" "}
                   {t("ordersNeedAttention")}
                 </p>
               </div>

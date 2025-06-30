@@ -26,7 +26,12 @@ import {
 } from "lucide-react";
 
 import StatsCard from "../../../components/Common/StatsCard";
-import { getFromStorage as getFromLocalStorage } from "../../../utils/localStorage";
+import {
+  getFromStorage,
+  setToStorage,
+  getOrders,
+  saveOrders,
+} from "../../../utils/localStorage";
 
 // Register ChartJS components
 ChartJS.register(
@@ -43,10 +48,25 @@ ChartJS.register(
 
 const KitchenReports = () => {
   const { t } = useTranslation();
-  const { orders } = useSelector((state) => state.orders);
+  const reduxOrders = useSelector((state) => state.orders.orders);
   const { theme } = useSelector((state) => state.language);
   const [dateRange, setDateRange] = useState("week");
   const [reportData, setReportData] = useState({});
+
+  // Update localStorage when new orders come from Redux
+  useEffect(() => {
+    if (reduxOrders && reduxOrders.length > 0) {
+      const existingOrders = getOrders();
+      const newOrders = reduxOrders.filter(
+        (order) => !existingOrders.find((eo) => eo.id === order.id)
+      );
+
+      if (newOrders.length > 0) {
+        const updatedOrders = [...existingOrders, ...newOrders];
+        saveOrders(updatedOrders);
+      }
+    }
+  }, [reduxOrders]);
 
   const generateReportData = useCallback(() => {
     const now = new Date();
@@ -66,16 +86,11 @@ const KitchenReports = () => {
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     }
 
-    const filteredOrders = orders.filter(
+    // Get orders from localStorage using the utility function
+    const allOrders = getOrders();
+    const filteredOrders = allOrders.filter(
       (order) => new Date(order.createdAt) >= startDate
     );
-
-    // Calculate preparation times from localStorage
-    const prepTimes = getFromLocalStorage("preparationTimes", []);
-    const avgPrepTime =
-      prepTimes.length > 0
-        ? prepTimes.reduce((sum, time) => sum + time, 0) / prepTimes.length
-        : 0;
 
     // Order status distribution
     const statusDistribution = {
@@ -113,7 +128,29 @@ const KitchenReports = () => {
       .sort(([, a], [, b]) => b - a)
       .slice(0, 5);
 
-    setReportData({
+    // Calculate average preparation time from completed orders
+    const completedOrders = filteredOrders.filter(
+      (o) => o.status === "completed" || o.completedAt
+    );
+    const avgPrepTime =
+      completedOrders.length > 0
+        ? completedOrders.reduce((sum, order) => {
+            const startTime = new Date(order.createdAt);
+            const endTime = order.completedAt
+              ? new Date(order.completedAt)
+              : order.updatedAt
+              ? new Date(order.updatedAt)
+              : new Date(order.createdAt);
+            const diffInMinutes = Math.max(
+              0,
+              (endTime - startTime) / (1000 * 60)
+            );
+            return sum + diffInMinutes;
+          }, 0) / completedOrders.length
+        : 13; // Default to 13 minutes if no completed orders
+
+    // Store the generated report data in localStorage
+    const reportDataToStore = {
       totalOrders: filteredOrders.length,
       completedOrders: statusDistribution.completed,
       avgPrepTime: Math.round(avgPrepTime),
@@ -121,10 +158,19 @@ const KitchenReports = () => {
       hourlyOrders,
       dailyOrders,
       popularItems,
-    });
-  }, [orders, dateRange]);
+      lastUpdated: new Date().toISOString(),
+    };
 
+    setToStorage("kitchenReportData", reportDataToStore);
+    setReportData(reportDataToStore);
+  }, [dateRange]);
+
+  // Load report data from localStorage on mount and when date range changes
   useEffect(() => {
+    const storedReportData = getFromStorage("kitchenReportData", null);
+    if (storedReportData) {
+      setReportData(storedReportData);
+    }
     generateReportData();
   }, [generateReportData]);
 
@@ -195,7 +241,7 @@ const KitchenReports = () => {
 
   const dailyTrendData = {
     labels: Object.keys(reportData.dailyOrders || {}).map((date) =>
-      new Date(date).toLocaleDateString("ar-SA", {
+      new Date(date).toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
       })
@@ -218,24 +264,58 @@ const KitchenReports = () => {
       value: reportData.totalOrders || 0,
       icon: ChefHat,
       color: "blue",
-      change: "+12%",
-      trend: "up",
+      change: getFromStorage("previousStats", {}).totalOrders
+        ? `${Math.round(
+            ((reportData.totalOrders || 0) /
+              getFromStorage("previousStats", {}).totalOrders -
+              1) *
+              100
+          )}%`
+        : "+0%",
+      trend: getFromStorage("previousStats", {}).totalOrders
+        ? (reportData.totalOrders || 0) >=
+          getFromStorage("previousStats", {}).totalOrders
+          ? "up"
+          : "down"
+        : "up",
     },
     {
       title: t("completedOrders"),
       value: reportData.completedOrders || 0,
       icon: TrendingUp,
       color: "green",
-      change: "+8%",
-      trend: "up",
+      change: getFromStorage("previousStats", {}).completedOrders
+        ? `${Math.round(
+            ((reportData.completedOrders || 0) /
+              getFromStorage("previousStats", {}).completedOrders -
+              1) *
+              100
+          )}%`
+        : "+0%",
+      trend: getFromStorage("previousStats", {}).completedOrders
+        ? (reportData.completedOrders || 0) >=
+          getFromStorage("previousStats", {}).completedOrders
+          ? "up"
+          : "down"
+        : "up",
     },
     {
       title: t("averagePreparationTime"),
       value: `${reportData.avgPrepTime || 0} ${t("minutes")}`,
       icon: Clock,
       color: "purple",
-      change: reportData.avgPrepTime > 20 ? "+2 min" : "-1 min",
-      trend: reportData.avgPrepTime > 20 ? "up" : "down",
+      change: getFromStorage("previousStats", {}).avgPrepTime
+        ? `${Math.round(
+            (reportData.avgPrepTime || 0) -
+              getFromStorage("previousStats", {}).avgPrepTime
+          )} min`
+        : "0 min",
+      trend: getFromStorage("previousStats", {}).avgPrepTime
+        ? (reportData.avgPrepTime || 0) <=
+          getFromStorage("previousStats", {}).avgPrepTime
+          ? "down"
+          : "up"
+        : "up",
     },
     {
       title: t("completionRate"),
@@ -247,16 +327,42 @@ const KitchenReports = () => {
           : "0%",
       icon: BarChart3,
       color: "indigo",
-      change: "+5%",
-      trend: "up",
+      change: getFromStorage("previousStats", {}).completionRate
+        ? `${Math.round(
+            ((reportData.completedOrders / reportData.totalOrders) * 100 || 0) -
+              getFromStorage("previousStats", {}).completionRate
+          )}%`
+        : "+0%",
+      trend: getFromStorage("previousStats", {}).completionRate
+        ? ((reportData.completedOrders / reportData.totalOrders) * 100 || 0) >=
+          getFromStorage("previousStats", {}).completionRate
+          ? "up"
+          : "down"
+        : "up",
     },
   ];
+
+  // Store current stats as previous stats for next comparison
+  useEffect(() => {
+    if (reportData.totalOrders) {
+      setToStorage("previousStats", {
+        totalOrders: reportData.totalOrders,
+        completedOrders: reportData.completedOrders,
+        avgPrepTime: reportData.avgPrepTime,
+        completionRate:
+          (reportData.completedOrders / reportData.totalOrders) * 100,
+      });
+    }
+  }, [reportData]);
 
   const exportReport = () => {
     const reportContent = {
       dateRange,
       generatedAt: new Date().toISOString(),
       stats: reportData,
+      previousStats: getFromStorage("previousStats", {}),
+      orders: getOrders(),
+      lastUpdated: new Date().toISOString(),
     };
 
     const blob = new Blob([JSON.stringify(reportContent, null, 2)], {
@@ -373,49 +479,128 @@ const KitchenReports = () => {
 
         {/* Popular Items */}
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-            {t("popularItems")}
-          </h3>
-          <div className="space-y-3">
-            {reportData.popularItems?.map(([item, count], index) => (
-              <div key={item} className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <span className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-medium flex items-center justify-center mr-3">
-                    {index + 1}
-                  </span>
-                  <span className="text-sm text-gray-900 dark:text-white truncate max-w-32">
-                    {item}
-                  </span>
-                </div>
-                <div className="flex items-center">
-                  <div className="w-20 bg-gray-200 dark:bg-gray-700 rounded-full h-2 mr-3">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full"
-                      style={{
-                        width: `${Math.min(
-                          (count /
-                            Math.max(
-                              ...(reportData.popularItems?.map(
-                                ([, c]) => c
-                              ) || [1])
-                            )) *
-                            100,
-                          100
-                        )}%`,
-                      }}
-                    ></div>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+              {t("popularItems")}
+            </h3>
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              {dateRange === "today"
+                ? t("today")
+                : dateRange === "week"
+                ? t("thisWeek")
+                : t("thisMonth")}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {reportData.popularItems?.length > 0 ? (
+              reportData.popularItems.map(([item, count], index) => {
+                const maxCount = Math.max(
+                  ...reportData.popularItems.map(([, c]) => c)
+                );
+                const percentage = (count / maxCount) * 100;
+
+                return (
+                  <div key={item} className="relative">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-3 rtl:space-x-reverse">
+                        <span
+                          className={`
+                          w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold
+                          ${
+                            index === 0
+                              ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-500"
+                              : index === 1
+                              ? "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400"
+                              : index === 2
+                              ? "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-500"
+                              : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-500"
+                          }
+                        `}
+                        >
+                          #{index + 1}
+                        </span>
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-900 dark:text-white">
+                            {item}
+                          </h4>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {t("orderedCount", { count })}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">
+                        {Math.round(percentage)}%
+                      </div>
+                    </div>
+
+                    <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div
+                        className={`h-2 rounded-full ${
+                          index === 0
+                            ? "bg-yellow-500"
+                            : index === 1
+                            ? "bg-gray-500"
+                            : index === 2
+                            ? "bg-orange-500"
+                            : "bg-blue-500"
+                        }`}
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
                   </div>
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">
-                    {count}
-                  </span>
+                );
+              })
+            ) : (
+              <div className="text-center py-8">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
+                  <svg
+                    className="w-8 h-8 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM7.5 15h9m-9-3h9m-9-3h9"
+                    />
+                  </svg>
                 </div>
+                <h3 className="text-base font-medium text-gray-900 dark:text-white mb-1">
+                  {t("noPopularItems")}
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {t("noOrdersInPeriod")}
+                </p>
               </div>
-            )) || (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {t("noDataAvailable")}
-              </p>
             )}
           </div>
+
+          {reportData.popularItems?.length > 0 && (
+            <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500 dark:text-gray-400">
+                  {t("totalUniqueItems")}
+                </span>
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {reportData.popularItems.length}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm mt-2">
+                <span className="text-gray-500 dark:text-gray-400">
+                  {t("totalOrderedItems")}
+                </span>
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {reportData.popularItems.reduce(
+                    (sum, [, count]) => sum + count,
+                    0
+                  )}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

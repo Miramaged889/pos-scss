@@ -32,10 +32,16 @@ import {
   formatNumberEnglish,
 } from "../../../utils";
 import {
-  getCustomers,
+  getFromStorage,
+  setToStorage,
   deleteCustomer,
-  getOrders,
 } from "../../../utils/localStorage";
+
+// Constants for localStorage keys
+const STORAGE_KEYS = {
+  ORDERS: "sales_app_orders",
+  CUSTOMERS: "sales_app_customers",
+};
 
 const CustomerManagement = () => {
   const { t } = useTranslation();
@@ -51,7 +57,7 @@ const CustomerManagement = () => {
 
   const [customers, setCustomers] = useState([]);
 
-  // Helper function to generate sequential customer ID starting from 3
+  // Helper function to generate sequential customer ID
   const generateCustomerId = (existingCustomers) => {
     const maxId =
       existingCustomers.length > 0
@@ -61,21 +67,20 @@ const CustomerManagement = () => {
               .filter((id) => id.startsWith("CUST-"))
               .map((id) => parseInt(id.replace("CUST-", "")) || 0)
           )
-        : 2; // Start from 2 so next ID will be 3
-
+        : 2;
     return `CUST-${maxId + 1}`;
   };
 
-  // Load customers from localStorage and calculate stats from orders
+  // Load customers from localStorage and create from orders if needed
   useEffect(() => {
     const loadCustomers = () => {
-      const storedCustomers = getCustomers();
-      const orders = getOrders();
+      const storedCustomers = getFromStorage(STORAGE_KEYS.CUSTOMERS, []);
+      const orders = getFromStorage(STORAGE_KEYS.ORDERS, []);
 
       // Create a map of existing customers for quick lookup
       const existingCustomersMap = new Map();
       storedCustomers.forEach((customer) => {
-        existingCustomersMap.set(customer.name, customer);
+        existingCustomersMap.set(customer.name?.toLowerCase(), customer);
         if (customer.phone) {
           existingCustomersMap.set(customer.phone, customer);
         }
@@ -84,7 +89,9 @@ const CustomerManagement = () => {
       // Find customers from orders who don't exist in stored customers
       const orderCustomers = new Map();
       orders.forEach((order) => {
-        const customerKey = order.customer;
+        if (!order.customer) return; // Skip if no customer info
+
+        const customerKey = order.customer.toLowerCase();
         const phoneKey = order.phone;
 
         // Check if customer already exists
@@ -93,51 +100,58 @@ const CustomerManagement = () => {
           !existingCustomersMap.has(phoneKey)
         ) {
           // Create customer from order data
-          const allExistingCustomers = [
+          const customerId = generateCustomerId([
             ...storedCustomers,
             ...Array.from(orderCustomers.values()),
-          ];
-          const customerId = generateCustomerId(allExistingCustomers);
-          orderCustomers.set(customerKey, {
+          ]);
+
+          const newCustomer = {
             id: customerId,
             name: order.customer,
-            email: "", // No email from order
+            email: "",
             phone: order.phone || "",
             address: order.deliveryAddress || "",
             company: "",
             notes: `Auto-created from order #${order.id}`,
             vip: false,
             status: "active",
-            joinDate: order.createdAt,
+            joinDate: order.createdAt || new Date().toISOString(),
             dateOfBirth: "",
             preferredContactMethod: "phone",
-            totalOrders: 0,
-            totalSpent: 0,
-            lastOrder: null,
-          });
+          };
+
+          orderCustomers.set(customerKey, newCustomer);
+          existingCustomersMap.set(customerKey, newCustomer);
+          if (phoneKey) {
+            existingCustomersMap.set(phoneKey, newCustomer);
+          }
         }
       });
 
-      // Combine stored customers with auto-created customers from orders
+      // Combine stored customers with auto-created customers
       const allCustomers = [
         ...storedCustomers,
         ...Array.from(orderCustomers.values()),
       ];
 
+      // Save new customers to localStorage
+      if (orderCustomers.size > 0) {
+        setToStorage(STORAGE_KEYS.CUSTOMERS, allCustomers);
+      }
+
       // Calculate customer statistics from orders
       const customersWithStats = allCustomers.map((customer) => {
         const customerOrders = orders.filter(
           (order) =>
-            order.customer === customer.name ||
-            order.phone === customer.phone ||
             (order.customer &&
               customer.name &&
-              order.customer.toLowerCase() === customer.name.toLowerCase())
+              order.customer.toLowerCase() === customer.name.toLowerCase()) ||
+            (order.phone && customer.phone && order.phone === customer.phone)
         );
 
         const totalOrders = customerOrders.length;
         const totalSpent = customerOrders.reduce(
-          (sum, order) => sum + (order.total || 0),
+          (sum, order) => sum + (Number(order.total) || 0),
           0
         );
         const lastOrder =
@@ -155,14 +169,7 @@ const CustomerManagement = () => {
         };
       });
 
-      // Filter out customers with no orders if they were auto-created
-      const finalCustomers = customersWithStats.filter(
-        (customer) =>
-          customer.totalOrders > 0 ||
-          storedCustomers.some((stored) => stored.id === customer.id)
-      );
-
-      setCustomers(finalCustomers);
+      setCustomers(customersWithStats);
     };
 
     loadCustomers();
@@ -257,13 +264,13 @@ const CustomerManagement = () => {
   const handleFormSubmit = () => {
     // Reload customers from localStorage to get updated data with stats
     const loadCustomers = () => {
-      const storedCustomers = getCustomers();
-      const orders = getOrders();
+      const storedCustomers = getFromStorage(STORAGE_KEYS.CUSTOMERS, []);
+      const orders = getFromStorage(STORAGE_KEYS.ORDERS, []);
 
       // Create a map of existing customers for quick lookup
       const existingCustomersMap = new Map();
       storedCustomers.forEach((customer) => {
-        existingCustomersMap.set(customer.name, customer);
+        existingCustomersMap.set(customer.name?.toLowerCase(), customer);
         if (customer.phone) {
           existingCustomersMap.set(customer.phone, customer);
         }
@@ -272,7 +279,9 @@ const CustomerManagement = () => {
       // Find customers from orders who don't exist in stored customers
       const orderCustomers = new Map();
       orders.forEach((order) => {
-        const customerKey = order.customer;
+        if (!order.customer) return; // Skip if no customer info
+
+        const customerKey = order.customer.toLowerCase();
         const phoneKey = order.phone;
 
         // Check if customer already exists
@@ -281,51 +290,58 @@ const CustomerManagement = () => {
           !existingCustomersMap.has(phoneKey)
         ) {
           // Create customer from order data
-          const allExistingCustomers = [
+          const customerId = generateCustomerId([
             ...storedCustomers,
             ...Array.from(orderCustomers.values()),
-          ];
-          const customerId = generateCustomerId(allExistingCustomers);
-          orderCustomers.set(customerKey, {
+          ]);
+
+          const newCustomer = {
             id: customerId,
             name: order.customer,
-            email: "", // No email from order
+            email: "",
             phone: order.phone || "",
             address: order.deliveryAddress || "",
             company: "",
             notes: `Auto-created from order #${order.id}`,
             vip: false,
             status: "active",
-            joinDate: order.createdAt,
+            joinDate: order.createdAt || new Date().toISOString(),
             dateOfBirth: "",
             preferredContactMethod: "phone",
-            totalOrders: 0,
-            totalSpent: 0,
-            lastOrder: null,
-          });
+          };
+
+          orderCustomers.set(customerKey, newCustomer);
+          existingCustomersMap.set(customerKey, newCustomer);
+          if (phoneKey) {
+            existingCustomersMap.set(phoneKey, newCustomer);
+          }
         }
       });
 
-      // Combine stored customers with auto-created customers from orders
+      // Combine stored customers with auto-created customers
       const allCustomers = [
         ...storedCustomers,
         ...Array.from(orderCustomers.values()),
       ];
 
+      // Save new customers to localStorage
+      if (orderCustomers.size > 0) {
+        setToStorage(STORAGE_KEYS.CUSTOMERS, allCustomers);
+      }
+
       // Calculate customer statistics from orders
       const customersWithStats = allCustomers.map((customer) => {
         const customerOrders = orders.filter(
           (order) =>
-            order.customer === customer.name ||
-            order.phone === customer.phone ||
             (order.customer &&
               customer.name &&
-              order.customer.toLowerCase() === customer.name.toLowerCase())
+              order.customer.toLowerCase() === customer.name.toLowerCase()) ||
+            (order.phone && customer.phone && order.phone === customer.phone)
         );
 
         const totalOrders = customerOrders.length;
         const totalSpent = customerOrders.reduce(
-          (sum, order) => sum + (order.total || 0),
+          (sum, order) => sum + (Number(order.total) || 0),
           0
         );
         const lastOrder =
@@ -343,14 +359,7 @@ const CustomerManagement = () => {
         };
       });
 
-      // Filter out customers with no orders if they were auto-created
-      const finalCustomers = customersWithStats.filter(
-        (customer) =>
-          customer.totalOrders > 0 ||
-          storedCustomers.some((stored) => stored.id === customer.id)
-      );
-
-      setCustomers(finalCustomers);
+      setCustomers(customersWithStats);
     };
 
     loadCustomers();

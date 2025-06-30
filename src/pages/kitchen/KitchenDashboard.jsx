@@ -9,6 +9,7 @@ import {
   BarChart3,
   Settings,
   ClipboardList,
+  ListFilter,
 } from "lucide-react";
 
 import DashboardLayout from "../../components/Layout/DashboardLayout";
@@ -17,6 +18,7 @@ import TodaysOrders from "./components/TodaysOrders";
 import WasteLog from "./components/WasteLog";
 import KitchenReports from "./components/KitchenReports";
 import KitchenSettings from "./components/KitchenSettings";
+import AllOrders from "./components/AllOrders";
 import { refreshOrders } from "../../store/slices/ordersSlice";
 
 const KitchenDashboard = () => {
@@ -43,6 +45,12 @@ const KitchenDashboard = () => {
       name: t("todaysOrders"),
       icon: ClipboardList,
       href: "/kitchen/orders",
+      current: false,
+    },
+    {
+      name: t("allOrders"),
+      icon: ListFilter,
+      href: "/kitchen/all-orders",
       current: false,
     },
     {
@@ -74,6 +82,7 @@ const KitchenDashboard = () => {
       <Routes>
         <Route path="/" element={<KitchenHome />} />
         <Route path="/orders" element={<TodaysOrders />} />
+        <Route path="/all-orders" element={<AllOrders />} />
         <Route path="/waste-log" element={<WasteLog />} />
         <Route path="/reports" element={<KitchenReports />} />
         <Route path="/settings" element={<KitchenSettings />} />

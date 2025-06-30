@@ -5,9 +5,10 @@ import { TrendingUp, TrendingDown } from "lucide-react";
 const StatsCard = ({
   title,
   value,
-  icon: Icon, // eslint-disable-line no-unused-vars
+  icon: Icon,
   change,
   changeText,
+  subtitle,
   trend = "up",
   color = "blue",
 }) => {
@@ -75,41 +76,45 @@ const StatsCard = ({
           >
             {value}
           </p>
-          {change && (
+          {(change !== undefined || subtitle) && (
             <div
               className={`flex items-center mt-2 ${
-                isRTL ? "justify-start" : "justify-start"
+                isRTL ? "flex-row" : ""
               }`}
             >
-              <div
-                className={`flex items-center ${
-                  isRTL ? "flex-row-reverse" : ""
-                } ${
-                  trend === "up"
-                    ? "text-green-600 dark:text-green-400"
-                    : "text-red-600 dark:text-red-400"
-                }`}
-              >
-                {trend === "up" ? (
-                  <TrendingUp
-                    className={`w-4 h-4 ${isRTL ? "ml-1" : "mr-1"}`}
-                  />
-                ) : (
-                  <TrendingDown
-                    className={`w-4 h-4 ${isRTL ? "ml-1" : "mr-1"}`}
-                  />
-                )}
-                <span className="text-sm font-medium">
-                  {typeof change === "number" ? `${change}%` : change}
-                </span>
-              </div>
-              {changeText && (
+              {change !== undefined && (
+                <div
+                  className={`flex items-center ${
+                    isRTL ? "flex-row" : ""
+                  } ${
+                    trend === "up"
+                      ? "text-green-600 dark:text-green-400"
+                      : "text-red-600 dark:text-red-400"
+                  }`}
+                >
+                  {trend === "up" ? (
+                    <TrendingUp
+                      className={`w-4 h-4 ${isRTL ? "ml-1" : "mr-1"}`}
+                    />
+                  ) : (
+                    <TrendingDown
+                      className={`w-4 h-4 ${isRTL ? "ml-1" : "mr-1"}`}
+                    />
+                  )}
+                  <span className="text-sm font-medium">
+                    {typeof change === "number"
+                      ? `${Math.abs(change).toFixed(1)}%`
+                      : change}
+                  </span>
+                </div>
+              )}
+              {(changeText || subtitle) && (
                 <span
                   className={`text-xs text-gray-500 dark:text-gray-400 ${
                     isRTL ? "mr-2" : "ml-2"
                   }`}
                 >
-                  {changeText}
+                  {changeText || subtitle}
                 </span>
               )}
             </div>
@@ -119,7 +124,7 @@ const StatsCard = ({
           className={`p-3 rounded-xl ${selectedColor.bg} ${
             selectedColor.border
           } border group-hover:scale-110 transition-all duration-300 ${
-            isRTL ? "ml-0" : "mr-0"
+            isRTL ? "ml-4" : "mr-4"
           }`}
         >
           <Icon className={`w-6 h-6 ${selectedColor.icon}`} />

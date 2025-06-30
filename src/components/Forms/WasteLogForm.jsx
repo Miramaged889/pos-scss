@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { useSelector } from "react-redux";
 import { Plus, Eye, Save, X } from "lucide-react";
 
 const WasteLogForm = ({
@@ -9,7 +10,9 @@ const WasteLogForm = ({
   mode = "create",
 }) => {
   const { t } = useTranslation();
+  const { products } = useSelector((state) => state.inventory);
   const [formData, setFormData] = useState({
+    productId: "",
     product: "",
     quantity: "",
     reason: "",
@@ -34,7 +37,29 @@ const WasteLogForm = ({
   const handleChange = (e) => {
     if (mode === "view") return;
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    if (name === "productId") {
+      const selectedProduct = products.find((p) => p.id === parseInt(value));
+      if (selectedProduct) {
+        setFormData((prev) => ({
+          ...prev,
+          productId: value,
+          product: `${selectedProduct.name} / ${selectedProduct.nameEn}`,
+          cost: selectedProduct.price * (prev.quantity || 1),
+        }));
+      }
+    } else if (name === "quantity") {
+      const selectedProduct = products.find(
+        (p) => p.id === parseInt(formData.productId)
+      );
+      setFormData((prev) => ({
+        ...prev,
+        quantity: value,
+        cost: selectedProduct ? selectedProduct.price * value : prev.cost,
+      }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleSubmit = (e) => {
@@ -44,7 +69,7 @@ const WasteLogForm = ({
       return;
     }
 
-    if (!formData.product || !formData.quantity || !formData.reason) {
+    if (!formData.productId || !formData.quantity || !formData.reason) {
       return;
     }
 
@@ -86,15 +111,31 @@ const WasteLogForm = ({
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               {t("productName")} {!isViewMode && "*"}
             </label>
-            <input
-              type="text"
-              name="product"
-              value={formData.product}
-              onChange={handleChange}
-              className="block w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-70"
-              placeholder={t("enterProductName")}
-              disabled={isViewMode}
-            />
+            {isViewMode ? (
+              <input
+                type="text"
+                value={formData.product}
+                className="block w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-70"
+                disabled
+              />
+            ) : (
+              <select
+                name="productId"
+                value={formData.productId}
+                onChange={handleChange}
+                className="block w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-70"
+                disabled={isViewMode}
+              >
+                <option value="">{t("selectProduct")}</option>
+                {products.map((product) => (
+                  <option key={product.id} value={product.id}>
+                    {`${product.name} / ${product.nameEn} (${product.price} ${t(
+                      "sar"
+                    )})`}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -122,7 +163,7 @@ const WasteLogForm = ({
                 value={formData.cost}
                 onChange={handleChange}
                 className="block w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-70"
-                disabled={isViewMode}
+                disabled={true}
               />
             </div>
           </div>

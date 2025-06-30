@@ -73,70 +73,70 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
   };
 
   // Initialize default seller profile if it doesn't exist
-  const initializeSellerProfile = () => {
+  const initializeProfile = () => {
     try {
-      const existingProfile = localStorage.getItem("sellerProfile");
+      const profileKey =
+        role === "kitchen" ? "kitchenProfile" : "sellerProfile";
+      const existingProfile = localStorage.getItem(profileKey);
       if (!existingProfile) {
         const defaultProfile = [
           {
             id: 1,
-            email: user?.email || "seller@example.com",
-            firstName: "Seller",
+            email: user?.email || `${role}@example.com`,
+            firstName: role === "kitchen" ? "Kitchen" : "Seller",
             lastName: "User",
-            name: "Seller User",
-            role: role || "seller",
+            name: `${role === "kitchen" ? "Kitchen" : "Seller"} User`,
+            role: role,
             phone: "+966 50 123 4567",
             address: "Riyadh, Saudi Arabia",
             joinDate: new Date().toISOString(),
           },
         ];
-        localStorage.setItem("sellerProfile", JSON.stringify(defaultProfile));
+        localStorage.setItem(profileKey, JSON.stringify(defaultProfile));
       }
     } catch (error) {
-      console.error("Error initializing seller profile:", error);
+      console.error(`Error initializing ${role} profile:`, error);
     }
   };
 
   const getUserName = () => {
     try {
-      // Get seller profile from localStorage
-      const sellerProfileData = localStorage.getItem("sellerProfile");
+      // Get profile from localStorage based on role
+      const profileKey =
+        role === "kitchen" ? "kitchenProfile" : "sellerProfile";
+      const profileData = localStorage.getItem(profileKey);
 
-      if (sellerProfileData) {
-        const sellerProfile = JSON.parse(sellerProfileData);
+      if (profileData) {
+        const profile = JSON.parse(profileData);
 
- 
-        let profile = null;
+        let userProfile = null;
 
         // Handle both object and array formats
-        if (Array.isArray(sellerProfile)) {
+        if (Array.isArray(profile)) {
           // Array format: find by email or use first
-          profile =
-            sellerProfile.find((p) => p.email === user?.email) ||
-            sellerProfile[0];
-        } else if (
-          typeof sellerProfile === "object" &&
-          sellerProfile !== null
-        ) {
+          userProfile =
+            profile.find((p) => p.email === user?.email) || profile[0];
+        } else if (typeof profile === "object" && profile !== null) {
           // Direct object format
-          profile = sellerProfile;
+          userProfile = profile;
         }
 
-        if (profile) {
-          if (profile.name) return profile.name;
-          if (profile.fullName) return profile.fullName;
-          if (profile.firstName && profile.lastName) {
-            return `${profile.firstName} ${profile.lastName}`;
+        if (userProfile) {
+          if (userProfile.name) return userProfile.name;
+          if (userProfile.fullName) return userProfile.fullName;
+          if (userProfile.firstName && userProfile.lastName) {
+            return `${userProfile.firstName} ${userProfile.lastName}`;
           }
-          if (profile.firstName) return profile.firstName;
-          if (profile.lastName) return profile.lastName;
+          if (userProfile.firstName) return userProfile.firstName;
+          if (userProfile.lastName) return userProfile.lastName;
+          if (userProfile.managerName) return userProfile.managerName;
         }
       } else {
         // Initialize profile if it doesn't exist
-        initializeSellerProfile();
+        initializeProfile();
       }
     } catch (error) {
-      console.error("Error reading sellerProfile from localStorage:", error);
+      console.error(`Error reading ${role} profile from localStorage:`, error);
     }
 
     // Fallback to user data
@@ -292,7 +292,6 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
                   <Sun className="w-4 h-4" />
                 )}
               </button>
-
 
               {/* User Dropdown Menu */}
               <div className="relative" ref={dropdownRef}>
