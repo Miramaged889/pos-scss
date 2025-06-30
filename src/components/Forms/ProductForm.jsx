@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { X, Check, Package, Tag, DollarSign, Truck } from "lucide-react";
 import FormField from "./FormField";
 import {
-  addProduct as addProductToStorage,
-  updateProduct as updateProductInStorage,
   saveFormDraft,
   getFormDraft,
   clearFormDraft,
 } from "../../utils/localStorage";
+import { addProduct, updateProduct } from "../../store/slices/inventorySlice";
 
 const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
+  const dispatch = useDispatch();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -188,11 +188,13 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
       };
 
       if (mode === "edit" && product) {
-        // Update existing product in local storage
-        updateProductInStorage(product.id, productData);
+        // Update existing product using Redux
+        dispatch(
+          updateProduct({ productId: product.id, updates: productData })
+        );
       } else {
-        // Add new product to local storage
-        addProductToStorage(productData);
+        // Add new product using Redux
+        dispatch(addProduct(productData));
         // Clear the form draft after successful submission
         clearFormDraft("product_create");
       }

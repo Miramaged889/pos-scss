@@ -317,7 +317,32 @@ const resources = {
       unitPrice: "سعر الوحدة",
       enterItemName: "أدخل اسم العنصر",
       subtotal: "المجموع الفرعي",
-        
+      selectProductsToStart: "اختر المنتجات لبدء الطلب",
+      startNewOrder: "بدء طلب جديد",
+      browseProductsDescription: "تصفح المنتجات لإضافتها إلى طلبك",
+      browseProducts: "تصفح المنتجات",
+      selectProducts: "اختر المنتجات",
+      sideDishes: "الطعام الثانوي",
+      proceedToCheckout: "المتابعة للدفع",
+      editProduct: "تعديل المنتج",
+      criticalStatus: "حالة حرجة",
+      orderSummary: "ملخص الطلب",
+      deliveryOption: "خيار التوصيل",
+      customerInformation: "معلومات العميل",
+      placeOrder: "وضع الطلب",
+
+      pickupDescription: "الاستلام من المحل",
+      pickup: "الاستلام",
+      deliveryDescription: "التوصيل للمنزل",
+      backToProducts: "العودة إلى المنتجات",
+      checkout: "الدفع",
+
+      payWithCash: "الدفع بالنقد",
+
+      payWithCard: "الدفع بالبطاقة",
+
+      payWithKNET: "الدفع بالكنت",
+
       // Orders
       orderId: "رقم الطلب",
       orderDate: "تاريخ الطلب",
@@ -653,6 +678,7 @@ const resources = {
       editCustomer: "Edit Customer",
       currency: "SAR",
       allTime: "All Time",
+      orderSummary: "Order Summary",
       // Navigation
       welcomeToSellerDashboard: "Welcome to Seller Dashboard",
       welcomeToKitchenDashboard: "Welcome to Kitchen Dashboard",
@@ -812,7 +838,30 @@ const resources = {
       enterItemName: "Enter Item Name",
       subtotal: "Subtotal",
       itemName: "Item Name",
-        
+      selectProductsToStart: "Select Products to Start",
+      startNewOrder: "Start New Order",
+      browseProductsDescription: "Browse products to add to your order",
+      browseProducts: "Browse Products",
+      selectProducts: "Select Products",
+      sideDishes: "Side Dishes",
+      proceedToCheckout: "Proceed to Checkout",
+      editProduct: "Edit Product",
+      criticalStatus: "Critical Status",
+      deliveryOption: "Delivery Option",
+      customerInformation: "Customer Information",
+      placeOrder: "Place Order",
+
+      pickupDescription: "Pickup from the store",
+      pickup: "Pickup",
+      deliveryDescription: "Delivery to the home",
+      backToProducts: "Back to Products",
+      checkout: "Checkout",
+
+      payWithCash: "Pay with Cash",
+
+      payWithCard: "Pay with Card",
+
+      payWithKNET: "Pay with KNET",
       // Orders
       orderId: "Order ID",
       orderDate: "Order Date",

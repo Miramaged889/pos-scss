@@ -19,7 +19,6 @@ import { useAutoRefresh } from "../../hooks";
 
 // Import seller components
 import SellerHome from "./components/SellerHome";
-import NewSalesOrder from "./components/NewSalesOrder";
 import CheckoutPage from "./components/CheckoutPage";
 import OrdersList from "./components/OrdersList";
 import InventoryManagement from "./components/InventoryManagement";
@@ -29,6 +28,7 @@ import SupplierPurchase from "./components/SupplierPurchase";
 import SalesReports from "./components/SalesReports";
 import PaymentManagement from "./components/PaymentManagement";
 import SellerSettings from "./components/SellerSettings";
+import ProductSelectionPage from "./components/ProductSelectionPage";
 
 const SellerDashboard = () => {
   const { t } = useTranslation();
@@ -46,12 +46,12 @@ const SellerDashboard = () => {
       href: "/seller",
       current: false,
     },
-    {
-      name: t("newSalesOrder"),
-      icon: Plus,
-      href: "/seller/new-order",
-      current: false,
-    },
+        {
+          name: t("newSalesOrder"),
+          icon: Plus,
+          href: "/seller/product-selection",
+          current: false,
+        },
     {
       name: t("orders"),
       icon: ShoppingCart,
@@ -106,7 +106,7 @@ const SellerDashboard = () => {
     <DashboardLayout title={t("sellerDashboard")} sidebarItems={sidebarItems}>
       <Routes>
         <Route path="/" element={<SellerHome />} />
-        <Route path="/new-order" element={<NewSalesOrder />} />
+        <Route path="/product-selection" element={<ProductSelectionPage />} />
         <Route path="/checkout" element={<CheckoutPage />} />
         <Route path="/orders" element={<OrdersList />} />
         <Route path="/inventory" element={<InventoryManagement />} />
