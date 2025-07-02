@@ -9,31 +9,63 @@ import StatusUpdateModal from "./StatusUpdateModal";
 import {
   setToStorage as saveToLocalStorage,
   getFromStorage as getFromLocalStorage,
+  getOrders,
 } from "../../../utils/localStorage";
 
-const TodaysOrders = ({ isHome = false }) => {
+const ActiveOrders = ({ isHome = false }) => {
   const { t } = useTranslation();
   const { theme } = useSelector((state) => state.language);
+  const reduxOrders = useSelector((state) => state.orders.orders);
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [statusUpdateModal, setStatusUpdateModal] = useState(false);
   const [notes, setNotes] = useState("");
 
-  // Load orders from localStorage
+  // Load orders from both Redux and localStorage
   useEffect(() => {
-    const savedOrders = getFromLocalStorage("sales_app_orders", []);
-    setOrders(savedOrders);
-  }, []);
+    const loadOrders = () => {
+      const localOrders = getOrders();
 
-  // Filter and sort today's orders by time
-  const todayOrders = orders
-    .filter(
-      (order) =>
-        new Date(order.createdAt).toDateString() === new Date().toDateString()
-    )
-    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      if (reduxOrders && reduxOrders.length > 0) {
+        const mergedOrders = [...localOrders];
 
-  const displayOrders = isHome ? todayOrders.slice(0, 8) : todayOrders;
+        reduxOrders.forEach((reduxOrder) => {
+          const existingIndex = mergedOrders.findIndex(
+            (o) => o.id === reduxOrder.id
+          );
+          if (existingIndex === -1) {
+            mergedOrders.push(reduxOrder);
+          } else {
+            const existingOrder = mergedOrders[existingIndex];
+            const reduxOrderDate = new Date(
+              reduxOrder.lastUpdated || reduxOrder.createdAt
+            );
+            const existingOrderDate = new Date(
+              existingOrder.lastUpdated || existingOrder.createdAt
+            );
+
+            if (reduxOrderDate > existingOrderDate) {
+              mergedOrders[existingIndex] = reduxOrder;
+            }
+          }
+        });
+
+        saveToLocalStorage("sales_app_orders", mergedOrders);
+        setOrders(mergedOrders);
+      } else {
+        setOrders(localOrders);
+      }
+    };
+
+    loadOrders();
+  }, [reduxOrders]);
+
+  // Filter only uncompleted orders and sort by creation time (newest first)
+  const activeOrders = orders
+    .filter((order) => order.status !== "completed")
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  const displayOrders = isHome ? activeOrders.slice(0, 8) : activeOrders;
 
   const handleStatusUpdate = (orderId) => {
     setSelectedOrder(orderId);
@@ -57,10 +89,9 @@ const TodaysOrders = ({ isHome = false }) => {
           );
 
           if (startTime) {
-            const prepTime = Math.round((Date.now() - startTime) / (1000 * 60)); // minutes
+            const prepTime = Math.round((Date.now() - startTime) / (1000 * 60));
             prepTimes.push(prepTime);
 
-            // Keep only last 50 preparation times
             if (prepTimes.length > 50) {
               prepTimes.shift();
             }
@@ -80,13 +111,31 @@ const TodaysOrders = ({ isHome = false }) => {
           status: nextStatus,
           notes: notes,
           lastUpdated: new Date().toISOString(),
+          ...(nextStatus === "completed" && {
+            completedAt: new Date().toISOString(),
+          }),
         };
 
-        // Save to localStorage
         saveToLocalStorage("sales_app_orders", updatedOrders);
         setOrders(updatedOrders);
 
-        toast.success(t("orderUpdated"));
+        // Show appropriate status message
+        let statusMessage = "";
+        switch (nextStatus) {
+          case "preparing":
+            statusMessage = t("orderPreparationStarted");
+            break;
+          case "ready":
+            statusMessage = t("orderReadyForPickup");
+            break;
+          case "completed":
+            statusMessage = t("orderCompleted");
+            break;
+          default:
+            statusMessage = t("orderUpdated");
+        }
+
+        toast.success(statusMessage);
         setStatusUpdateModal(false);
         setSelectedOrder(null);
         setNotes("");
@@ -121,12 +170,12 @@ const TodaysOrders = ({ isHome = false }) => {
     <div className={`space-y-6 ${theme === "dark" ? "dark" : ""}`}>
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-          {isHome ? t("todayOrdersOverview") : t("todaysOrders")}
+          {isHome ? t("kitchenOrdersOverview") : t("kitchenOrders")}
         </h3>
         {isHome && (
           <span className="text-sm text-gray-500 dark:text-gray-400">
-            {t("showing")} {displayOrders.length} {t("of")} {todayOrders.length}{" "}
-            {t("orders")}
+            {t("showing")} {displayOrders.length} {t("of")}{" "}
+            {activeOrders.length} {t("orders")}
           </span>
         )}
       </div>
@@ -147,16 +196,16 @@ const TodaysOrders = ({ isHome = false }) => {
         <div className="text-center py-12">
           <ChefHat className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
           <p className="text-gray-500 dark:text-gray-400">
-            {t("noOrdersToday")}
+            {t("noKitchenOrders")}
           </p>
         </div>
       )}
 
       {/* Show more button for home view */}
-      {isHome && todayOrders.length > 8 && (
+      {isHome && activeOrders.length > 8 && (
         <div className="text-center">
           <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-            {t("viewAllOrders")} ({todayOrders.length - 8} {t("more")})
+            {t("viewAllKitchenOrders")} ({activeOrders.length - 8} {t("more")})
           </button>
         </div>
       )}
@@ -176,4 +225,4 @@ const TodaysOrders = ({ isHome = false }) => {
   );
 };
 
-export default TodaysOrders;
+export default ActiveOrders;

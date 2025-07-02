@@ -130,24 +130,19 @@ const KitchenReports = () => {
 
     // Calculate average preparation time from completed orders
     const completedOrders = filteredOrders.filter(
-      (o) => o.status === "completed" || o.completedAt
+      (o) => o.status === "completed" && o.completedAt
     );
     const avgPrepTime =
       completedOrders.length > 0
         ? completedOrders.reduce((sum, order) => {
-            const startTime = new Date(order.createdAt);
-            const endTime = order.completedAt
-              ? new Date(order.completedAt)
-              : order.updatedAt
-              ? new Date(order.updatedAt)
-              : new Date(order.createdAt);
-            const diffInMinutes = Math.max(
-              0,
+            const startTime = new Date(order.createdAt).getTime();
+            const endTime = new Date(order.completedAt).getTime();
+            const diffInMinutes = Math.round(
               (endTime - startTime) / (1000 * 60)
             );
-            return sum + diffInMinutes;
+            return sum + (diffInMinutes > 0 ? diffInMinutes : 0);
           }, 0) / completedOrders.length
-        : 13; // Default to 13 minutes if no completed orders
+        : 0;
 
     // Store the generated report data in localStorage
     const reportDataToStore = {

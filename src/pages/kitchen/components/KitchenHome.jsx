@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 import StatsCard from "../../../components/Common/StatsCard";
-import TodaysOrders from "./TodaysOrders";
+import ActiveOrders from "./ActiveOrders";
 import { getFromStorage as getFromLocalStorage } from "../../../utils/localStorage";
 import { formatNumberEnglish } from "../../../utils";
 
@@ -240,7 +240,7 @@ const KitchenHome = () => {
 
       {/* Today's Orders Overview */}
       <div aria-label={t("todayOrdersOverview")}>
-        <TodaysOrders isHome={true} />
+        <ActiveOrders isHome={true} />
       </div>
     </div>
   );

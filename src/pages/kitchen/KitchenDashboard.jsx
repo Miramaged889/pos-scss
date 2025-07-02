@@ -14,8 +14,8 @@ import {
 
 import DashboardLayout from "../../components/Layout/DashboardLayout";
 import KitchenHome from "./components/KitchenHome";
-import TodaysOrders from "./components/TodaysOrders";
-import WasteLog from "./components/WasteLog";
+import ActiveOrders from "./components/ActiveOrders";
+
 import KitchenReports from "./components/KitchenReports";
 import KitchenSettings from "./components/KitchenSettings";
 import AllOrders from "./components/AllOrders";
@@ -38,13 +38,13 @@ const KitchenDashboard = () => {
     {
       name: t("dashboard"),
       icon: ChefHat,
-      href: "/kitchen",
+      href: "/kitchen/home",
       current: false,
     },
     {
-      name: t("todaysOrders"),
+      name: t("activeOrders"),
       icon: ClipboardList,
-      href: "/kitchen/orders",
+      href: "/kitchen",
       current: false,
     },
     {
@@ -53,12 +53,7 @@ const KitchenDashboard = () => {
       href: "/kitchen/all-orders",
       current: false,
     },
-    {
-      name: t("wasteLog"),
-      icon: Package,
-      href: "/kitchen/waste-log",
-      current: false,
-    },
+
     {
       name: t("reports"),
       icon: BarChart3,
@@ -80,10 +75,10 @@ const KitchenDashboard = () => {
       theme={theme}
     >
       <Routes>
-        <Route path="/" element={<KitchenHome />} />
-        <Route path="/orders" element={<TodaysOrders />} />
+        <Route path="/home" element={<KitchenHome />} />
+        <Route path="/" element={<ActiveOrders />} />
         <Route path="/all-orders" element={<AllOrders />} />
-        <Route path="/waste-log" element={<WasteLog />} />
+
         <Route path="/reports" element={<KitchenReports />} />
         <Route path="/settings" element={<KitchenSettings />} />
       </Routes>

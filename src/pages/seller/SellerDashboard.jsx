@@ -43,13 +43,13 @@ const SellerDashboard = () => {
     {
       name: t("dashboard"),
       icon: BarChart3,
-      href: "/seller",
+      href: "/seller/home",
       current: false,
     },
         {
           name: t("newSalesOrder"),
           icon: Plus,
-          href: "/seller/product-selection",
+          href: "/seller",
           current: false,
         },
     {
@@ -105,8 +105,8 @@ const SellerDashboard = () => {
   return (
     <DashboardLayout title={t("sellerDashboard")} sidebarItems={sidebarItems}>
       <Routes>
-        <Route path="/" element={<SellerHome />} />
-        <Route path="/product-selection" element={<ProductSelectionPage />} />
+        <Route path="/home" element={<SellerHome />} />
+        <Route path="/" element={<ProductSelectionPage />} />
         <Route path="/checkout" element={<CheckoutPage />} />
         <Route path="/orders" element={<OrdersList />} />
         <Route path="/inventory" element={<InventoryManagement />} />

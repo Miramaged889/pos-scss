@@ -1,13 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Clock,
-  ChefHat,
-  CheckCircle,
-  AlertTriangle,
-  Phone,
-  MapPin,
-} from "lucide-react";
+import { Clock, ChefHat, CheckCircle, AlertTriangle } from "lucide-react";
 
 const OrderCard = ({ order, priority, onStatusUpdate }) => {
   const { t } = useTranslation();
@@ -54,7 +47,7 @@ const OrderCard = ({ order, priority, onStatusUpdate }) => {
       case "preparing":
         return t("markReady");
       case "ready":
-        return t("markDelivered");
+        return t("markCompleted");
       default:
         return "";
     }
@@ -107,27 +100,6 @@ const OrderCard = ({ order, priority, onStatusUpdate }) => {
         </div>
       </div>
 
-      {/* Customer Info */}
-      <div className="mb-3">
-        <div className="flex items-center gap-2 mb-1">
-          <p className="text-sm font-medium text-gray-900 dark:text-white">
-            {order.customer || t("unknownCustomer")}
-          </p>
-        </div>
-        {order.customerPhone && (
-          <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-            <Phone className="w-3 h-3" />
-            <span>{order.customerPhone}</span>
-          </div>
-        )}
-        {order.deliveryAddress && (
-          <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mt-1">
-            <MapPin className="w-3 h-3" />
-            <span className="truncate">{order.deliveryAddress}</span>
-          </div>
-        )}
-      </div>
-
       {/* Order Items */}
       <div className="mb-4">
         <div className="space-y-1">
@@ -137,7 +109,7 @@ const OrderCard = ({ order, priority, onStatusUpdate }) => {
                 {product.quantity}x {product.name}
               </span>
               <span className="text-gray-500 dark:text-gray-400 text-xs">
-                {product.price ? `${product.price} ${t("sar")}` : ""}
+                {product.notes}
               </span>
             </div>
           ))}
@@ -147,20 +119,6 @@ const OrderCard = ({ order, priority, onStatusUpdate }) => {
             </div>
           )}
         </div>
-
-        {/* Order Total */}
-        {order.total && (
-          <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-            <div className="flex justify-between text-sm font-medium">
-              <span className="text-gray-700 dark:text-gray-300">
-                {t("total")}
-              </span>
-              <span className="text-gray-900 dark:text-white">
-                {order.total} {t("sar")}
-              </span>
-            </div>
-          </div>
-        )}
 
         {/* Kitchen Notes */}
         {order.kitchenNotes && (
@@ -201,12 +159,6 @@ const OrderCard = ({ order, priority, onStatusUpdate }) => {
         <div className="mt-2 px-2 py-1 bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs text-red-800 dark:text-red-200 text-center">
           <AlertTriangle className="w-3 h-3 inline mr-1" />
           {t("urgentOrder")}
-        </div>
-      )}
-      {priority === "medium" && (
-        <div className="mt-2 px-2 py-1 bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs text-yellow-800 dark:text-yellow-200 text-center">
-          <Clock className="w-3 h-3 inline mr-1" />
-          {t("delayedOrders")}
         </div>
       )}
     </div>
