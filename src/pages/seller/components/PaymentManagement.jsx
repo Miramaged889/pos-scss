@@ -26,7 +26,11 @@ import {
   formatCurrencyEnglish,
   formatDateTimeEnglish,
 } from "../../../utils/formatters";
-import { getOrders } from "../../../utils/localStorage";
+import {
+  getOrders,
+  getFromStorage,
+  setToStorage,
+} from "../../../utils/localStorage";
 
 const PaymentManagement = () => {
   const { t } = useTranslation();
@@ -40,11 +44,50 @@ const PaymentManagement = () => {
   useEffect(() => {
     const loadPayments = () => {
       try {
-        const storedPayments = JSON.parse(
-          localStorage.getItem("payments") || "[]"
-        );
+        // Get all orders and payments
         const orders = getOrders();
-        const enhancedPayments = storedPayments.map((payment) => {
+        const storedPayments = getFromStorage("payments", []);
+
+        // Create payment entries for cash orders if they don't exist
+        const cashOrderPayments = orders
+          .filter(
+            (order) =>
+              order.paymentMethod === "cash" &&
+              !storedPayments.some((p) => p.orderId === order.id)
+          )
+          .map((order) => ({
+            transactionId: `PAY-${order.id.replace("ORD-", "")}`,
+            orderId: order.id,
+            amount: order.total,
+            method: "cash",
+            status: order.paymentStatus || "pending",
+            paymentDate: order.createdAt,
+            customer: order.customer,
+            customerPhone: order.phone,
+            description: `${
+              order.products?.map((p) => p.name).join(", ") || t("products")
+            } (${order.items || 0} ${t("items")})`,
+            fees: 0,
+            collectedBy: order.assignedDriver,
+            collectedAt: order.paymentCollectedAt,
+          }));
+
+        // Merge existing payments with new cash payments
+        const allPayments = [...storedPayments];
+        cashOrderPayments.forEach((newPayment) => {
+          const existingIndex = allPayments.findIndex(
+            (p) => p.orderId === newPayment.orderId
+          );
+          if (existingIndex === -1) {
+            allPayments.push(newPayment);
+          }
+        });
+
+        // Save merged payments back to localStorage
+        setToStorage("payments", allPayments);
+
+        // Enhance payments with order details
+        const enhancedPayments = allPayments.map((payment) => {
           const relatedOrder = orders.find(
             (order) => order.id === payment.orderId
           );
@@ -68,15 +111,20 @@ const PaymentManagement = () => {
                   t("products")
                 } (${relatedOrder.items || 0} ${t("items")})`
               : payment.description || t("paymentTransaction"),
+            assignedDriver: relatedOrder?.assignedDriver || null,
           };
         });
+
         setPayments(enhancedPayments);
       } catch (error) {
         console.error("Error loading payments:", error);
         setPayments([]);
       }
     };
+
     loadPayments();
+    const interval = setInterval(loadPayments, 30000); // Refresh every 30 seconds
+    return () => clearInterval(interval);
   }, [t]);
 
   const totalTransactions = payments.length;
@@ -276,6 +324,7 @@ const PaymentManagement = () => {
         </span>
       ),
     },
+
     {
       header: t("actions"),
       accessor: "actions",
@@ -599,6 +648,63 @@ const PaymentManagement = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Delivery Information */}
+              {selectedPayment.method === "cash" &&
+                selectedPayment.assignedDriver && (
+                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <h3
+                      className={`text-lg font-medium text-gray-900 dark:text-white mb-4 ${
+                        isRTL ? "text-right" : "text-left"
+                      }`}
+                    >
+                      {t("deliveryInformation")}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className={isRTL ? "text-right" : "text-left"}>
+                        <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          {t("assignedDriver")}
+                        </label>
+                        <span className="text-gray-900 dark:text-white">
+                          {selectedPayment.assignedDriver}
+                        </span>
+                      </div>
+                      <div className={isRTL ? "text-right" : "text-left"}>
+                        <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          {t("collectionStatus")}
+                        </label>
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            selectedPayment.status === "completed"
+                              ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400"
+                              : "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400"
+                          }`}
+                        >
+                          {selectedPayment.status === "completed" ? (
+                            <>
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              {t("collected")}
+                            </>
+                          ) : (
+                            <>
+                              <AlertCircle className="w-3 h-3 mr-1" />
+                              {t("pendingCollection")}
+                            </>
+                          )}
+                        </span>
+                        {selectedPayment.status === "completed" &&
+                          selectedPayment.collectedAt && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              {t("collectedAt")}:{" "}
+                              {formatDateTimeEnglish(
+                                selectedPayment.collectedAt
+                              )}
+                            </p>
+                          )}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
               {selectedPayment.description && (
                 <div>

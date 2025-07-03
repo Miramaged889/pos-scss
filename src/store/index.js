@@ -1,17 +1,53 @@
 import { configureStore } from "@reduxjs/toolkit";
-import authSlice from "./slices/authSlice";
-import languageSlice from "./slices/languageSlice";
-import ordersSlice from "./slices/ordersSlice";
-import inventorySlice from "./slices/inventorySlice";
+import ordersReducer from "./slices/ordersSlice";
+import authReducer from "./slices/authSlice";
+import languageReducer from "./slices/languageSlice";
+import deliveryReducer from "./slices/deliverySlice";
+import inventoryReducer from "./slices/inventorySlice";
 
-export const store = configureStore({
+// Load initial state from localStorage
+const loadState = () => {
+  try {
+    const serializedState = localStorage.getItem("appState");
+    if (serializedState === null) {
+      return undefined;
+    }
+    return JSON.parse(serializedState);
+  } catch (err) {
+    console.error("Error loading state from localStorage:", err);
+    return undefined;
+  }
+};
+
+// Save state to localStorage
+const saveState = (state) => {
+  try {
+    const serializedState = JSON.stringify(state);
+    localStorage.setItem("appState", serializedState);
+  } catch (err) {
+    console.error("Error saving state to localStorage:", err);
+    // Handle errors here
+  }
+};
+
+const preloadedState = loadState();
+
+const store = configureStore({
   reducer: {
-    auth: authSlice,
-    language: languageSlice,
-    orders: ordersSlice,
-    inventory: inventorySlice,
+    orders: ordersReducer,
+    auth: authReducer,
+    language: languageReducer,
+    delivery: deliveryReducer,
+    inventory: inventoryReducer,
   },
+  preloadedState,
 });
 
-// Export as default for easier importing
+// Subscribe to store changes and save to localStorage
+store.subscribe(() => {
+  saveState(store.getState());
+});
+
+// Export both as default and named export
+export { store };
 export default store;

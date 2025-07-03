@@ -15,12 +15,14 @@ import "./i18n";
 import LoginPage from "./pages/LoginPage";
 import SellerDashboard from "./pages/seller/SellerDashboard";
 import KitchenDashboard from "./pages/kitchen/KitchenDashboard";
-import DeliveryDashboard from "./pages/DeliveryDashboard";
+import DeliveryDashboard from "./pages/delivery/DeliveryDashboard";
 
 const AppContent = () => {
   const { i18n } = useTranslation();
   const { isAuthenticated, role } = useSelector((state) => state.auth);
   const { currentLanguage, isRTL } = useSelector((state) => state.language);
+
+  console.log("Current auth state:", { isAuthenticated, role });
 
   useEffect(() => {
     // Sync i18n with Redux state

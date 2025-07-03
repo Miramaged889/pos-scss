@@ -3,13 +3,26 @@
  */
 
 // Storage keys
-const STORAGE_KEYS = {
+export const STORAGE_KEYS = {
   CUSTOMERS: "sales_app_customers",
   ORDERS: "sales_app_orders",
   PRODUCTS: "sales_app_products",
   RETURNS: "sales_app_returns",
   PURCHASE_ORDERS: "sales_app_purchase_orders",
   FORM_DRAFTS: "sales_app_form_drafts",
+  DELIVERY_ORDERS: "delivery_orders",
+  PAYMENTS: "delivery_payments",
+  DELIVERY_ACTIONS: "delivery_actions",
+  DELIVERY_STATS: "delivery_stats",
+  AUTH: "auth",
+  LANGUAGE: "language",
+};
+
+// Add delivery action types
+export const DELIVERY_ACTIONS = {
+  START_DELIVERY: "START_DELIVERY",
+  COMPLETE_DELIVERY: "COMPLETE_DELIVERY",
+  COLLECT_PAYMENT: "COLLECT_PAYMENT",
 };
 
 /**
@@ -17,8 +30,18 @@ const STORAGE_KEYS = {
  */
 export const getFromStorage = (key, defaultValue = null) => {
   try {
+    console.log(`Reading from localStorage: ${key}`);
     const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : defaultValue;
+    if (!item) {
+      console.log(
+        `No data found for key: ${key}, returning default:`,
+        defaultValue
+      );
+      return defaultValue;
+    }
+    const parsed = JSON.parse(item);
+    console.log(`Successfully read data for key: ${key}`, parsed);
+    return parsed;
   } catch (error) {
     console.error(`Error reading from localStorage (${key}):`, error);
     return defaultValue;
@@ -27,7 +50,9 @@ export const getFromStorage = (key, defaultValue = null) => {
 
 export const setToStorage = (key, value) => {
   try {
+    console.log(`Writing to localStorage: ${key}`, value);
     localStorage.setItem(key, JSON.stringify(value));
+    console.log(`Successfully wrote data for key: ${key}`);
     return true;
   } catch (error) {
     console.error(`Error writing to localStorage (${key}):`, error);
@@ -227,11 +252,11 @@ export const deleteProduct = (productId) => {
  * Payment Management Functions
  */
 export const getPayments = () => {
-  return getFromStorage("payments", []);
+  return getFromStorage(STORAGE_KEYS.PAYMENTS, []);
 };
 
 export const savePayments = (payments) => {
-  return setToStorage("payments", payments);
+  return setToStorage(STORAGE_KEYS.PAYMENTS, payments);
 };
 
 export const generateUniqueTransactionId = () => {
@@ -258,19 +283,26 @@ export const generateUniqueTransactionId = () => {
   return transactionId;
 };
 
-export const addPayment = (paymentData) => {
+export const addPayment = async (payment) => {
   const payments = getPayments();
-
   const newPayment = {
-    ...paymentData,
-    id: paymentData.id || `PAY-${Date.now()}`,
-    transactionId: paymentData.transactionId || generateUniqueTransactionId(),
-    paymentDate: paymentData.paymentDate || new Date().toISOString(),
-    status: paymentData.status || "completed",
+    ...payment,
+    id: Date.now().toString(),
+    createdAt: new Date().toISOString(),
+    type: "delivery",
   };
-
   payments.push(newPayment);
   savePayments(payments);
+
+  // Add delivery action for payment collection
+  addDeliveryAction({
+    type: DELIVERY_ACTIONS.COLLECT_PAYMENT,
+    driverId: payment.collectedBy,
+    orderId: payment.orderId,
+    amount: payment.amount,
+    paymentId: newPayment.id,
+  });
+
   return newPayment;
 };
 
@@ -524,6 +556,8 @@ export const initializeDefaultData = () => {
         supplier: "مؤسسة الأغذية المتميزة",
         sku: "BURG-001",
         description: "برجر لحم بقري مع الخضار الطازجة",
+        imageUrl:
+          "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
         createdAt: "2025-01-01T00:00:00Z",
       },
       {
@@ -537,6 +571,68 @@ export const initializeDefaultData = () => {
         supplier: "مؤسسة الأغذية المتميزة",
         sku: "PIZZA-001",
         description: "بيتزا بالجبن والطماطم والريحان",
+        imageUrl:
+          "https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?w=500",
+        createdAt: "2025-01-01T00:00:00Z",
+      },
+      {
+        id: 3,
+        name: "سلطة سيزر",
+        nameEn: "Caesar Salad",
+        category: "side",
+        stock: 40,
+        minStock: 8,
+        price: 18.0,
+        supplier: "مؤسسة الأغذية المتميزة",
+        sku: "SALAD-001",
+        description: "سلطة خس رومين مع صوص سيزر وقطع الدجاج المشوي",
+        imageUrl:
+          "https://images.unsplash.com/photo-1550304943-4f24f54ddde9?w=500",
+        createdAt: "2025-01-01T00:00:00Z",
+      },
+      {
+        id: 4,
+        name: "عصير برتقال طازج",
+        nameEn: "Fresh Orange Juice",
+        category: "beverages",
+        stock: 60,
+        minStock: 15,
+        price: 12.0,
+        supplier: "مؤسسة الأغذية المتميزة",
+        sku: "BEV-001",
+        description: "عصير برتقال طبيعي 100%",
+        imageUrl:
+          "https://images.unsplash.com/photo-1613478223719-2ab802602423?w=500",
+        createdAt: "2025-01-01T00:00:00Z",
+      },
+      {
+        id: 5,
+        name: "تشيز كيك",
+        nameEn: "Cheesecake",
+        category: "desserts",
+        stock: 25,
+        minStock: 5,
+        price: 22.0,
+        supplier: "مؤسسة الأغذية المتميزة",
+        sku: "DESS-001",
+        description: "تشيز كيك نيويورك الأصلي مع صوص التوت",
+        imageUrl:
+          "https://images.unsplash.com/photo-1508737027454-e6454ef45afd?w=500",
+        createdAt: "2025-01-01T00:00:00Z",
+      },
+      {
+        id: 6,
+        name: "باستا ألفريدو",
+        nameEn: "Alfredo Pasta",
+        category: "main",
+        stock: 35,
+        minStock: 7,
+        price: 32.0,
+        supplier: "مؤسسة الأغذية المتميزة",
+        sku: "PASTA-001",
+        description: "باستا فيتوتشيني مع صوص الكريمة والدجاج",
+        imageUrl:
+          "https://images.unsplash.com/photo-1645112411341-6c4fd023714a?w=500",
         createdAt: "2025-01-01T00:00:00Z",
       },
     ];
@@ -588,4 +684,215 @@ export const importData = (data) => {
     console.error("Error importing data:", error);
     return false;
   }
+};
+
+/**
+ * Delivery Order Management Functions
+ */
+export const getDeliveryOrders = () => {
+  return getFromStorage(STORAGE_KEYS.DELIVERY_ORDERS, []);
+};
+
+export const saveDeliveryOrders = (orders) => {
+  return setToStorage(STORAGE_KEYS.DELIVERY_ORDERS, orders);
+};
+
+export const updateDeliveryOrder = async (orderId, updates) => {
+  const orders = getOrders();
+  const updatedOrders = orders.map((order) => {
+    if (order.id === orderId) {
+      const updatedOrder = {
+        ...order,
+        ...updates,
+        deliveryHistory: [
+          ...(order.deliveryHistory || []),
+          {
+            ...updates,
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      };
+      return updatedOrder;
+    }
+    return order;
+  });
+  setToStorage(STORAGE_KEYS.ORDERS, updatedOrders);
+  return updatedOrders.find((order) => order.id === orderId);
+};
+
+export const getDeliveryOrderById = (orderId) => {
+  try {
+    console.log("Getting delivery order by ID:", orderId);
+
+    if (!orderId) {
+      console.error("Invalid order ID: null or undefined");
+      return null;
+    }
+
+    // First check delivery orders
+    const deliveryOrders = getDeliveryOrders();
+    let order = deliveryOrders.find((o) => o.id === orderId);
+
+    // If not found, check sales orders
+    if (!order) {
+      const salesOrders = getOrders();
+      order = salesOrders.find(
+        (o) =>
+          o.id === orderId &&
+          o.deliveryType === "delivery" &&
+          o.status === "completed"
+      );
+
+      // If found in sales orders, add to delivery orders
+      if (order) {
+        const updatedDeliveryOrders = [...deliveryOrders, order];
+        saveDeliveryOrders(updatedDeliveryOrders);
+      }
+    }
+
+    console.log("Found order:", order);
+    return order;
+  } catch (err) {
+    console.error("Error getting delivery order:", err);
+    return null;
+  }
+};
+
+export const syncDeliveryOrders = (driverId = null) => {
+  const orders = getOrders();
+  const actions = getFromStorage(STORAGE_KEYS.DELIVERY_ACTIONS, []);
+
+  // Filter orders based on delivery status and driver
+  const deliveryOrders = orders.filter((order) => {
+    if (driverId) {
+      return order.assignedDriver === driverId || !order.assignedDriver;
+    }
+    return true;
+  });
+
+  // Update orders with delivery actions
+  const updatedOrders = deliveryOrders.map((order) => {
+    const orderActions = actions.filter(
+      (action) => action.orderId === order.id
+    );
+    const lastAction = orderActions[orderActions.length - 1];
+
+    if (lastAction) {
+      switch (lastAction.type) {
+        case DELIVERY_ACTIONS.START_DELIVERY:
+          return {
+            ...order,
+            deliveryStatus: "delivering",
+            deliveryStartTime: lastAction.timestamp,
+          };
+        case DELIVERY_ACTIONS.COMPLETE_DELIVERY:
+          return {
+            ...order,
+            deliveryStatus: "delivered",
+            deliveryEndTime: lastAction.timestamp,
+            isDelivered: true,
+          };
+        default:
+          return order;
+      }
+    }
+    return order;
+  });
+
+  // Update driver stats if driverId provided
+  if (driverId) {
+    const driverOrders = updatedOrders.filter(
+      (order) => order.assignedDriver === driverId
+    );
+    const completedOrders = driverOrders.filter(
+      (order) => order.deliveryStatus === "delivered"
+    );
+
+    const stats = {
+      totalDeliveries: completedOrders.length,
+      totalEarnings: completedOrders.reduce(
+        (sum, order) => sum + (order.total || 0) * 0.1,
+        0
+      ),
+      averageDeliveryTime: calculateAverageDeliveryTime(completedOrders),
+      onTimeRate: calculateOnTimeRate(completedOrders),
+    };
+
+    updateDeliveryStats(driverId, stats);
+  }
+
+  return updatedOrders;
+};
+
+// Helper function to calculate average delivery time
+const calculateAverageDeliveryTime = (orders) => {
+  const deliveryTimes = orders
+    .filter((order) => order.deliveryStartTime && order.deliveryEndTime)
+    .map((order) => {
+      const start = new Date(order.deliveryStartTime).getTime();
+      const end = new Date(order.deliveryEndTime).getTime();
+      return (end - start) / (1000 * 60); // Convert to minutes
+    });
+
+  if (deliveryTimes.length === 0) return 0;
+  return Math.round(
+    deliveryTimes.reduce((sum, time) => sum + time, 0) / deliveryTimes.length
+  );
+};
+
+// Helper function to calculate on-time delivery rate
+const calculateOnTimeRate = (orders) => {
+  if (orders.length === 0) return 100;
+  const onTimeDeliveries = orders.filter((order) => {
+    if (!order.deliveryStartTime || !order.deliveryEndTime) return true;
+    const deliveryTime =
+      (new Date(order.deliveryEndTime) - new Date(order.deliveryStartTime)) /
+      (1000 * 60);
+    return deliveryTime <= 45; // Consider delivery on time if within 45 minutes
+  });
+  return (onTimeDeliveries.length / orders.length) * 100;
+};
+
+// Get delivery actions for a specific driver
+export const getDriverDeliveryActions = (driverId) => {
+  const actions = getFromStorage(STORAGE_KEYS.DELIVERY_ACTIONS, []);
+  return actions.filter((action) => action.driverId === driverId);
+};
+
+// Add a new delivery action
+export const addDeliveryAction = (action) => {
+  const actions = getFromStorage(STORAGE_KEYS.DELIVERY_ACTIONS, []);
+  const newAction = {
+    ...action,
+    id: Date.now().toString(),
+    timestamp: new Date().toISOString(),
+  };
+  actions.push(newAction);
+  setToStorage(STORAGE_KEYS.DELIVERY_ACTIONS, actions);
+  return newAction;
+};
+
+// Update delivery stats for a driver
+export const updateDeliveryStats = (driverId, stats) => {
+  const allStats = getFromStorage(STORAGE_KEYS.DELIVERY_STATS, {});
+  allStats[driverId] = {
+    ...allStats[driverId],
+    ...stats,
+    lastUpdated: new Date().toISOString(),
+  };
+  setToStorage(STORAGE_KEYS.DELIVERY_STATS, allStats);
+};
+
+// Get delivery stats for a driver
+export const getDriverDeliveryStats = (driverId) => {
+  const allStats = getFromStorage(STORAGE_KEYS.DELIVERY_STATS, {});
+  return (
+    allStats[driverId] || {
+      totalDeliveries: 0,
+      totalEarnings: 0,
+      averageDeliveryTime: 0,
+      onTimeRate: 100,
+      lastUpdated: null,
+    }
+  );
 };

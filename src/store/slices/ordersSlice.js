@@ -14,6 +14,7 @@ const initialState = {
     date: "all",
     priority: "all",
   },
+  driverLocations: {}, // Map of driverId to location
 };
 
 const ordersSlice = createSlice({
@@ -46,7 +47,7 @@ const ordersSlice = createSlice({
     },
     assignDriver: (state, action) => {
       const { orderId, driverName } = action.payload;
-      const order = state.orders.find((order) => order.id === orderId);
+      const order = state.orders.find((o) => o.id === orderId);
       if (order) {
         order.assignedDriver = driverName;
         order.updatedAt = new Date().toISOString();
@@ -102,6 +103,17 @@ const ordersSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
+    updateDriverLocation: (state, action) => {
+      const { driverId, location } = action.payload;
+      state.driverLocations[driverId] = {
+        ...location,
+        timestamp: Date.now(),
+      };
+    },
+    clearDriverLocation: (state, action) => {
+      const { driverId } = action.payload;
+      delete state.driverLocations[driverId];
+    },
   },
 });
 
@@ -118,6 +130,8 @@ export const {
   setLoading,
   setError,
   clearError,
+  updateDriverLocation,
+  clearDriverLocation,
 } = ordersSlice.actions;
 
 export default ordersSlice.reducer;

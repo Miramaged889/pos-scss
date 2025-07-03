@@ -103,7 +103,11 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
     try {
       // Get profile from localStorage based on role
       const profileKey =
-        role === "kitchen" ? "kitchenProfile" : "sellerProfile";
+        role === "kitchen"
+          ? "kitchenProfile"
+          : role === "delivery"
+          ? "driverProfile"
+          : "sellerProfile";
       const profileData = localStorage.getItem(profileKey);
 
       if (profileData) {
@@ -130,6 +134,7 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
           if (userProfile.firstName) return userProfile.firstName;
           if (userProfile.lastName) return userProfile.lastName;
           if (userProfile.managerName) return userProfile.managerName;
+          
         }
       } else {
         // Initialize profile if it doesn't exist
