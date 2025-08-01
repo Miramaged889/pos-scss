@@ -299,3 +299,103 @@ export const formatNumberEnglish = (number) => {
 
   return new Intl.NumberFormat("en-US").format(number);
 };
+
+/**
+ * Convert number to Arabic words for currency amounts
+ * @param {number} amount - The amount to convert
+ * @returns {string} - Amount in Arabic words
+ */
+export const numberToWords = (amount) => {
+  if (amount === null || amount === undefined || isNaN(amount)) {
+    return "صفر ريال";
+  }
+
+  const ones = [
+    "", "واحد", "اثنان", "ثلاثة", "أربعة", "خمسة", "ستة", "سبعة", "ثمانية", "تسعة",
+    "عشرة", "أحد عشر", "اثنا عشر", "ثلاثة عشر", "أربعة عشر", "خمسة عشر", "ستة عشر",
+    "سبعة عشر", "ثمانية عشر", "تسعة عشر"
+  ];
+
+  const tens = [
+    "", "", "عشرون", "ثلاثون", "أربعون", "خمسون", "ستون", "سبعون", "ثمانون", "تسعون"
+  ];
+
+  const hundreds = [
+    "", "مائة", "مئتان", "ثلاثمائة", "أربعمائة", "خمسمائة", "ستمائة", "سبعمائة", "ثمانمائة", "تسعمائة"
+  ];
+
+  const thousands = [
+    "", "ألف", "ألفان", "ثلاثة آلاف", "أربعة آلاف", "خمسة آلاف", "ستة آلاف", "سبعة آلاف", "ثمانية آلاف", "تسعة آلاف"
+  ];
+
+  const convertLessThanOneThousand = (num) => {
+    if (num === 0) return "";
+
+    let result = "";
+
+    if (num >= 100) {
+      result += hundreds[Math.floor(num / 100)] + " ";
+      num %= 100;
+    }
+
+    if (num >= 20) {
+      result += tens[Math.floor(num / 10)] + " ";
+      num %= 10;
+    }
+
+    if (num > 0) {
+      result += ones[num] + " ";
+    }
+
+    return result.trim();
+  };
+
+  const convert = (num) => {
+    if (num === 0) return "صفر";
+
+    let result = "";
+
+    if (num >= 1000000000) {
+      const billions = Math.floor(num / 1000000000);
+      result += convertLessThanOneThousand(billions) + " مليار ";
+      num %= 1000000000;
+    }
+
+    if (num >= 1000000) {
+      const millions = Math.floor(num / 1000000);
+      result += convertLessThanOneThousand(millions) + " مليون ";
+      num %= 1000000;
+    }
+
+    if (num >= 1000) {
+      const thousands = Math.floor(num / 1000);
+      if (thousands === 1) {
+        result += "ألف ";
+      } else if (thousands === 2) {
+        result += "ألفان ";
+      } else if (thousands >= 3 && thousands <= 10) {
+        result += convertLessThanOneThousand(thousands) + " آلاف ";
+      } else {
+        result += convertLessThanOneThousand(thousands) + " ألف ";
+      }
+      num %= 1000;
+    }
+
+    if (num > 0) {
+      result += convertLessThanOneThousand(num);
+    }
+
+    return result.trim();
+  };
+
+  const integerPart = Math.floor(amount);
+  const decimalPart = Math.round((amount - integerPart) * 100);
+
+  let result = convert(integerPart) + " ريال";
+
+  if (decimalPart > 0) {
+    result += " و " + convert(decimalPart) + " هللة";
+  }
+
+  return result;
+};

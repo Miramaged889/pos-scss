@@ -2,13 +2,16 @@ import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { X, Check, Package, Tag, DollarSign, Truck } from "lucide-react";
-import FormField from "./FormField";
+import FormField from "../FormField";
 import {
   saveFormDraft,
   getFormDraft,
   clearFormDraft,
-} from "../../utils/localStorage";
-import { addProduct, updateProduct } from "../../store/slices/inventorySlice";
+} from "../../../utils/localStorage";
+import {
+  addProduct,
+  updateProduct,
+} from "../../../store/slices/inventorySlice";
 
 const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
   const { t } = useTranslation();
@@ -24,8 +27,11 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
     price: "",
     supplier: "",
     sku: "",
+    barcode: "",
     description: "",
     imageUrl: "",
+    unitSize: "",
+    unitType: "",
   });
 
   const [imagePreview, setImagePreview] = useState(null);
@@ -44,8 +50,11 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
         price: product.price?.toString() || "",
         supplier: product.supplier || "",
         sku: product.sku || "",
+        barcode: product.barcode || "",
         description: product.description || "",
         imageUrl: product.imageUrl || "",
+        unitSize: product.unitSize?.toString() || "",
+        unitType: product.unitType || "",
       });
       setImagePreview(product.imageUrl || null);
     } else if (mode === "create") {
@@ -61,8 +70,11 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
           price: draft.price || "",
           supplier: draft.supplier || "",
           sku: draft.sku || "",
+          barcode: draft.barcode || "",
           description: draft.description || "",
           imageUrl: draft.imageUrl || "",
+          unitSize: draft.unitSize || "",
+          unitType: draft.unitType || "",
         });
         setImagePreview(draft.imageUrl || null);
       } else {
@@ -76,8 +88,11 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
           price: "",
           supplier: "",
           sku: "",
+          barcode: "",
           description: "",
           imageUrl: "",
+          unitSize: "",
+          unitType: "",
         });
         setImagePreview(null);
       }
@@ -104,6 +119,19 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
     { value: "side", label: t("sideDish") },
     { value: "beverages", label: t("beverages") },
     { value: "desserts", label: t("desserts") },
+  ];
+
+  const unitTypeOptions = [
+    { value: "gram", label: t("gram") },
+    { value: "kilogram", label: t("kilogram") },
+    { value: "liter", label: t("liter") },
+    { value: "milliliter", label: t("milliliter") },
+    { value: "piece", label: t("piece") },
+    { value: "box", label: t("box") },
+    { value: "carton", label: t("carton") },
+    { value: "bottle", label: t("bottle") },
+    { value: "can", label: t("can") },
+    { value: "pack", label: t("pack") },
   ];
 
   const handleInputChange = (field) => (e) => {
@@ -156,10 +184,6 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
       newErrors.price = t("validPriceRequired");
     }
 
-    if (!formData.imageUrl) {
-      newErrors.imageUrl = t("productImageRequired");
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -183,8 +207,11 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
         price: parseFloat(formData.price),
         supplier: formData.supplier.trim() || null,
         sku: formData.sku.trim() || null,
+        barcode: formData.barcode.trim() || null,
         description: formData.description.trim() || null,
         imageUrl: formData.imageUrl || null,
+        unitSize: formData.unitSize ? parseFloat(formData.unitSize) : null,
+        unitType: formData.unitType || null,
       };
 
       if (mode === "edit" && product) {
@@ -210,8 +237,11 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
           price: "",
           supplier: "",
           sku: "",
+          barcode: "",
           description: "",
           imageUrl: "",
+          unitSize: "",
+          unitType: "",
         });
         setErrors({});
       }
@@ -247,8 +277,11 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
       price: "",
       supplier: "",
       sku: "",
+      barcode: "",
       description: "",
       imageUrl: "",
+      unitSize: "",
+      unitType: "",
     });
   };
 
@@ -316,7 +349,8 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
           {/* Image Upload Section */}
           <div className="space-y-4">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              {t("productImage")}
+              {t("productImage")}{" "}
+              <span className="text-gray-500 text-xs">({t("optional")})</span>
             </label>
             <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-gray-400 dark:hover:border-gray-500 transition-colors">
               {imagePreview ? (
@@ -410,6 +444,14 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
                 placeholder={t("enterSKU")}
                 helperText={t("skuOptional")}
               />
+              <FormField
+                label={t("barcode")}
+                type="number"
+                value={formData.barcode}
+                onChange={handleInputChange("barcode")}
+                placeholder={t("enterBarcode")}
+                helperText={t("barcodeOptional")}
+              />
             </div>
           </div>
 
@@ -423,7 +465,7 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
               <Tag className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               {t("stockAndPricing")}
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <FormField
                 label={t("currentStock")}
                 type="number"
@@ -454,6 +496,27 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
                 step="0.01"
                 error={errors.price}
                 required
+              />
+              <FormField
+                label={t("unitSize")}
+                type="number"
+                value={formData.unitSize}
+                onChange={handleInputChange("unitSize")}
+                placeholder="0"
+                min="0"
+                step="0.01"
+                helperText={t("unitSizeOptional")}
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <FormField
+                label={t("unitType")}
+                type="select"
+                value={formData.unitType}
+                onChange={handleInputChange("unitType")}
+                placeholder={t("selectUnitType")}
+                options={unitTypeOptions}
+                helperText={t("unitTypeOptional")}
               />
             </div>
           </div>

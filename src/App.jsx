@@ -16,6 +16,7 @@ import LoginPage from "./pages/LoginPage";
 import SellerDashboard from "./pages/seller/SellerDashboard";
 import KitchenDashboard from "./pages/kitchen/KitchenDashboard";
 import DeliveryDashboard from "./pages/delivery/DeliveryDashboard";
+import ManagerDashboard from "./pages/manager/ManagerDashboard";
 
 const AppContent = () => {
   const { i18n } = useTranslation();
@@ -53,6 +54,8 @@ const AppContent = () => {
           return <Navigate to="/kitchen" replace />;
         case "delivery":
           return <Navigate to="/delivery" replace />;
+        case "manager":
+          return <Navigate to="/manager" replace />;
         default:
           return <Navigate to="/login" replace />;
       }
@@ -98,6 +101,15 @@ const AppContent = () => {
           element={
             <ProtectedRoute allowedRole="delivery">
               <DeliveryDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/manager/*"
+          element={
+            <ProtectedRoute allowedRole="manager">
+              <ManagerDashboard />
             </ProtectedRoute>
           }
         />

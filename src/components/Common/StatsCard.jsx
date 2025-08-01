@@ -107,9 +107,7 @@ const StatsCard = ({
               )}
               {(changeText || subtitle) && (
                 <span
-                  className={`text-xs text-gray-500 dark:text-gray-400 ${
-                    isRTL ? "mr-2" : "ml-2"
-                  }`}
+                  className={`text-xs text-gray-500 dark:text-gray-400`}
                 >
                   {changeText || subtitle}
                 </span>

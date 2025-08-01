@@ -12,13 +12,11 @@ import {
 const DataTable = ({
   data = [],
   columns = [],
-  searchable = true,
   pageable = true,
   pageSize = 10,
   emptyMessage,
   className = "",
 }) => {
-  const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
   const { isRTL } = useSelector((state) => state.language);
@@ -26,18 +24,8 @@ const DataTable = ({
 
   // Filter data based on search term
   const filteredData = useMemo(() => {
-    if (!searchTerm) return data;
-
-    return data.filter((item) =>
-      columns.some((column) => {
-        const value = item[column.accessor];
-        return value
-          ?.toString()
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase());
-      })
-    );
-  }, [data, searchTerm, columns]);
+    return data;
+  }, [data]);
 
   // Paginate data
   const paginatedData = useMemo(() => {
@@ -75,37 +63,7 @@ const DataTable = ({
     <div
       className={`bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-200 dark:border-gray-700 overflow-hidden transition-all duration-300 ${className}`}
     >
-      {/* Search Bar */}
-      {searchable && (
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30">
-          <div
-            className={`relative max-w-md ${
-              isRTL ? "mr-0 ml-auto" : "ml-0 mr-auto"
-            }`}
-          >
-            <Search
-              className={`absolute ${
-                isRTL ? "right-3" : "left-3"
-              } top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-5 h-5`}
-            />
-            <input
-              type="text"
-              placeholder={t("search")}
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
-              }}
-              className={`w-full ${
-                isRTL ? "pr-12 pl-4" : "pl-12 pr-4"
-              } py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-all duration-200 shadow-sm hover:shadow-md focus:shadow-lg ${
-                isRTL ? "text-right" : "text-left"
-              }`}
-              dir={isRTL ? "rtl" : "ltr"}
-            />
-          </div>
-        </div>
-      )}
+
 
       {/* Table */}
       <div className="overflow-x-auto">
@@ -121,9 +79,19 @@ const DataTable = ({
                   key={index}
                   className={`px-6 py-4 ${
                     isRTL ? "text-right" : "text-left"
-                  } text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider bg-gradient-to-b from-transparent to-gray-50/50 dark:to-gray-700/50 first:${
-                    isRTL ? "rounded-tr-lg" : "rounded-tl-lg"
-                  } last:${isRTL ? "rounded-tl-lg" : "rounded-tr-lg"}`}
+                  } text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider bg-gradient-to-b from-transparent to-gray-50/50 dark:to-gray-700/50 ${
+                    index === 0 
+                      ? isRTL 
+                        ? "rounded-tr-lg" 
+                        : "rounded-tl-lg"
+                      : ""
+                  } ${
+                    index === columns.length - 1
+                      ? isRTL
+                        ? "rounded-tl-lg"
+                        : "rounded-tr-lg"
+                      : ""
+                  }`}
                 >
                   {column.header}
                 </th>
@@ -143,6 +111,7 @@ const DataTable = ({
                       className={`px-6 py-4 text-sm text-gray-900 dark:text-gray-100 group-hover:text-gray-700 dark:group-hover:text-gray-200 transition-all duration-200 ${
                         isRTL ? "text-right" : "text-left"
                       } ${colIndex === 0 ? "font-medium" : ""}`}
+                      dir={isRTL ? "rtl" : "ltr"}
                     >
                       {column.render
                         ? column.render(item, rowIndex)
@@ -156,6 +125,7 @@ const DataTable = ({
                 <td
                   colSpan={columns.length}
                   className="px-6 py-16 text-center text-gray-500 dark:text-gray-400"
+                  dir={isRTL ? "rtl" : "ltr"}
                 >
                   <div className="flex flex-col items-center justify-center space-y-4">
                     <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-full flex items-center justify-center shadow-lg">
@@ -182,7 +152,7 @@ const DataTable = ({
         <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-gray-100/50 dark:from-gray-700/30 dark:to-gray-800/50">
           <div
             className={`flex items-center justify-between ${
-              isRTL ? "flex-row-reverse" : ""
+              isRTL ? "flex-row" : ""
             }`}
           >
             {/* Results Info */}

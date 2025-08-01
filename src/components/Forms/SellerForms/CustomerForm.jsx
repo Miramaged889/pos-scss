@@ -14,15 +14,15 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-import FormField from "./FormField";
-import { isValidEmail, isValidPhone } from "../../utils/validators";
+import FormField from "../FormField";
+import { isValidEmail, isValidPhone } from "../../../utils/validators";
 import {
   addCustomer as addCustomerToStorage,
   updateCustomer as updateCustomerInStorage,
   saveFormDraft,
   getFormDraft,
   clearFormDraft,
-} from "../../utils/localStorage";
+} from "../../../utils/localStorage";
 
 const CustomerForm = ({
   isOpen,

@@ -1,54 +1,99 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
-import { Plus, Minus, ShoppingCart } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { ShoppingCart, Search, Filter } from "lucide-react";
 
 const ProductSelectionPage = () => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
   const { products } = useSelector((state) => state.inventory);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [selectedProducts, setSelectedProducts] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [subcategoryFilter, setSubcategoryFilter] = useState("all");
+
+  // Load selected products from cart if coming back from cart page
+  useEffect(() => {
+    if (location.state?.selectedProducts) {
+      setSelectedProducts(location.state.selectedProducts);
+    }
+  }, [location.state]);
 
   const categories = [
     { value: "all", label: t("allCategories") },
     { value: "main", label: t("mainCourse") },
-    { value: "side", label: t("sideDishes") },
+    { value: "side", label: t("sideDish") },
     { value: "beverages", label: t("beverages") },
     { value: "desserts", label: t("desserts") },
   ];
 
+  const subcategories = {
+    main: [
+      { value: "all", label: t("allSubcategories") },
+      { value: "grilled", label: t("grilled") },
+      { value: "fried", label: t("fried") },
+      { value: "pasta", label: t("pasta") },
+      { value: "rice", label: t("rice") },
+      { value: "seafood", label: t("seafood") },
+    ],
+    side: [
+      { value: "all", label: t("allSubcategories") },
+      { value: "salads", label: t("salads") },
+      { value: "appetizers", label: t("appetizers") },
+      { value: "bread", label: t("bread") },
+      { value: "soup", label: t("soup") },
+    ],
+    beverages: [
+      { value: "all", label: t("allSubcategories") },
+      { value: "hot", label: t("hotDrinks") },
+      { value: "cold", label: t("coldDrinks") },
+      { value: "juices", label: t("juices") },
+      { value: "soft", label: t("softDrinks") },
+    ],
+    desserts: [
+      { value: "all", label: t("allSubcategories") },
+      { value: "cakes", label: t("cakes") },
+      { value: "ice_cream", label: t("iceCream") },
+      { value: "traditional", label: t("traditional") },
+      { value: "chocolate", label: t("chocolate") },
+    ],
+    all: [{ value: "all", label: t("allSubcategories") }],
+  };
+
   const filteredProducts = products.filter((product) => {
     const matchesSearch =
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.nameEn.toLowerCase().includes(searchTerm.toLowerCase());
+      product.nameEn?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory =
       categoryFilter === "all" || product.category === categoryFilter;
-    return matchesSearch && matchesCategory;
+    const matchesSubcategory =
+      subcategoryFilter === "all" || product.subcategory === subcategoryFilter;
+    return matchesSearch && matchesCategory && matchesSubcategory;
   });
 
-  const handleQuantityChange = (productId, change) => {
+  const handleAddToCart = (productId) => {
     setSelectedProducts((prev) => {
       const currentQty = prev[productId]?.quantity || 0;
-      const newQty = Math.max(0, currentQty + change);
+      const product = products.find((p) => p.id === productId);
 
-      if (newQty === 0) {
-        const { [productId]: _, ...rest } = prev;
-        return rest;
+      if (!product || product.stock === 0) {
+        return prev;
       }
 
-      const product = products.find((p) => p.id === productId);
       return {
         ...prev,
         [productId]: {
-          quantity: newQty,
+          quantity: currentQty + 1,
           name: product.name,
           nameEn: product.nameEn,
           price: product.price,
+          imageUrl: product.imageUrl,
+          unitSize: product.unitSize,
+          unitType: product.unitType,
         },
       };
     });
@@ -61,23 +106,12 @@ const ProductSelectionPage = () => {
     );
   };
 
-  const handleProceedToCheckout = () => {
+  const handleViewCart = () => {
     if (Object.keys(selectedProducts).length === 0) {
       return;
     }
 
-    const orderData = {
-      products: Object.entries(selectedProducts).map(([id, product]) => ({
-        productId: parseInt(id),
-        name: product.name,
-        nameEn: product.nameEn,
-        quantity: product.quantity,
-        price: product.price,
-      })),
-      total: calculateTotal(),
-    };
-
-    navigate("/seller/checkout", { state: { orderData } });
+    navigate("/seller/cart", { state: { selectedProducts } });
   };
 
   return (
@@ -93,107 +127,167 @@ const ProductSelectionPage = () => {
         </h1>
 
         {/* Search and Filter */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={t("searchProducts")}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {/* Search Input */}
+          <div className="relative">
+            <Search
+              className={`absolute top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 ${
+                isRTL ? "right-3" : "left-3"
+              }`}
+            />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder={t("searchProducts")}
+              className={`w-full py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 ${
+                isRTL ? "pr-10 pl-4 text-right" : "pl-10 pr-4 text-left"
+              }`}
+              dir={isRTL ? "rtl" : "ltr"}
+            />
+          </div>
 
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          >
-            {categories.map((category) => (
-              <option key={category.value} value={category.value}>
-                {category.label}
-              </option>
-            ))}
-          </select>
+          {/* Category Filter */}
+          <div className="relative">
+            <Filter
+              className={`absolute top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 ${
+                isRTL ? "right-3" : "left-3"
+              }`}
+            />
+            <select
+              value={categoryFilter}
+              onChange={(e) => {
+                setCategoryFilter(e.target.value);
+                setSubcategoryFilter("all");
+              }}
+              className={`w-full py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white appearance-none ${
+                isRTL ? "pr-10 pl-4 text-right" : "pl-10 pr-4 text-left"
+              }`}
+              dir={isRTL ? "rtl" : "ltr"}
+            >
+              {categories.map((category) => (
+                <option key={category.value} value={category.value}>
+                  {category.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Subcategory Filter */}
+          <div className="relative">
+            <Filter
+              className={`absolute top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 ${
+                isRTL ? "right-3" : "left-3"
+              }`}
+            />
+            <select
+              value={subcategoryFilter}
+              onChange={(e) => setSubcategoryFilter(e.target.value)}
+              className={`w-full py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white appearance-none ${
+                isRTL ? "pr-10 pl-4 text-right" : "pl-10 pr-4 text-left"
+              }`}
+              dir={isRTL ? "rtl" : "ltr"}
+            >
+              {subcategories[categoryFilter]?.map((subcategory) => (
+                <option key={subcategory.value} value={subcategory.value}>
+                  {subcategory.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
       {/* Products Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
         {filteredProducts.map((product) => (
           <div
             key={product.id}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-200 dark:border-gray-700 p-4"
+            onClick={() => handleAddToCart(product.id)}
+            className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-3 cursor-pointer hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 ${
+              product.stock === 0 ? "opacity-50 cursor-not-allowed" : ""
+            } ${
+              selectedProducts[product.id]
+                ? "ring-2 ring-blue-500 dark:ring-blue-400"
+                : ""
+            }`}
           >
-            <img
-              src={product.imageUrl}
-              alt={product.name}
-              className="w-full h-48 object-cover rounded-lg mb-4"
-            />
+            {/* Product Image */}
+            {product.imageUrl ? (
+              <img
+                src={product.imageUrl}
+                alt={product.name}
+                className="w-full h-24 sm:h-32 object-cover rounded-md mb-2"
+              />
+            ) : (
+              <div className="w-full h-24 sm:h-32 bg-gray-200 dark:bg-gray-700 rounded-md mb-2 flex items-center justify-center">
+                <span className="text-gray-400 text-xs">{t("noImage")}</span>
+              </div>
+            )}
 
+            {/* Product Name */}
             <div
-              className={`text-lg font-semibold mb-2 dark:text-white ${
+              className={`text-sm font-medium mb-1 dark:text-white line-clamp-2 ${
                 isRTL ? "text-right" : "text-left"
               }`}
+              title={isRTL ? product.name : product.nameEn || product.name}
             >
-              {isRTL ? product.name : product.nameEn}
+              {isRTL ? product.name : product.nameEn || product.name}
             </div>
 
-            <div className="text-blue-600 dark:text-blue-400 font-bold mb-4">
-              {product.price} {t("sar")}
+            {/* Price */}
+            <div className="text-blue-600 dark:text-blue-400 font-bold text-sm mb-2">
+              {product.price} {t("currency")}
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleQuantityChange(product.id, -1)}
-                  className="p-1 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                  disabled={!selectedProducts[product.id]}
-                >
-                  <Minus className="w-5 h-5" />
-                </button>
 
-                <span className="w-8 text-center font-medium">
-                  {selectedProducts[product.id]?.quantity || 0}
+            {/* Add to Cart Indicator */}
+            {selectedProducts[product.id] && (
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-6 h-6 bg-blue-500 text-white rounded-full text-xs font-bold">
+                  {selectedProducts[product.id].quantity}
+                </div>
+              </div>
+            )}
+
+            {/* Out of Stock Indicator */}
+            {product.stock === 0 && (
+              <div className="text-center">
+                <span className="text-xs text-red-500 dark:text-red-400 font-medium">
+                  {t("outOfStock")}
                 </span>
-
-                <button
-                  onClick={() => handleQuantityChange(product.id, 1)}
-                  className="p-1 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                  disabled={product.stock === 0}
-                >
-                  <Plus className="w-5 h-5" />
-                </button>
               </div>
-
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                {t("inStock")}: {product.stock}
-              </div>
-            </div>
+            )}
           </div>
         ))}
       </div>
 
-      {/* Checkout Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4">
-        <div className="container mx-auto flex items-center justify-between">
-          <div>
-            <div className="text-lg font-semibold text-gray-900 dark:text-white">
-              {t("total")}: {calculateTotal().toFixed(2)} {t("sar")}
+      {/* Cart Bar */}
+      {Object.keys(selectedProducts).length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4 shadow-lg z-50">
+          <div className="container mx-auto flex items-center justify-between">
+            <div className={isRTL ? "text-right" : "text-left"}>
+              <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                {t("total")}: {calculateTotal().toFixed(2)} {t("currency")}
+              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {Object.keys(selectedProducts).length} {t("itemsSelected")}
+              </div>
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              {Object.keys(selectedProducts).length} {t("itemsSelected")}
-            </div>
-          </div>
 
-          <button
-            onClick={handleProceedToCheckout}
-            disabled={Object.keys(selectedProducts).length === 0}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg flex items-center gap-2"
-          >
-            <ShoppingCart className="w-5 h-5" />
-            {t("proceedToCheckout")}
-          </button>
+            <button
+              onClick={handleViewCart}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 transition-colors"
+            >
+              <ShoppingCart className="w-5 h-5" />
+              {t("viewCart")}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Bottom Padding for Fixed Cart Bar */}
+      <div className="h-24"></div>
     </div>
   );
 };

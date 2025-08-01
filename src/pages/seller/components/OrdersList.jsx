@@ -194,7 +194,7 @@ const OrdersList = () => {
     };
 
     return (
-      <div className={`flex ${isRTL ? "justify-start" : "justify-center"}`}>
+      <div className={`flex ${isRTL ? "justify-start" : "justify-left"}`}>
         <span
           className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border border-current border-opacity-20 whitespace-nowrap ${
             statusClasses[status] || statusClasses.pending
@@ -211,7 +211,7 @@ const OrdersList = () => {
       header: t("orderId"),
       accessor: "id",
       render: (order) => (
-        <div className={`${isRTL ? "text-right" : "text-center"}`}>
+        <div className={`${isRTL ? "text-right" : "text-left"}`}>
           <span className="font-mono text-sm font-bold text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded border border-blue-200 dark:border-blue-800">
             {order.id}
           </span>
@@ -245,7 +245,7 @@ const OrdersList = () => {
       render: (order) => (
         <div
           className={`flex items-center gap-2 ${
-            isRTL ? " flex-row " : "justify-center"
+            isRTL ? " flex-row " : "justify-left"
           }`}
         >
           <Package className="w-4 h-4 text-gray-500 dark:text-gray-400" />
@@ -261,7 +261,7 @@ const OrdersList = () => {
       render: (order) => (
         <div
           className={`flex items-center gap-1 ${
-            isRTL ? " flex-row" : "justify-center"
+            isRTL ? " flex-row" : "justify-left"
           }`}
         >
           <DollarSign className="w-4 h-4 text-green-600 dark:text-green-400" />
@@ -274,7 +274,15 @@ const OrdersList = () => {
     {
       header: t("status"),
       accessor: "status",
-      render: (order) => getStatusBadge(order.status),
+      render: (order) => (
+        <div
+          className={`flex items-center ${
+            isRTL ? "justify-start" : "justify-left"
+          }`}
+        >
+          {getStatusBadge(order.status)}
+        </div>
+      ),
     },
     {
       header: t("date"),
@@ -282,7 +290,7 @@ const OrdersList = () => {
       render: (order) => (
         <div
           className={`flex items-center gap-2 ${
-            isRTL ? " flex-row" : "justify-center"
+            isRTL ? " flex-row" : "justify-left"
           }`}
         >
           <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
@@ -298,7 +306,7 @@ const OrdersList = () => {
       render: (order) => (
         <div
           className={`flex items-center gap-2 ${
-            isRTL ? "flex-row" : "justify-center"
+            isRTL ? "flex-row" : "justify-left"
           }`}
         >
           <button

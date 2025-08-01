@@ -15,6 +15,7 @@ import {
   CreditCard,
   Wallet,
   Banknote,
+  Calendar,
 } from "lucide-react";
 import FormField from "../../../components/Forms/FormField";
 import { addOrder } from "../../../store/slices/ordersSlice";
@@ -120,7 +121,7 @@ const CheckoutPage = () => {
   };
 
   const handleBackToProducts = () => {
-    navigate("/seller/product-selection", { state: { orderData } });
+    navigate("/seller", { state: { orderData } });
   };
 
   const paymentMethods = [
@@ -141,6 +142,12 @@ const CheckoutPage = () => {
       label: t("knet"),
       icon: Wallet,
       description: t("payWithKNET"),
+    },
+    {
+      id: "credit",
+      label: t("credit"),
+      icon: Calendar,
+      description: t("payWithCredit"),
     },
   ];
 
@@ -211,7 +218,7 @@ const CheckoutPage = () => {
               <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
                 <div
                   className={`flex justify-between items-center ${
-                      isRTL ? "flex-row" : ""
+                    isRTL ? "flex-row" : ""
                   }`}
                 >
                   <span className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -319,7 +326,7 @@ const CheckoutPage = () => {
               {deliveryType === "delivery" && (
                 <div className="space-y-6">
                   <h3
-                      className={`text-lg font-semibold text-gray-900 dark:text-white mb-4`}
+                    className={`text-lg font-semibold text-gray-900 dark:text-white mb-4`}
                   >
                     {t("customerInformation")}
                   </h3>

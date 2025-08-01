@@ -4,12 +4,14 @@ const ROLES = {
   SELLER: "seller",
   KITCHEN: "kitchen",
   DELIVERY: "delivery",
+  MANAGER: "manager",
 };
 
 const ROLE_EMAILS = {
   "seller@company.com": ROLES.SELLER,
   "kitchen@company.com": ROLES.KITCHEN,
   "delivery@company.com": ROLES.DELIVERY,
+  "manager@company.com": ROLES.MANAGER,
 };
 
 const loadAuthFromStorage = () => {

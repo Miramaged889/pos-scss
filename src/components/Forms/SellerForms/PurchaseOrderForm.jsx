@@ -12,7 +12,7 @@ import {
   FileText,
   Truck,
 } from "lucide-react";
-import FormField from "./FormField";
+import FormField from "../FormField";
 
 const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const { t } = useTranslation();

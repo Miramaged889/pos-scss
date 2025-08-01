@@ -11,8 +11,11 @@ import {
   FileText,
   User,
 } from "lucide-react";
-import FormField from "./FormField";
-import { getOrders, generateUniqueReturnId } from "../../utils/localStorage";
+import FormField from "../FormField";
+import {
+  getOrders,
+  generateUniqueReturnId,
+} from "../../../utils/localStorage";
 
 const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const { t } = useTranslation();

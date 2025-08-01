@@ -53,7 +53,8 @@ const InventoryManagement = () => {
     const matchesSearch =
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.nameEn?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.sku?.toLowerCase().includes(searchTerm.toLowerCase());
+      product.sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.barcode?.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesCategory =
       categoryFilter === "all" || product.category === categoryFilter;
@@ -211,6 +212,11 @@ const InventoryManagement = () => {
                 {t("sku")}: {product.sku}
               </div>
             )}
+            {product.barcode && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                {t("barcode")}: {product.barcode}
+              </div>
+            )}
           </div>
         </div>
       ),
@@ -231,7 +237,7 @@ const InventoryManagement = () => {
       accessor: "stock",
       render: (product) => {
         return (
-          <div className={`${isRTL ? "text-right" : "text-center"}`}>
+          <div className={`${isRTL ? "text-center" : "text-center"}`}>
             <div className="font-bold text-lg text-gray-900 dark:text-white mb-1">
               {formatNumberEnglish(product.stock)}
             </div>
@@ -243,7 +249,7 @@ const InventoryManagement = () => {
       header: t("minStock"),
       accessor: "minStock",
       render: (product) => (
-        <div className={`${isRTL ? "text-right" : "text-center"}`}>
+        <div className={`${isRTL ? "text-center" : "text-center"}`}>
           <span className="font-semibold text-gray-900 dark:text-white text-base">
             {formatNumberEnglish(product.minStock)}
           </span>
@@ -256,7 +262,7 @@ const InventoryManagement = () => {
       render: (product) => (
         <div
           className={`flex items-center gap-1 ${
-            isRTL ? "justify-start flex-row-reverse" : "justify-center"
+            isRTL ? "justify-start flex-row" : "justify-center"
           }`}
         >
           <span className="font-semibold text-green-600 dark:text-green-400">
@@ -291,6 +297,23 @@ const InventoryManagement = () => {
       ),
     },
     {
+      header: t("unit"),
+      accessor: "unit",
+      render: (product) => (
+        <div className={`${isRTL ? "text-right" : "text-center"}`}>
+          {product.unitSize && product.unitType ? (
+            <span className="text-sm text-gray-600 dark:text-gray-400 bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded-md inline-block">
+              {formatNumberEnglish(product.unitSize)} {t(product.unitType)}
+            </span>
+          ) : (
+            <span className="text-sm text-gray-400 dark:text-gray-500">
+              {t("noUnit")}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
       header: t("status"),
       accessor: "status",
       render: (product) => {
@@ -317,7 +340,7 @@ const InventoryManagement = () => {
       render: (product) => (
         <div
           className={`flex items-center gap-2 ${
-            isRTL ? "justify-start flex-row-reverse" : "justify-center"
+            isRTL ? "justify-start flex-row" : "justify-center"
           }`}
         >
           <button
@@ -384,7 +407,7 @@ const InventoryManagement = () => {
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-200 dark:border-gray-700 p-6 transition-all duration-300 hover:shadow-lg dark:hover:shadow-xl">
         <div
           className={`flex flex-col sm:flex-row gap-4 ${
-            isRTL ? "sm:flex-row-reverse" : ""
+            isRTL ? "sm:flex-row" : ""
           }`}
         >
           {/* Search Input */}
@@ -548,10 +571,18 @@ const InventoryManagement = () => {
                     {selectedProduct.sku || "—"}
                   </p>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t("barcode")}
+                  </label>
+                  <p className="text-gray-900 dark:text-white font-mono">
+                    {selectedProduct.barcode || "—"}
+                  </p>
+                </div>
               </div>
 
               {/* Stock & Pricing */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     {t("currentStock")}
@@ -576,6 +607,23 @@ const InventoryManagement = () => {
                     {formatCurrencyEnglish(
                       selectedProduct.price,
                       t("currency")
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t("unit")}
+                  </label>
+                  <p className="text-xl font-semibold text-gray-900 dark:text-white">
+                    {selectedProduct.unitSize && selectedProduct.unitType ? (
+                      <span className="text-blue-600 dark:text-blue-400">
+                        {formatNumberEnglish(selectedProduct.unitSize)}{" "}
+                        {t(selectedProduct.unitType)}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 dark:text-gray-500">
+                        {t("noUnit")}
+                      </span>
                     )}
                   </p>
                 </div>

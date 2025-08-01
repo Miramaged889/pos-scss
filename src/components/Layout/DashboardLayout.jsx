@@ -9,16 +9,14 @@ import {
   Globe,
   Home,
   ShoppingCart,
-  Package,
-  Users,
-  BarChart3,
   Settings,
   ChefHat,
   Truck,
   Sun,
   Moon,
   ChevronDown,
-  User,
+  ChevronRight,
+  ChevronLeft,
 } from "lucide-react";
 
 import { logout } from "../../store/slices/authSlice";
@@ -26,6 +24,7 @@ import { toggleLanguage, toggleTheme } from "../../store/slices/languageSlice";
 
 const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -38,6 +37,24 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
   const { currentLanguage, isRTL, theme } = useSelector(
     (state) => state.language
   );
+
+  // Check if we're on mobile
+  const [isMobileView, setIsMobileView] = useState(false);
+
+  // Handle window resize
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 1024;
+      setIsMobileView(mobile);
+      if (mobile) {
+        setSidebarCollapsed(false);
+      }
+    };
+
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -52,6 +69,23 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  // Close sidebar when clicking outside on mobile
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (isMobileView && sidebarOpen) {
+        const sidebar = event.target.closest("[data-sidebar]");
+        if (!sidebar) {
+          setSidebarOpen(false);
+        }
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isMobileView, sidebarOpen]);
 
   const handleLogout = () => {
     dispatch(logout());
@@ -72,20 +106,37 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
     setUserDropdownOpen(false);
   };
 
-  // Initialize default seller profile if it doesn't exist
+  const toggleSidebar = () => {
+    if (isMobileView) {
+      setSidebarOpen(!sidebarOpen);
+    } else {
+      setSidebarCollapsed(!sidebarCollapsed);
+    }
+  };
+
+  // Initialize default profile if it doesn't exist
   const initializeProfile = () => {
     try {
-      const profileKey =
-        role === "kitchen" ? "kitchenProfile" : "sellerProfile";
+      let profileKey = "sellerProfile";
+      let defaultName = "Seller";
+
+      if (role === "kitchen") {
+        profileKey = "kitchenProfile";
+        defaultName = "Kitchen";
+      } else if (role === "manager") {
+        profileKey = "managerProfile";
+        defaultName = "Manager";
+      }
+
       const existingProfile = localStorage.getItem(profileKey);
       if (!existingProfile) {
         const defaultProfile = [
           {
             id: 1,
             email: user?.email || `${role}@example.com`,
-            firstName: role === "kitchen" ? "Kitchen" : "Seller",
+            firstName: defaultName,
             lastName: "User",
-            name: `${role === "kitchen" ? "Kitchen" : "Seller"} User`,
+            name: `${defaultName} User`,
             role: role,
             phone: "+966 50 123 4567",
             address: "Riyadh, Saudi Arabia",
@@ -102,12 +153,15 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
   const getUserName = () => {
     try {
       // Get profile from localStorage based on role
-      const profileKey =
-        role === "kitchen"
-          ? "kitchenProfile"
-          : role === "delivery"
-          ? "driverProfile"
-          : "sellerProfile";
+      let profileKey = "sellerProfile";
+
+      if (role === "kitchen") {
+        profileKey = "kitchenProfile";
+      } else if (role === "delivery") {
+        profileKey = "driverProfile";
+      } else if (role === "manager") {
+        profileKey = "managerProfile";
+      }
       const profileData = localStorage.getItem(profileKey);
 
       if (profileData) {
@@ -134,7 +188,6 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
           if (userProfile.firstName) return userProfile.firstName;
           if (userProfile.lastName) return userProfile.lastName;
           if (userProfile.managerName) return userProfile.managerName;
-          
         }
       } else {
         // Initialize profile if it doesn't exist
@@ -169,6 +222,8 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
         return <ChefHat className="w-5 h-5" />;
       case "delivery":
         return <Truck className="w-5 h-5" />;
+      case "manager":
+        return <Home className="w-5 h-5" />;
       default:
         return <Home className="w-5 h-5" />;
     }
@@ -182,6 +237,8 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
         return t("kitchenDashboard");
       case "delivery":
         return t("deliveryDashboard");
+      case "manager":
+        return t("managerDashboard");
       default:
         return t("dashboard");
     }
@@ -194,7 +251,15 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
         location.pathname === `/${role}` || location.pathname === `/${role}/`
       );
     }
-    return location.pathname.startsWith(href);
+    // For exact path matching to avoid conflicts with similar paths
+    if (location.pathname === href) {
+      return true;
+    }
+    // For parent paths that should match child routes (like /seller/home matching /seller/home/detail)
+    if (href !== `/${role}` && location.pathname.startsWith(href + "/")) {
+      return true;
+    }
+    return false;
   };
 
   const allSidebarItems = sidebarItems;
@@ -207,31 +272,64 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
     >
       {/* Sidebar */}
       <div
+        data-sidebar
         className={`${
-          sidebarOpen
-            ? "translate-x-0"
-            : isRTL
-            ? "translate-x-full"
-            : "-translate-x-full"
+          isMobileView
+            ? sidebarOpen
+              ? "translate-x-0"
+              : isRTL
+              ? "translate-x-full"
+              : "-translate-x-full"
+            : sidebarCollapsed
+            ? "w-16"
+            : "w-64"
         } fixed inset-y-0 ${
           isRTL ? "right-0" : "left-0"
-        } z-50 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}
+        } z-50 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out lg:static lg:inset-0`}
       >
-        <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-              {getRoleIcon(role)}
+        <div
+          className={`flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-700 ${
+            sidebarCollapsed && !isMobileView ? "justify-center" : ""
+          }`}
+        >
+          {(!sidebarCollapsed || isMobileView) && (
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                {getRoleIcon(role)}
+              </div>
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white">
+                {getRoleTitle(role)}
+              </h1>
             </div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-              {getRoleTitle(role)}
-            </h1>
-          </div>
+          )}
           <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            onClick={() =>
+              isMobileView ? setSidebarOpen(false) : toggleSidebar()
+            }
+            className={`p-2 rounded-md text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+              sidebarCollapsed && !isMobileView ? "lg:hidden" : "lg:hidden"
+            }`}
           >
-            <X className="w-5 h-5" />
+            {isMobileView && <X className="w-5 h-5" />}
           </button>
+          {!isMobileView && (
+            <button
+              onClick={toggleSidebar}
+              className={`hidden lg:block p-2 rounded-md text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors`}
+            >
+              {sidebarCollapsed ? (
+                isRTL ? (
+                  <ChevronLeft className="w-5 h-5" />
+                ) : (
+                  <ChevronRight className="w-5 h-5" />
+                )
+              ) : isRTL ? (
+                <ChevronRight className="w-5 h-5" />
+              ) : (
+                <ChevronLeft className="w-5 h-5" />
+              )}
+            </button>
+          )}
         </div>
 
         <nav className="mt-5 px-2 space-y-1">
@@ -240,21 +338,33 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
             const isActive = isLinkActive(item.href);
             return (
               <Link
-                key={item.name}
+                key={item.key || item.name}
                 to={item.href}
-                onClick={() => setSidebarOpen(false)}
+                onClick={() => isMobileView && setSidebarOpen(false)}
                 className={`${
                   isActive
                     ? "bg-blue-50 dark:bg-blue-900/30 border-blue-500 text-blue-700 dark:text-blue-300"
                     : "border-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white"
-                } group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg border-l-4 transition-all duration-200 hover:scale-[1.02]`}
+                } group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg border-l-4 transition-all duration-200 hover:scale-[1.02] ${
+                  sidebarCollapsed && !isMobileView ? "justify-center" : ""
+                }`}
+                title={
+                  sidebarCollapsed && !isMobileView
+                    ? item.title || item.name
+                    : ""
+                }
               >
                 <Icon
                   className={`${
-                    isRTL ? "ml-3" : "mr-3"
+                    sidebarCollapsed && !isMobileView
+                      ? "mx-auto"
+                      : isRTL
+                      ? "ml-3"
+                      : "mr-3"
                   } w-5 h-5 transition-transform group-hover:scale-110`}
                 />
-                {item.name}
+                {(!sidebarCollapsed || isMobileView) &&
+                  (item.title || item.name)}
               </Link>
             );
           })}
@@ -268,7 +378,7 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
           <div className="flex items-center justify-between h-16 px-4">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => setSidebarOpen(true)}
+                onClick={toggleSidebar}
                 className="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
                 <Menu className="w-5 h-5" />
@@ -418,7 +528,7 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
       </div>
 
       {/* Sidebar overlay */}
-      {sidebarOpen && (
+      {sidebarOpen && isMobileView && (
         <div
           className="fixed inset-0 z-40 bg-gray-600 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-80 lg:hidden transition-opacity duration-300"
           onClick={() => setSidebarOpen(false)}

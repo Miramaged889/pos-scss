@@ -46,6 +46,7 @@ const LoginPage = () => {
     { email: "seller@company.com", role: t("seller") },
     { email: "kitchen@company.com", role: t("kitchen") },
     { email: "delivery@company.com", role: t("delivery") },
+    { email: "manager@company.com", role: t("manager") },
   ];
 
   return (

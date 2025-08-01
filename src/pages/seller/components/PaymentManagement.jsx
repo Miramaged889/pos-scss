@@ -331,7 +331,7 @@ const PaymentManagement = () => {
       render: (payment) => (
         <div
           className={`flex items-center gap-2 ${
-            isRTL ? "flex-row-reverse" : ""
+            isRTL ? "flex-row" : ""
           }`}
         >
           <button
@@ -452,7 +452,7 @@ const PaymentManagement = () => {
                 </div>
                 <div className={isRTL ? "text-right" : "text-left"}>
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    {t("viewTransaction")}
+                    {t("viewTransactions")}
                   </h2>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     {selectedPayment.transactionId}
