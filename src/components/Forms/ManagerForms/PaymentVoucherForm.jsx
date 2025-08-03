@@ -14,6 +14,11 @@ import {
   Wallet,
   Banknote,
   User,
+  Upload,
+  Image,
+  Trash2,
+  Camera,
+  Plus,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
@@ -24,8 +29,7 @@ const PaymentVoucherForm = ({
   onClose,
   onSubmit,
   voucher = null,
-  mode = "add", // "add" or "edit"
-  suppliers = [],
+  mode = "add",
 }) => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
@@ -35,7 +39,6 @@ const PaymentVoucherForm = ({
     date: new Date().toISOString().split("T")[0],
     amount: "",
     supplier: "",
-    invoiceNumber: "",
     paymentMethod: "cash",
     description: "",
     notes: "",
@@ -43,6 +46,8 @@ const PaymentVoucherForm = ({
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadedPhotos, setUploadedPhotos] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -54,11 +59,11 @@ const PaymentVoucherForm = ({
             : new Date().toISOString().split("T")[0],
           amount: voucher.amount || "",
           supplier: voucher.supplier || "",
-          invoiceNumber: voucher.invoiceNumber || "",
           paymentMethod: voucher.paymentMethod || "cash",
           description: voucher.description || "",
           notes: voucher.notes || "",
         });
+        setUploadedPhotos(voucher.photos || []);
       } else {
         // Reset form for add mode
         setFormData({
@@ -66,11 +71,11 @@ const PaymentVoucherForm = ({
           date: new Date().toISOString().split("T")[0],
           amount: "",
           supplier: "",
-          invoiceNumber: "",
           paymentMethod: "cash",
           description: "",
           notes: "",
         });
+        setUploadedPhotos([]);
       }
       setErrors({});
     }
@@ -95,6 +100,73 @@ const PaymentVoucherForm = ({
     handleInputChange(field, e.target.value);
   };
 
+  // Photo upload handlers
+  const handleFileSelect = (files) => {
+    const newFiles = Array.from(files);
+    const imageFiles = newFiles.filter((file) =>
+      file.type.startsWith("image/")
+    );
+
+    if (imageFiles.length === 0) {
+      toast.error(t("pleaseSelectImageFiles"));
+      return;
+    }
+
+    // Check file size (max 5MB per file)
+    const validFiles = imageFiles.filter((file) => {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error(t("fileTooLarge", { fileName: file.name }));
+        return false;
+      }
+      return true;
+    });
+
+    // Create file objects with preview
+    const filesWithPreview = validFiles.map((file) => ({
+      id: Date.now() + Math.random(),
+      file,
+      name: file.name,
+      size: file.size,
+      preview: URL.createObjectURL(file),
+      uploadDate: new Date(),
+    }));
+
+    setUploadedPhotos((prev) => [...prev, ...filesWithPreview]);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = e.dataTransfer.files;
+    handleFileSelect(files);
+  };
+
+  const handleFileInputChange = (e) => {
+    const files = e.target.files;
+    handleFileSelect(files);
+    e.target.value = "";
+  };
+
+  const removePhoto = (photoId) => {
+    setUploadedPhotos((prev) => {
+      const photoToRemove = prev.find((p) => p.id === photoId);
+      if (photoToRemove?.preview) {
+        URL.revokeObjectURL(photoToRemove.preview);
+      }
+      return prev.filter((p) => p.id !== photoId);
+    });
+  };
+
   const validateForm = () => {
     const newErrors = {};
 
@@ -115,13 +187,10 @@ const PaymentVoucherForm = ({
       newErrors.supplier = t("supplierRequired");
     }
 
-    if (!formData.invoiceNumber.trim()) {
-      newErrors.invoiceNumber = t("invoiceNumberRequired");
-    }
-
-    if (!formData.description.trim()) {
-      newErrors.description = t("descriptionRequired");
-    }
+    // Description is now optional
+    // if (!formData.description.trim()) {
+    //   newErrors.description = t("descriptionRequired");
+    // }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -147,6 +216,7 @@ const PaymentVoucherForm = ({
         amount: parseFloat(formData.amount),
         status: "pending",
         createdAt: new Date().toISOString(),
+        photos: uploadedPhotos,
       };
 
       onSubmit(submitData);
@@ -163,32 +233,46 @@ const PaymentVoucherForm = ({
   };
 
   const handleClose = () => {
+    // Clean up preview URLs
+    uploadedPhotos.forEach((photo) => {
+      if (photo.preview) {
+        URL.revokeObjectURL(photo.preview);
+      }
+    });
+
     setFormData({
       voucherNumber: "",
       date: new Date().toISOString().split("T")[0],
       amount: "",
       supplier: "",
-      invoiceNumber: "",
       paymentMethod: "cash",
       description: "",
       notes: "",
     });
+    setUploadedPhotos([]);
     setErrors({});
     setIsSubmitting(false);
     onClose();
   };
 
   const clearDraft = () => {
+    // Clean up preview URLs
+    uploadedPhotos.forEach((photo) => {
+      if (photo.preview) {
+        URL.revokeObjectURL(photo.preview);
+      }
+    });
+
     setFormData({
       voucherNumber: "",
       date: new Date().toISOString().split("T")[0],
       amount: "",
       supplier: "",
-      invoiceNumber: "",
       paymentMethod: "cash",
       description: "",
       notes: "",
     });
+    setUploadedPhotos([]);
     setErrors({});
   };
 
@@ -199,11 +283,7 @@ const PaymentVoucherForm = ({
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <div
-            className={`flex items-center gap-3 ${
-              isRTL ? "flex-row" : ""
-            }`}
-          >
+          <div className={`flex items-center gap-3 ${isRTL ? "flex-row" : ""}`}>
             <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
               <Receipt className="w-5 h-5 text-green-600 dark:text-green-400" />
             </div>
@@ -293,16 +373,6 @@ const PaymentVoucherForm = ({
                 error={errors.supplier}
                 icon={Building}
               />
-
-              <FormField
-                label={t("invoiceNumber")}
-                value={formData.invoiceNumber}
-                onChange={handleFieldChange("invoiceNumber")}
-                placeholder={t("enterInvoiceNumber")}
-                required
-                error={errors.invoiceNumber}
-                icon={FileText}
-              />
             </div>
 
             <div className="mt-4">
@@ -311,7 +381,6 @@ const PaymentVoucherForm = ({
                 value={formData.description}
                 onChange={handleFieldChange("description")}
                 placeholder={t("enterDescription")}
-                required
                 error={errors.description}
                 icon={FileText}
                 rows={3}
@@ -332,6 +401,96 @@ const PaymentVoucherForm = ({
               rows={4}
               icon={FileText}
             />
+          </div>
+
+          {/* Photo Upload Section */}
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+              {t("attachments")}
+            </h3>
+
+            {/* Upload Area */}
+            <div
+              className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                isDragging
+                  ? "border-blue-400 bg-blue-50 dark:bg-blue-900/20"
+                  : "border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500"
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleFileInputChange}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
+
+              <div className="space-y-3">
+                <div className="flex justify-center">
+                  <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+                    <Upload className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-1">
+                    {t("dragDropPhotos")}
+                  </h4>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    {t("supportedImageFormats")}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-center space-x-3 rtl:space-x-reverse">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      document.querySelector('input[type="file"]').click()
+                    }
+                    className="flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <Plus className={`w-4 h-4 ${isRTL ? "mr-1" : "ml-1"}`} />
+                    {t("selectPhotos")}
+                  </button>
+                  <button
+                    type="button"
+                    className="flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <Camera className={`w-4 h-4 ${isRTL ? "mr-1" : "ml-1"}`} />
+                    {t("takePhoto")}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Uploaded Photos */}
+            {uploadedPhotos.length > 0 && (
+              <div className="mt-4">
+                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  {t("uploadedPhotos", { count: uploadedPhotos.length })}
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {uploadedPhotos.map((photo) => (
+                    <div key={photo.id} className="relative group">
+                      <img
+                        src={photo.preview}
+                        alt={photo.name}
+                        className="w-full h-24 object-cover rounded-lg"
+                      />
+                      <button
+                        onClick={() => removePhoto(photo.id)}
+                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Error Summary */}

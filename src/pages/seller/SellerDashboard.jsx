@@ -99,12 +99,7 @@ const SellerDashboard = () => {
       href: "/seller/financial-receipt",
       current: false,
     },
-    {
-      name: t("vouchers"),
-      icon: FileText,
-      href: "/seller/vouchers",
-      current: false,
-    },
+
     {
       name: t("suppliers"),
       icon: Building,
@@ -127,6 +122,12 @@ const SellerDashboard = () => {
       name: t("returnsofsupplier"),
       icon: RotateCcw,
       href: "/seller/returns-management",
+      current: false,
+    },
+    {
+      name: t("vouchers"),
+      icon: FileText,
+      href: "/seller/vouchers",
       current: false,
     },
     {
