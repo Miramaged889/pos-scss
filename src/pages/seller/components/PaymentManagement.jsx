@@ -31,6 +31,7 @@ import {
   getFromStorage,
   setToStorage,
 } from "../../../utils/localStorage";
+import { CustomerInvoiceForm } from "../../../components/Forms/SellerForms";
 
 const PaymentManagement = () => {
   const { t } = useTranslation();
@@ -40,6 +41,10 @@ const PaymentManagement = () => {
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [payments, setPayments] = useState([]);
+  const [dateRange, setDateRange] = useState("all"); // all | today | week | month | custom
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [isCustomerInvoiceOpen, setIsCustomerInvoiceOpen] = useState(false);
 
   useEffect(() => {
     const loadPayments = () => {
@@ -140,7 +145,32 @@ const PaymentManagement = () => {
       payment.orderId.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus =
       statusFilter === "all" || payment.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    // Date filter
+    let matchesDate = true;
+    if (dateRange !== "all") {
+      const created = new Date(
+        payment.paymentDate || payment.collectedAt || payment.createdAt
+      );
+      const now = new Date();
+      if (dateRange === "today") {
+        matchesDate = created.toDateString() === new Date().toDateString();
+      } else if (dateRange === "week") {
+        const weekAgo = new Date(now);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        matchesDate = created >= weekAgo && created <= now;
+      } else if (dateRange === "month") {
+        const monthAgo = new Date(now);
+        monthAgo.setMonth(monthAgo.getMonth() - 1);
+        matchesDate = created >= monthAgo && created <= now;
+      } else if (dateRange === "custom") {
+        const fromOk = startDate ? created >= new Date(startDate) : true;
+        const toOk = endDate
+          ? created <= new Date(endDate + "T23:59:59")
+          : true;
+        matchesDate = fromOk && toOk;
+      }
+    }
+    return matchesSearch && matchesStatus && matchesDate;
   });
 
   const stats = [
@@ -169,6 +199,23 @@ const PaymentManagement = () => {
       color: "purple",
     },
   ];
+
+  const handleSubmitCustomerInvoice = async (invoice) => {
+    try {
+      const existing = getFromStorage("customerInvoices", []);
+      const index = existing.findIndex((i) => i.id === invoice.id);
+      if (index >= 0) {
+        existing[index] = invoice;
+      } else {
+        existing.push(invoice);
+      }
+      setToStorage("customerInvoices", existing);
+    } catch (e) {
+      console.error("Error saving customer invoice", e);
+    } finally {
+      setIsCustomerInvoiceOpen(false);
+    }
+  };
 
   const getPaymentMethodIcon = (method) => {
     switch (method) {
@@ -329,11 +376,7 @@ const PaymentManagement = () => {
       header: t("actions"),
       accessor: "actions",
       render: (payment) => (
-        <div
-          className={`flex items-center gap-2 ${
-            isRTL ? "flex-row" : ""
-          }`}
-        >
+        <div className={`flex items-center gap-2 ${isRTL ? "flex-row" : ""}`}>
           <button
             onClick={() => handleViewPayment(payment)}
             className="p-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all duration-200 hover:scale-110"
@@ -370,12 +413,13 @@ const PaymentManagement = () => {
             </p>
           </div>
           <button
+            onClick={() => setIsCustomerInvoiceOpen(true)}
             className={`px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-all duration-200 hover:scale-105 flex items-center gap-2 ${
               isRTL ? "flex-row" : ""
             }`}
           >
-            <Download className="w-4 h-4" />
-            {t("exportReport")}
+            <FileText className="w-4 h-4" />
+            {isRTL ? "إضافة فاتورة عميل" : "Add Customer Invoice"}
           </button>
         </div>
       </div>
@@ -428,7 +472,56 @@ const PaymentManagement = () => {
               <option value="failed">{t("failed")}</option>
             </select>
           </div>
+
+          {/* Date Range */}
+          <div className={`flex items-center gap-2 ${isRTL ? "flex-row" : ""}`}>
+            <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+            <select
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value)}
+              className={`px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-200 ${
+                isRTL ? "text-right" : "text-left"
+              }`}
+              dir={isRTL ? "rtl" : "ltr"}
+            >
+              <option value="all">{t("allTime")}</option>
+              <option value="today">{t("today")}</option>
+              <option value="week">{t("thisWeek")}</option>
+              <option value="month">{t("thisMonth")}</option>
+              <option value="custom">{t("customRange")}</option>
+            </select>
+          </div>
         </div>
+        {dateRange === "custom" && (
+          <div
+            className={`mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 ${
+              isRTL ? "sm:flex-row-reverse" : ""
+            }`}
+          >
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t("fromDate")}
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full py-2 px-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t("toDate")}
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full py-2 px-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:shadow-xl border border-gray-200 dark:border-gray-700 transition-all duration-300">
@@ -750,6 +843,13 @@ const PaymentManagement = () => {
           </div>
         </div>
       )}
+
+      {/* Customer Invoice Form Modal */}
+      <CustomerInvoiceForm
+        isOpen={isCustomerInvoiceOpen}
+        onClose={() => setIsCustomerInvoiceOpen(false)}
+        onSubmit={handleSubmitCustomerInvoice}
+      />
     </div>
   );
 };

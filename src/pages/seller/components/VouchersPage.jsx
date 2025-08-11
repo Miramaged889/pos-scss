@@ -32,6 +32,7 @@ import {
   ExpenseVoucherForm,
   PaymentVoucherForm,
 } from "../../../components/Forms/SellerForms";
+import { numberToWords } from "../../../utils/formatters";
 
 const VouchersPage = () => {
   const { t } = useTranslation();
@@ -171,15 +172,15 @@ const VouchersPage = () => {
           "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
         text: t("bankTransfer"),
       },
-      check: {
-        color:
-          "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
-        text: t("check"),
-      },
       credit_card: {
         color:
-          "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+          "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
         text: t("creditCard"),
+      },
+      check: {
+        color:
+          "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+        text: t("check"),
       },
     };
 
@@ -272,60 +273,138 @@ const VouchersPage = () => {
 
   const handlePrintVoucher = (voucher) => {
     const printWindow = window.open("", "_blank");
+
     const printContent = `
       <!DOCTYPE html>
-      <html>
+      <html dir="rtl">
         <head>
-          <title>Voucher - ${voucher.voucherNumber}</title>
+          <title>${voucher.type === "expense" ? "سند صرف" : "سند دفع"} - ${
+      voucher.voucherNumber || ""
+    }</title>
           <style>
-            body { font-family: Arial, sans-serif; margin: 20px; direction: rtl; }
-            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }
-            .voucher-info { display: flex; justify-content: space-between; margin-bottom: 30px; }
-            .voucher-details { flex: 1; }
-            .amount-section { text-align: center; margin: 30px 0; padding: 20px; border: 2px solid #333; }
-            .signatures { display: flex; justify-content: space-between; margin-top: 50px; }
-            .signature-box { width: 200px; text-align: center; }
-            .signature-line { border-top: 1px solid #333; margin-top: 50px; }
-            @media print { body { margin: 0; } }
+            body { 
+              font-family: 'Arial', sans-serif; 
+              margin: 20px; 
+              direction: rtl;
+              text-align: right;
+            }
+            .header { 
+              text-align: center; 
+              border-bottom: 2px solid #333; 
+              padding-bottom: 20px; 
+              margin-bottom: 30px; 
+            }
+            .voucher-info { 
+              display: flex; 
+              justify-content: space-between; 
+              margin-bottom: 30px; 
+            }
+            .info-section { 
+              flex: 1; 
+              margin: 0 10px;
+            }
+            .amount-section {
+              text-align: center;
+              margin: 30px 0;
+              padding: 20px;
+              border: 2px solid #333;
+              border-radius: 8px;
+            }
+            .signatures {
+              display: flex;
+              justify-content: space-between;
+              margin-top: 50px;
+            }
+            .signature-box {
+              border-top: 1px solid #333;
+              padding-top: 10px;
+              text-align: center;
+              width: 200px;
+            }
+            @media print {
+              body { margin: 0; }
+              .no-print { display: none; }
+            }
           </style>
         </head>
         <body>
           <div class="header">
             <h1>${voucher.type === "expense" ? "سند صرف" : "سند دفع"}</h1>
-            <h2>${voucher.voucherNumber}</h2>
+            <h2>${voucher.voucherNumber || ""}</h2>
           </div>
           
           <div class="voucher-info">
-            <div class="voucher-details">
+            <div class="info-section">
+              <h3>معلومات السند</h3>
+              <p><strong>رقم السند:</strong> ${voucher.voucherNumber || ""}</p>
               <p><strong>التاريخ:</strong> ${voucher.date}</p>
-              <p><strong>المبلغ:</strong> ${voucher.amount} ريال</p>
-              ${
+              <p><strong>المبلغ:</strong> ${Number(voucher.amount).toFixed(
+                2
+              )} ${t("currency")}</p>
+              <p><strong>طريقة الدفع:</strong> ${getPaymentMethodText(
+                voucher.paymentMethod
+              )}</p>
+            </div>
+            
+            <div class="info-section">
+              <h3>${
                 voucher.type === "expense"
-                  ? `<p><strong>المستلم:</strong> ${voucher.recipient}</p>
-                 <p><strong>الوصف:</strong> ${voucher.description}</p>
-                 <p><strong>الفئة:</strong> ${voucher.category}</p>`
-                  : `<p><strong>المورد:</strong> ${voucher.supplier}</p>
-                 <p><strong>رقم الفاتورة:</strong> ${voucher.invoiceNumber}</p>
-                 <p><strong>الوصف:</strong> ${voucher.description}</p>`
+                  ? "معلومات المستلم"
+                  : "معلومات المورد"
+              }</h3>
+              <p><strong>${
+                voucher.type === "expense" ? "المستلم:" : "المورد:"
+              }</strong> ${
+      voucher.type === "expense" ? voucher.recipient : voucher.supplier
+    }</p>
+              <p><strong>الوصف:</strong> ${voucher.description || ""}</p>
+              ${
+                voucher.type === "payment"
+                  ? `<p><strong>رقم الفاتورة:</strong> ${
+                      voucher.invoiceNumber || ""
+                    }</p>`
+                  : ""
               }
-              <p><strong>طريقة الدفع:</strong> ${voucher.paymentMethod}</p>
             </div>
           </div>
           
           <div class="amount-section">
-            <h3>المبلغ بالكلمات</h3>
-            <p>${voucher.amount} ريال سعودي</p>
+            <h2>المبلغ: ${Number(voucher.amount).toFixed(2)} ${t(
+      "currency"
+    )}</h2>
+            <p>${numberToWords(Number(voucher.amount) || 0)}</p>
           </div>
+          
+          ${
+            voucher.notes
+              ? `
+            <div style="margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
+              <h4>ملاحظات:</h4>
+              <p>${voucher.notes}</p>
+            </div>
+          `
+              : ""
+          }
           
           <div class="signatures">
             <div class="signature-box">
-              <div class="signature-line"></div>
-              <p>التوقيع</p>
+              <p>المصادق عليه</p>
             </div>
             <div class="signature-box">
-              <div class="signature-line"></div>
-              <p>الختم</p>
+              <p>المستلم</p>
             </div>
+            <div class="signature-box">
+              <p>المحاسب</p>
+            </div>
+          </div>
+          
+          <div class="no-print" style="margin-top: 50px; text-align: center;">
+            <button onclick="window.print()" style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+              طباعة السند
+            </button>
+            <button onclick="window.close()" style="padding: 10px 20px; background-color: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px;">
+              إغلاق
+            </button>
           </div>
         </body>
       </html>
@@ -333,6 +412,7 @@ const VouchersPage = () => {
 
     printWindow.document.write(printContent);
     printWindow.document.close();
+
     printWindow.onload = function () {
       printWindow.focus();
       setTimeout(() => {
@@ -341,6 +421,16 @@ const VouchersPage = () => {
     };
 
     toast.success(t("voucherPrinted"));
+  };
+
+  const getPaymentMethodText = (method) => {
+    const methods = {
+      cash: "نقداً",
+      bank_transfer: "تحويل بنكي",
+      credit_card: "بطاقة ائتمان",
+      check: "شيك",
+    };
+    return methods[method] || method;
   };
 
   const getStats = () => {
@@ -391,7 +481,7 @@ const VouchersPage = () => {
           </button>
           <button
             onClick={handleAddPayment}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
             {t("addPaymentVoucher")}
@@ -408,7 +498,7 @@ const VouchersPage = () => {
                 {t("totalExpenses")}
               </p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {stats.totalExpenses} {t("sar")}
+                {stats.totalExpenses} {t("currency")}
               </p>
             </div>
             <DollarSign className="w-8 h-8 text-red-500" />
@@ -422,7 +512,7 @@ const VouchersPage = () => {
                 {t("totalPayments")}
               </p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {stats.totalPayments} {t("sar")}
+                {stats.totalPayments} {t("currency")}
               </p>
             </div>
             <Receipt className="w-8 h-8 text-blue-500" />
@@ -470,7 +560,7 @@ const VouchersPage = () => {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {t("expenseVouchers")} 
+                    {t("expenseVouchers")}
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     {t("generalExpenses")}
@@ -486,7 +576,7 @@ const VouchersPage = () => {
           <div className="p-6">
             {loading ? (
               <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500 mx-auto"></div>
                 <p className="mt-2 text-gray-600 dark:text-gray-400">
                   {t("loading")}
                 </p>
@@ -521,7 +611,9 @@ const VouchersPage = () => {
                           <Eye className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handlePrintVoucher(voucher)}
+                          onClick={() =>
+                            handlePrintVoucher({ ...voucher, type: "expense" })
+                          }
                           className="p-1 text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
                           title={t("print")}
                         >
@@ -551,7 +643,7 @@ const VouchersPage = () => {
                           {t("amount")}
                         </p>
                         <p className="font-medium text-gray-900 dark:text-white">
-                          {voucher.amount} {t("sar")}
+                          {Number(voucher.amount).toFixed(2)} {t("currency")}
                         </p>
                       </div>
                       <div>
@@ -589,8 +681,8 @@ const VouchersPage = () => {
           <div className="p-6 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                  <Receipt className="w-6 h-6 text-blue-600" />
+                <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                  <Receipt className="w-6 h-6 text-green-600" />
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -610,7 +702,7 @@ const VouchersPage = () => {
           <div className="p-6">
             {loading ? (
               <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto"></div>
                 <p className="mt-2 text-gray-600 dark:text-gray-400">
                   {t("loading")}
                 </p>
@@ -645,7 +737,9 @@ const VouchersPage = () => {
                           <Eye className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handlePrintVoucher(voucher)}
+                          onClick={() =>
+                            handlePrintVoucher({ ...voucher, type: "payment" })
+                          }
                           className="p-1 text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
                           title={t("print")}
                         >
@@ -675,7 +769,7 @@ const VouchersPage = () => {
                           {t("amount")}
                         </p>
                         <p className="font-medium text-gray-900 dark:text-white">
-                          {voucher.amount} {t("sar")}
+                          {Number(voucher.amount).toFixed(2)} {t("currency")}
                         </p>
                       </div>
                       <div>
@@ -761,8 +855,8 @@ const VouchersPage = () => {
                     {new Date(selectedVoucher.date).toLocaleDateString()}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    <strong>{t("amount")}:</strong> {selectedVoucher.amount}{" "}
-                    {t("sar")}
+                    <strong>{t("amount")}:</strong>{" "}
+                    {Number(selectedVoucher.amount).toFixed(2)} {t("currency")}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("status")}:</strong>{" "}

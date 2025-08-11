@@ -37,6 +37,7 @@ const FinancialReceiptVoucher = () => {
   );
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [referenceNumber, setReferenceNumber] = useState("");
+  const [manualReceiptNumber, setManualReceiptNumber] = useState("");
   const [uploadedImages, setUploadedImages] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
@@ -409,7 +410,9 @@ const FinancialReceiptVoucher = () => {
 
     const newReceipt = {
       id: receipts.length + 1,
-      receiptNumber: String(receipts.length + 1).padStart(4, "0"),
+      receiptNumber:
+        manualReceiptNumber?.trim() ||
+        String(receipts.length + 1).padStart(4, "0"),
       customerName: payerName,
       amount: parseFloat(amount),
       date: receiptDate,
@@ -434,6 +437,7 @@ const FinancialReceiptVoucher = () => {
     setPaymentMethod("cash");
     setReferenceNumber("");
     setUploadedImages([]);
+    setManualReceiptNumber("");
 
     toast.success(t("financialReceipt.success.receiptCreated"));
   };
@@ -557,7 +561,7 @@ const FinancialReceiptVoucher = () => {
                               {customer.name} -{" "}
                               {t("financialReceipt.outstandingCredit")}:{" "}
                               {customer.outstandingCredit}{" "}
-                              {t("financialReceipt.sar")}
+                              {t("currency")}
                             </option>
                           ))}
                         </select>
@@ -584,6 +588,22 @@ const FinancialReceiptVoucher = () => {
                         className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     )}
+                  </div>
+
+                  {/* Optional Manual Receipt Number */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      {t("receiptNumber")} ({t("optional")}):
+                    </label>
+                    <input
+                      type="text"
+                      value={manualReceiptNumber}
+                      onChange={(e) => setManualReceiptNumber(e.target.value)}
+                      placeholder={t(
+                        "financialReceipt.enterReceiptNumberOptional"
+                      )}
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
                   </div>
 
                   {/* Amount */}
@@ -642,7 +662,7 @@ const FinancialReceiptVoucher = () => {
                       type="text"
                       value={bankName}
                       onChange={(e) => setBankName(e.target.value)}
-                      placeholder={t("financialReceipt.bankName")}
+                      placeholder={t("bank")}
                       className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -807,10 +827,9 @@ const FinancialReceiptVoucher = () => {
                 <button
                   onClick={() => {
                     const currentReceipt = {
-                      receiptNumber: String(receipts.length + 1).padStart(
-                        4,
-                        "0"
-                      ),
+                      receiptNumber:
+                        manualReceiptNumber?.trim() ||
+                        String(receipts.length + 1).padStart(4, "0"),
                       customerName:
                         receiptType === "customer"
                           ? customers.find(
@@ -844,7 +863,8 @@ const FinancialReceiptVoucher = () => {
                     {t("financialReceipt.receiptVoucher")}
                   </p>
                   <div className="text-xl font-bold text-red-600 mt-2">
-                    {String(receipts.length + 1).padStart(4, "0")}
+                    {manualReceiptNumber?.trim() ||
+                      String(receipts.length + 1).padStart(4, "0")}
                   </div>
                 </div>
 
@@ -880,7 +900,7 @@ const FinancialReceiptVoucher = () => {
                   {bankName && (
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">
-                        {t("bank")}:
+                        {t("financialReceipt.bank")}:
                       </span>
                       <span className="font-medium">{bankName}</span>
                     </div>

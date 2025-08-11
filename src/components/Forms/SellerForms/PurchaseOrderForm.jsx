@@ -13,18 +13,26 @@ import {
   Truck,
 } from "lucide-react";
 import FormField from "../FormField";
+import { getProducts } from "../../../utils/localStorage";
 
 const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
   const [formData, setFormData] = useState({
     supplier: "",
-    items: [{ name: "", quantity: 1, price: 0 }],
+    items: [{ name: "", customName: "", quantity: 1, price: 0 }],
     expectedDelivery: "",
     notes: "",
     status: "pending",
   });
   const [errors, setErrors] = useState({});
+  const [inventoryItems, setInventoryItems] = useState([]);
+
+  useEffect(() => {
+    // Load inventory items
+    const products = getProducts();
+    setInventoryItems(products);
+  }, []);
 
   useEffect(() => {
     if (editData) {
@@ -56,7 +64,10 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const addItem = () => {
     setFormData((prev) => ({
       ...prev,
-      items: [...prev.items, { name: "", quantity: 1, price: 0 }],
+      items: [
+        ...prev.items,
+        { name: "", customName: "", quantity: 1, price: 0 },
+      ],
     }));
   };
 
@@ -93,7 +104,9 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
     }
 
     formData.items.forEach((item, index) => {
-      if (!item.name.trim()) {
+      // Check if item name is provided (either from dropdown or custom)
+      const itemName = item.name === "other" ? item.customName : item.name;
+      if (!itemName || !itemName.trim()) {
         newErrors[`item_${index}_name`] = t("itemNameRequired");
       }
       if (!item.quantity || item.quantity < 1) {
@@ -132,10 +145,32 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
     }
   };
 
+  const handleSelectItem = (index, selectedName) => {
+    const updatedItems = [...formData.items];
+    updatedItems[index] = {
+      ...updatedItems[index],
+      name: selectedName,
+      customName:
+        selectedName === "other" ? updatedItems[index].customName : "",
+    };
+
+    // Auto-fill price if it's an existing inventory item
+    if (selectedName && selectedName !== "other") {
+      const selectedProduct = inventoryItems.find(
+        (p) => p.name === selectedName
+      );
+      if (selectedProduct) {
+        updatedItems[index].price = selectedProduct.price || 0;
+      }
+    }
+
+    setFormData((prev) => ({ ...prev, items: updatedItems }));
+  };
+
   const handleClose = () => {
     setFormData({
       supplier: "",
-      items: [{ name: "", quantity: 1, price: 0 }],
+      items: [{ name: "", customName: "", quantity: 1, price: 0 }],
       expectedDelivery: "",
       notes: "",
       status: "pending",
@@ -257,19 +292,44 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <FormField
-                      label={t("itemName")}
-                      name={`item_${index}_name`}
-                      type="text"
-                      value={item.name}
-                      onChange={(e) =>
-                        updateItem(index, "name", e.target.value)
-                      }
-                      error={errors[`item_${index}_name`]}
-                      required
-                      placeholder={t("enterItemName")}
-                      icon={<Package className="w-4 h-4" />}
-                    />
+                    <div className="space-y-2">
+                      <FormField
+                        label={t("itemName")}
+                        name={`item_${index}_name`}
+                        type="select"
+                        value={item.name}
+                        onChange={(e) =>
+                          handleSelectItem(index, e.target.value)
+                        }
+                        error={errors[`item_${index}_name`]}
+                        required
+                        icon={<Package className="w-4 h-4" />}
+                        options={[
+                          { value: "", label: t("selectItem") },
+                          ...inventoryItems.map((product) => ({
+                            value: product.name,
+                            label: product.name,
+                          })),
+                          { value: "other", label: t("other") },
+                        ]}
+                      />
+
+                      {item.name === "other" && (
+                        <FormField
+                          label={t("customItemName")}
+                          name={`item_${index}_customName`}
+                          type="text"
+                          value={item.customName}
+                          onChange={(e) =>
+                            updateItem(index, "customName", e.target.value)
+                          }
+                          error={errors[`item_${index}_name`]}
+                          required
+                          placeholder={t("enterCustomItemName")}
+                          icon={<Package className="w-4 h-4" />}
+                        />
+                      )}
+                    </div>
 
                     <FormField
                       label={t("quantity")}

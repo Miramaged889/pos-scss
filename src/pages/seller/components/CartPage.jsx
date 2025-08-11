@@ -121,7 +121,7 @@ const CartPage = () => {
       <div className="flex items-center justify-between mb-8">
         <div
           className={`flex items-center gap-4 ${
-            isRTL ? "flex-row-reverse" : ""
+            isRTL ? "flex-row" : ""
           }`}
         >
           <button
@@ -154,7 +154,7 @@ const CartPage = () => {
             >
               <div
                 className={`flex items-center gap-4 ${
-                  isRTL ? "flex-row-reverse" : ""
+                  isRTL ? "flex-row" : ""
                 }`}
               >
                 {/* Product Image */}
@@ -249,7 +249,7 @@ const CartPage = () => {
         <div className="space-y-4">
           <div
             className={`flex justify-between items-center ${
-              isRTL ? "flex-row-reverse" : ""
+              isRTL ? "flex-row" : ""
             }`}
           >
             <span className="text-lg font-medium text-gray-900 dark:text-white">
@@ -262,7 +262,7 @@ const CartPage = () => {
 
           <div
             className={`flex justify-between items-center ${
-              isRTL ? "flex-row-reverse" : ""
+              isRTL ? "flex-row" : ""
             }`}
           >
             <span className="text-sm text-gray-600 dark:text-gray-400">
@@ -277,7 +277,7 @@ const CartPage = () => {
 
           <div
             className={`flex justify-between items-center ${
-              isRTL ? "flex-row-reverse" : ""
+              isRTL ? "flex-row" : ""
             }`}
           >
             <span className="text-xl font-bold text-gray-900 dark:text-white">
@@ -291,7 +291,7 @@ const CartPage = () => {
       </div>
 
       {/* Action Buttons */}
-      <div className={`flex gap-4 mt-8 ${isRTL ? "flex-row-reverse" : ""}`}>
+      <div className={`flex gap-4 mt-8 ${isRTL ? "flex-row" : ""}`}>
         <button
           onClick={handleBackToProducts}
           className="flex-1 px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"

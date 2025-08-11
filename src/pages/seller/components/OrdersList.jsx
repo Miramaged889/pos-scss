@@ -45,6 +45,9 @@ const OrdersList = () => {
 
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [dateRange, setDateRange] = useState("all"); // all | today | week | month | custom
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -56,7 +59,7 @@ const OrdersList = () => {
     dispatch(loadOrdersFromStorage());
   }, [dispatch]);
 
-  // Filter orders based on status and search term
+  // Filter orders based on status, search term and date range
   const filteredOrders = orders.filter((order) => {
     const matchesStatus =
       statusFilter === "all" || order.status === statusFilter;
@@ -65,7 +68,31 @@ const OrdersList = () => {
       order.phone?.includes(searchTerm) ||
       (order.id &&
         order.id.toString().toLowerCase().includes(searchTerm.toLowerCase()));
-    return matchesStatus && matchesSearch;
+    // Date filter
+    let matchesDate = true;
+    if (dateRange !== "all") {
+      const created = new Date(order.createdAt);
+      const now = new Date();
+      if (dateRange === "today") {
+        const todayStr = new Date().toDateString();
+        matchesDate = created.toDateString() === todayStr;
+      } else if (dateRange === "week") {
+        const weekAgo = new Date(now);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        matchesDate = created >= weekAgo && created <= now;
+      } else if (dateRange === "month") {
+        const monthAgo = new Date(now);
+        monthAgo.setMonth(monthAgo.getMonth() - 1);
+        matchesDate = created >= monthAgo && created <= now;
+      } else if (dateRange === "custom") {
+        const fromOk = startDate ? created >= new Date(startDate) : true;
+        const toOk = endDate
+          ? created <= new Date(endDate + "T23:59:59")
+          : true;
+        matchesDate = fromOk && toOk;
+      }
+    }
+    return matchesStatus && matchesSearch && matchesDate;
   });
 
   const statusOptions = [
@@ -455,7 +482,63 @@ const OrdersList = () => {
               </select>
             </div>
           </div>
+
+          {/* Date Range */}
+          <div className="sm:w-56">
+            <div className="relative">
+              <Calendar
+                className={`absolute top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-4 h-4 ${
+                  isRTL ? "right-3" : "left-3"
+                }`}
+              />
+              <select
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value)}
+                className={`w-full py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all duration-200 appearance-none ${
+                  isRTL ? "pr-10 pl-4 text-right" : "pl-10 pr-4 text-left"
+                }`}
+              >
+                <option value="all">{t("allTime")}</option>
+                <option value="today">{t("today")}</option>
+                <option value="week">{t("thisWeek")}</option>
+                <option value="month">{t("thisMonth")}</option>
+                <option value="custom">{t("customRange")}</option>
+              </select>
+            </div>
+          </div>
         </div>
+
+        {/* Custom date pickers */}
+        {dateRange === "custom" && (
+          <div
+            className={`mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 ${
+              isRTL ? "sm:flex-row-reverse" : ""
+            }`}
+          >
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t("fromDate")}
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full py-2 px-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t("toDate")}
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full py-2 px-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Orders Table */}

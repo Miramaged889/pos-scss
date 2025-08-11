@@ -4,6 +4,9 @@ import authReducer from "./slices/authSlice";
 import languageReducer from "./slices/languageSlice";
 import deliveryReducer from "./slices/deliverySlice";
 import inventoryReducer from "./slices/inventorySlice";
+import kitchenReducer from "./slices/kitchenSlice";
+import managerReducer from "./slices/managerSlice";
+import sellerReducer from "./slices/sellerSlice";
 
 // Load initial state from localStorage
 const loadState = () => {
@@ -39,6 +42,9 @@ const store = configureStore({
     language: languageReducer,
     delivery: deliveryReducer,
     inventory: inventoryReducer,
+    kitchen: kitchenReducer,
+    manager: managerReducer,
+    seller: sellerReducer,
   },
   preloadedState,
 });

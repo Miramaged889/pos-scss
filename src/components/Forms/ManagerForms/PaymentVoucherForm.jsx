@@ -23,6 +23,7 @@ import {
 import { toast } from "react-hot-toast";
 
 import FormField from "../FormField";
+import { getProducts } from "../../../utils/localStorage";
 
 const PaymentVoucherForm = ({
   isOpen,
@@ -39,6 +40,7 @@ const PaymentVoucherForm = ({
     date: new Date().toISOString().split("T")[0],
     amount: "",
     supplier: "",
+    otherSupplier: "",
     paymentMethod: "cash",
     description: "",
     notes: "",
@@ -59,6 +61,7 @@ const PaymentVoucherForm = ({
             : new Date().toISOString().split("T")[0],
           amount: voucher.amount || "",
           supplier: voucher.supplier || "",
+          otherSupplier: "",
           paymentMethod: voucher.paymentMethod || "cash",
           description: voucher.description || "",
           notes: voucher.notes || "",
@@ -71,6 +74,7 @@ const PaymentVoucherForm = ({
           date: new Date().toISOString().split("T")[0],
           amount: "",
           supplier: "",
+          otherSupplier: "",
           paymentMethod: "cash",
           description: "",
           notes: "",
@@ -99,6 +103,30 @@ const PaymentVoucherForm = ({
   const handleFieldChange = (field) => (e) => {
     handleInputChange(field, e.target.value);
   };
+
+  // Supplier options from mock products
+  const supplierOptions = (() => {
+    try {
+      const products = getProducts() || [];
+      const names = Array.from(
+        new Set(
+          products
+            .map((p) => p?.supplier)
+            .filter((s) => typeof s === "string" && s.trim() !== "")
+        )
+      );
+      return [
+        { value: "", label: t("selectSupplier") },
+        ...names.map((n) => ({ value: n, label: n })),
+        { value: "other", label: t("other") },
+      ];
+    } catch {
+      return [
+        { value: "", label: t("selectSupplier") },
+        { value: "other", label: t("other") },
+      ];
+    }
+  })();
 
   // Photo upload handlers
   const handleFileSelect = (files) => {
@@ -183,7 +211,10 @@ const PaymentVoucherForm = ({
       newErrors.amount = t("amountRequired");
     }
 
-    if (!formData.supplier.trim()) {
+    if (!formData.supplier) {
+      newErrors.supplier = t("supplierRequired");
+    }
+    if (formData.supplier === "other" && !formData.otherSupplier.trim()) {
       newErrors.supplier = t("supplierRequired");
     }
 
@@ -213,6 +244,10 @@ const PaymentVoucherForm = ({
       // Prepare data for submission
       const submitData = {
         ...formData,
+        supplier:
+          formData.supplier === "other" && formData.otherSupplier.trim()
+            ? formData.otherSupplier.trim()
+            : formData.supplier,
         amount: parseFloat(formData.amount),
         status: "pending",
         createdAt: new Date().toISOString(),
@@ -245,6 +280,7 @@ const PaymentVoucherForm = ({
       date: new Date().toISOString().split("T")[0],
       amount: "",
       supplier: "",
+      otherSupplier: "",
       paymentMethod: "cash",
       description: "",
       notes: "",
@@ -366,14 +402,29 @@ const PaymentVoucherForm = ({
 
               <FormField
                 label={t("supplier")}
+                type="select"
                 value={formData.supplier}
                 onChange={handleFieldChange("supplier")}
-                placeholder={t("enterSupplier")}
+                options={supplierOptions}
                 required
                 error={errors.supplier}
                 icon={Building}
               />
             </div>
+
+            {formData.supplier === "other" && (
+              <div className="mt-4">
+                <FormField
+                  label={t("enterSupplierName")}
+                  value={formData.otherSupplier}
+                  onChange={handleFieldChange("otherSupplier")}
+                  placeholder={t("enterSupplierName")}
+                  required
+                  error={errors.supplier}
+                  icon={Building}
+                />
+              </div>
+            )}
 
             <div className="mt-4">
               <FormField

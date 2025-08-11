@@ -193,9 +193,7 @@ const ExpenseVoucherForm = ({
     const newErrors = {};
 
     // Required fields validation
-    if (!formData.voucherNumber.trim()) {
-      newErrors.voucherNumber = t("voucherNumberRequired");
-    }
+    // voucherNumber is optional
 
     if (!formData.date) {
       newErrors.date = t("dateRequired");
@@ -338,7 +336,6 @@ const ExpenseVoucherForm = ({
                 onChange={handleFieldChange("voucherNumber")}
                 placeholder={t("enterVoucherNumber")}
                 error={errors.voucherNumber}
-                required
                 icon={FileText}
               />
 
@@ -422,7 +419,7 @@ const ExpenseVoucherForm = ({
               placeholder={t("enterExpenseDescription")}
               error={errors.description}
               rows={3}
-              icon={FileText} 
+              icon={FileText}
             />
 
             <FormField

@@ -85,19 +85,6 @@ const VouchersPage = () => {
         status: "pending",
         createdAt: "2024-01-14T14:20:00",
       },
-      {
-        id: "EXP-003",
-        voucherNumber: "EXP-2024-003",
-        date: "2024-01-13",
-        amount: 800.0,
-        description: "Marketing materials",
-        category: "marketing",
-        paymentMethod: "credit_card",
-        recipient: "Print Shop",
-        notes: "Business cards and brochures",
-        status: "approved",
-        createdAt: "2024-01-13T09:15:00",
-      },
     ];
 
     // Mock data for payment vouchers
@@ -127,19 +114,6 @@ const VouchersPage = () => {
         notes: "Payment for electronic components",
         status: "pending",
         createdAt: "2024-01-14T16:45:00",
-      },
-      {
-        id: "PAY-003",
-        voucherNumber: "PAY-2024-003",
-        date: "2024-01-13",
-        amount: 3200.0,
-        supplier: "Quality Materials Ltd",
-        invoiceNumber: "INV-2024-003",
-        paymentMethod: "cash",
-        description: "Premium materials payment",
-        notes: "Payment for high-quality materials",
-        status: "completed",
-        createdAt: "2024-01-13T13:20:00",
       },
     ];
 
@@ -534,10 +508,10 @@ const VouchersPage = () => {
                 {t("totalPayments")}
               </p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {stats.totalPayments}
+                {stats.totalPayments} {t("currency")}
               </p>
             </div>
-            <Receipt className="w-8 h-8 text-green-500" />
+            <Receipt className="w-8 h-8 text-blue-500" />
           </div>
         </div>
 
@@ -615,30 +589,13 @@ const VouchersPage = () => {
                 {expenseVouchers.map((voucher) => (
                   <div
                     key={voucher.id}
-                    className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                        <Receipt className="w-5 h-5 text-red-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-medium text-gray-900 dark:text-white">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900 dark:text-white">
                           {voucher.voucherNumber}
-                        </h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {voucher.description}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {voucher.date} - {voucher.recipient}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <p className="font-semibold text-gray-900 dark:text-white">
-                          {voucher.amount.toFixed(2)} {t("currency")}
-                        </p>
+                        </span>
                         {getStatusBadge(voucher.status)}
                       </div>
                       <div className="flex items-center gap-2">
@@ -674,6 +631,38 @@ const VouchersPage = () => {
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-gray-600 dark:text-gray-400">
+                          {t("amount")}
+                        </p>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {Number(voucher.amount).toFixed(2)} {t("currency")}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-600 dark:text-gray-400">
+                          {t("date")}
+                        </p>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {new Date(voucher.date).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-600 dark:text-gray-400">
+                          {t("recipient")}
+                        </p>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {voucher.recipient}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-600 dark:text-gray-400">
+                          {t("paymentMethod")}
+                        </p>
+                        {getPaymentMethodBadge(voucher.paymentMethod)}
                       </div>
                     </div>
                   </div>
@@ -716,7 +705,7 @@ const VouchersPage = () => {
               </div>
             ) : paymentVouchers.length === 0 ? (
               <div className="text-center py-8">
-                <Building className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                 <p className="text-gray-600 dark:text-gray-400">
                   {t("noPaymentVouchers")}
                 </p>
@@ -726,30 +715,13 @@ const VouchersPage = () => {
                 {paymentVouchers.map((voucher) => (
                   <div
                     key={voucher.id}
-                    className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                        <Building className="w-5 h-5 text-green-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-medium text-gray-900 dark:text-white">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900 dark:text-white">
                           {voucher.voucherNumber}
-                        </h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {voucher.description}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {voucher.date} - {voucher.supplier}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <p className="font-semibold text-gray-900 dark:text-white">
-                          {voucher.amount.toFixed(2)} {t("currency")}
-                        </p>
+                        </span>
                         {getStatusBadge(voucher.status)}
                       </div>
                       <div className="flex items-center gap-2">
@@ -787,6 +759,38 @@ const VouchersPage = () => {
                         </button>
                       </div>
                     </div>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-gray-600 dark:text-gray-400">
+                          {t("amount")}
+                        </p>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {Number(voucher.amount).toFixed(2)} {t("currency")}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-600 dark:text-gray-400">
+                          {t("date")}
+                        </p>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {new Date(voucher.date).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-600 dark:text-gray-400">
+                          {t("supplier")}
+                        </p>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {voucher.supplier}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-600 dark:text-gray-400">
+                          {t("paymentMethod")}
+                        </p>
+                        {getPaymentMethodBadge(voucher.paymentMethod)}
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -813,14 +817,16 @@ const VouchersPage = () => {
         mode={modalMode}
       />
 
-      {/* View Modal */}
+      {/* View Voucher Modal */}
       {viewModal && selectedVoucher && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                {selectedVoucher.type === "expense" ? "سند صرف" : "سند دفع"} -{" "}
-                {selectedVoucher.voucherNumber}
+                {selectedVoucher.type === "expense"
+                  ? t("expenseVoucher")
+                  : t("paymentVoucher")}{" "}
+                - {selectedVoucher.voucherNumber}
               </h2>
               <button
                 onClick={() => setViewModal(false)}
@@ -834,18 +840,19 @@ const VouchersPage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-                    {t("voucherDetails")}
+                    {t("voucherInformation")}
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("voucherNumber")}:</strong>{" "}
                     {selectedVoucher.voucherNumber}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    <strong>{t("date")}:</strong> {selectedVoucher.date}
+                    <strong>{t("date")}:</strong>{" "}
+                    {new Date(selectedVoucher.date).toLocaleDateString()}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("amount")}:</strong>{" "}
-                    {selectedVoucher.amount.toFixed(2)} {t("currency")}
+                    {Number(selectedVoucher.amount).toFixed(2)} {t("currency")}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("status")}:</strong>{" "}
@@ -856,29 +863,39 @@ const VouchersPage = () => {
                 <div>
                   <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
                     {selectedVoucher.type === "expense"
-                      ? t("recipientInfo")
-                      : t("supplierInfo")}
+                      ? t("expenseDetails")
+                      : t("paymentDetails")}
                   </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    <strong>
-                      {selectedVoucher.type === "expense"
-                        ? t("recipient")
-                        : t("supplier")}
-                      :
-                    </strong>{" "}
-                    {selectedVoucher.type === "expense"
-                      ? selectedVoucher.recipient
-                      : selectedVoucher.supplier}
-                  </p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    <strong>{t("description")}:</strong>{" "}
-                    {selectedVoucher.description}
-                  </p>
-                  {selectedVoucher.type === "payment" && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      <strong>{t("invoiceNumber")}:</strong>{" "}
-                      {selectedVoucher.invoiceNumber}
-                    </p>
+                  {selectedVoucher.type === "expense" ? (
+                    <>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        <strong>{t("recipient")}:</strong>{" "}
+                        {selectedVoucher.recipient}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        <strong>{t("description")}:</strong>{" "}
+                        {selectedVoucher.description}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        <strong>{t("category")}:</strong>{" "}
+                        {selectedVoucher.category}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        <strong>{t("supplier")}:</strong>{" "}
+                        {selectedVoucher.supplier}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        <strong>{t("invoiceNumber")}:</strong>{" "}
+                        {selectedVoucher.invoiceNumber}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        <strong>{t("description")}:</strong>{" "}
+                        {selectedVoucher.description}
+                      </p>
+                    </>
                   )}
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("paymentMethod")}:</strong>{" "}
@@ -898,10 +915,10 @@ const VouchersPage = () => {
                 </div>
               )}
 
-              <div className="flex justify-end gap-3 pt-4">
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                 <button
                   onClick={() => handlePrintVoucher(selectedVoucher)}
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
+                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors flex items-center gap-2"
                 >
                   <Printer className="w-4 h-4" />
                   {t("print")}
@@ -911,7 +928,7 @@ const VouchersPage = () => {
                     setViewModal(false);
                     handleEditVoucher(selectedVoucher, selectedVoucher.type);
                   }}
-                  className="px-4 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors flex items-center gap-2"
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
                 >
                   <Edit className="w-4 h-4" />
                   {t("edit")}
