@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import {
   X,
@@ -12,16 +12,14 @@ import {
   User,
 } from "lucide-react";
 import FormField from "../FormField";
-import {
-  getOrders,
-  generateUniqueReturnId,
-} from "../../../utils/localStorage";
+import { fetchOrders } from "../../../store/slices/ordersSlice";
 
 const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const { t } = useTranslation();
+  const dispatch = useDispatch();
   const { isRTL } = useSelector((state) => state.language);
   const { products } = useSelector((state) => state.inventory);
-  const [orders] = useState(getOrders());
+  const { orders } = useSelector((state) => state.orders);
   const [formData, setFormData] = useState({
     orderId: "",
     customerId: "",
@@ -44,6 +42,11 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
       setSelectedOrder(order);
     }
   }, [editData, orders]);
+
+  // Load orders when component mounts
+  useEffect(() => {
+    dispatch(fetchOrders());
+  }, [dispatch]);
 
   const returnReasons = [
     { value: "defective", label: t("defectiveProduct") },
@@ -122,11 +125,11 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
     if (validateForm()) {
       const returnData = {
         ...formData,
-        id: editData?.id || generateUniqueReturnId(),
+        id: editData?.id || `RTN-${Date.now()}`,
         returnDate: editData?.returnDate || new Date().toISOString(),
       };
 
-      // Let the parent component handle localStorage operations
+      // Let the parent component handle API operations
       onSubmit(returnData);
       handleClose();
     }

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import {
   ChefHat,
@@ -12,28 +12,25 @@ import {
 
 import StatsCard from "../../../components/Common/StatsCard";
 import ActiveOrders from "./ActiveOrders";
-import { getFromStorage as getFromLocalStorage } from "../../../utils/localStorage";
 import { formatNumberEnglish } from "../../../utils";
+import { fetchOrders } from "../../../store/slices/ordersSlice";
 
 const KitchenHome = () => {
   const { t } = useTranslation();
+  const dispatch = useDispatch();
   const { theme, isRTL } = useSelector((state) => state.language);
-  const [orders, setOrders] = useState([]);
-  const [kitchenSettings, setKitchenSettings] = useState({});
+  const { orders, loading, error } = useSelector((state) => state.orders);
+  const [kitchenSettings, setKitchenSettings] = useState({
+    autoRefresh: true,
+    refreshInterval: 20,
+    soundNotifications: true,
+    showPriorityAlerts: true,
+  });
 
-  // Load kitchen settings and orders from localStorage
+  // Load orders from API
   useEffect(() => {
-    const settings = getFromLocalStorage("kitchenSettings", {
-      autoRefresh: true,
-      refreshInterval: 20,
-      soundNotifications: true,
-      showPriorityAlerts: true,
-    });
-    setKitchenSettings(settings);
-
-    const savedOrders = getFromLocalStorage("sales_app_orders", []);
-    setOrders(savedOrders);
-  }, []);
+    dispatch(fetchOrders());
+  }, [dispatch]);
 
   // Filter today's orders
   const todayOrders = orders.filter(
@@ -53,13 +50,11 @@ const KitchenHome = () => {
     (order) => order.status === "completed"
   );
 
-  // Calculate average preparation time (enhanced with local storage tracking)
+  // Calculate average preparation time (simplified without localStorage)
   const getAveragePreparationTime = () => {
-    const prepTimes = getFromLocalStorage("preparationTimes", []);
-    if (prepTimes.length === 0) return 18;
-
-    const total = prepTimes.reduce((sum, time) => sum + time, 0);
-    return Math.round(total / prepTimes.length);
+    // For now, return a default value since we don't have preparation time tracking
+    // This could be enhanced with API-based tracking in the future
+    return 18;
   };
 
   const avgPrepTime = getAveragePreparationTime();

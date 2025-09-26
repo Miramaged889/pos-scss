@@ -13,11 +13,11 @@ import {
   Truck,
 } from "lucide-react";
 import FormField from "../FormField";
-import { getProducts } from "../../../utils/localStorage";
 
 const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
+  const { products } = useSelector((state) => state.inventory);
   const [formData, setFormData] = useState({
     supplier: "",
     items: [{ name: "", customName: "", quantity: 1, price: 0 }],
@@ -26,13 +26,6 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
     status: "pending",
   });
   const [errors, setErrors] = useState({});
-  const [inventoryItems, setInventoryItems] = useState([]);
-
-  useEffect(() => {
-    // Load inventory items
-    const products = getProducts();
-    setInventoryItems(products);
-  }, []);
 
   useEffect(() => {
     if (editData) {
@@ -126,7 +119,8 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
     if (validateForm()) {
       const purchaseOrderData = {
         ...formData,
-        // Don't set id here - let localStorage function handle it
+        // Generate ID for new orders
+        id: editData?.id || `PO-${Date.now()}`,
         totalAmount: calculateTotal(),
         orderDate: editData?.orderDate || new Date().toISOString(),
         // Ensure expectedDelivery is in ISO format
@@ -134,11 +128,6 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
           ? new Date(formData.expectedDelivery).toISOString()
           : "",
       };
-
-      // Only include id if editing
-      if (editData?.id) {
-        purchaseOrderData.id = editData.id;
-      }
 
       onSubmit(purchaseOrderData);
       handleClose();
@@ -156,7 +145,7 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
 
     // Auto-fill price if it's an existing inventory item
     if (selectedName && selectedName !== "other") {
-      const selectedProduct = inventoryItems.find(
+      const selectedProduct = (products || []).find(
         (p) => p.name === selectedName
       );
       if (selectedProduct) {
@@ -306,7 +295,7 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
                         icon={<Package className="w-4 h-4" />}
                         options={[
                           { value: "", label: t("selectItem") },
-                          ...inventoryItems.map((product) => ({
+                          ...(products || []).map((product) => ({
                             value: product.name,
                             label: product.name,
                           })),

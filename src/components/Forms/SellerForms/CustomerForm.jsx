@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import {
   User,
@@ -17,12 +17,9 @@ import {
 import FormField from "../FormField";
 import { isValidEmail, isValidPhone } from "../../../utils/validators";
 import {
-  addCustomer as addCustomerToStorage,
-  updateCustomer as updateCustomerInStorage,
-  saveFormDraft,
-  getFormDraft,
-  clearFormDraft,
-} from "../../../utils/localStorage";
+  createCustomer,
+  updateCustomer,
+} from "../../../store/slices/customerSlice";
 
 const CustomerForm = ({
   isOpen,
@@ -32,6 +29,7 @@ const CustomerForm = ({
   mode = "add", // "add" or "edit"
 }) => {
   const { t } = useTranslation();
+  const dispatch = useDispatch();
   const { isRTL } = useSelector((state) => state.language);
 
   const [formData, setFormData] = useState({
@@ -50,7 +48,7 @@ const CustomerForm = ({
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
 
-  // Load form draft or customer data when component mounts
+  // Load customer data when component mounts
   useEffect(() => {
     if (customer && mode === "edit") {
       setFormData({
@@ -66,53 +64,22 @@ const CustomerForm = ({
         preferredContactMethod: customer.preferredContactMethod || "phone",
       });
     } else if (mode === "add") {
-      // Try to load draft for new customer form
-      const draft = getFormDraft("customer_add");
-      if (draft) {
-        setFormData({
-          name: draft.name || "",
-          email: draft.email || "",
-          phone: draft.phone || "",
-          address: draft.address || "",
-          company: draft.company || "",
-          notes: draft.notes || "",
-          vip: draft.vip || false,
-          status: draft.status || "active",
-          dateOfBirth: draft.dateOfBirth || "",
-          preferredContactMethod: draft.preferredContactMethod || "phone",
-        });
-      } else {
-        // Reset form for new customer
-        setFormData({
-          name: "",
-          email: "",
-          phone: "",
-          address: "",
-          company: "",
-          notes: "",
-          vip: false,
-          status: "active",
-          dateOfBirth: "",
-          preferredContactMethod: "phone",
-        });
-      }
+      // Reset form for new customer
+      setFormData({
+        name: "",
+        email: "",
+        phone: "",
+        address: "",
+        company: "",
+        notes: "",
+        vip: false,
+        status: "active",
+        dateOfBirth: "",
+        preferredContactMethod: "phone",
+      });
     }
     setErrors({});
   }, [customer, mode, isOpen]);
-
-  // Auto-save form draft when form data changes (for add mode only)
-  useEffect(() => {
-    if (mode === "add" && isOpen) {
-      const timeoutId = setTimeout(() => {
-        // Only save if form has some data
-        if (formData.name || formData.email || formData.phone) {
-          saveFormDraft("customer_add", formData);
-        }
-      }, 1000); // Save after 1 second of inactivity
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [formData, mode, isOpen]);
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -172,41 +139,45 @@ const CustomerForm = ({
     setIsLoading(true);
 
     try {
-      let savedCustomer;
+      let result;
 
       if (mode === "edit" && customer) {
-        // Update existing customer in local storage
-        savedCustomer = updateCustomerInStorage(customer.id, formData);
+        // Update existing customer via API
+        result = await dispatch(
+          updateCustomer({ id: customer.id, updates: formData })
+        );
       } else {
-        // Add new customer to local storage
-        savedCustomer = addCustomerToStorage(formData);
-        // Clear the form draft after successful submission
-        clearFormDraft("customer_add");
+        // Create new customer via API
+        result = await dispatch(createCustomer(formData));
       }
 
-      // Call the parent onSubmit with the saved customer data
-      if (onSubmit) {
-        await onSubmit(savedCustomer);
-      }
+      if (result.type.endsWith("/fulfilled")) {
+        // Call the parent onSubmit with the saved customer data
+        if (onSubmit) {
+          await onSubmit(result.payload);
+        }
 
-      onClose();
+        onClose();
 
-      // Reset form only if adding new customer
-      if (mode === "add") {
-        setFormData({
-          name: "",
-          email: "",
-          phone: "",
-          address: "",
-          company: "",
-          notes: "",
-          vip: false,
-          status: "active",
-          dateOfBirth: "",
-          preferredContactMethod: "phone",
-        });
+        // Reset form only if adding new customer
+        if (mode === "add") {
+          setFormData({
+            name: "",
+            email: "",
+            phone: "",
+            address: "",
+            company: "",
+            notes: "",
+            vip: false,
+            status: "active",
+            dateOfBirth: "",
+            preferredContactMethod: "phone",
+          });
+        }
+        setErrors({});
+      } else {
+        setErrors({ submit: result.payload || t("errorSavingCustomer") });
       }
-      setErrors({});
     } catch (error) {
       console.error("Error submitting customer:", error);
       setErrors({ submit: t("errorSavingCustomer") });
@@ -216,27 +187,7 @@ const CustomerForm = ({
   };
 
   const handleClose = () => {
-    // Save draft before closing if in add mode and form has data
-    if (mode === "add" && (formData.name || formData.email || formData.phone)) {
-      saveFormDraft("customer_add", formData);
-    }
     onClose();
-  };
-
-  const clearDraft = () => {
-    clearFormDraft("customer_add");
-    setFormData({
-      name: "",
-      email: "",
-      phone: "",
-      address: "",
-      company: "",
-      notes: "",
-      vip: false,
-      status: "active",
-      dateOfBirth: "",
-      preferredContactMethod: "phone",
-    });
   };
 
   if (!isOpen) return null;
@@ -246,11 +197,7 @@ const CustomerForm = ({
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <div
-            className={`flex items-center gap-3 ${
-              isRTL ? "flex-row" : ""
-            }`}
-          >
+          <div className={`flex items-center gap-3 ${isRTL ? "flex-row" : ""}`}>
             <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
               <User className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             </div>
@@ -266,15 +213,6 @@ const CustomerForm = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {mode === "add" && getFormDraft("customer_add") && (
-              <button
-                onClick={clearDraft}
-                className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                title={t("clearDraft")}
-              >
-                {t("clearDraft")}
-              </button>
-            )}
             <button
               onClick={handleClose}
               className="p-2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors duration-200"
@@ -283,15 +221,6 @@ const CustomerForm = ({
             </button>
           </div>
         </div>
-
-        {/* Draft indicator */}
-        {mode === "add" && getFormDraft("customer_add") && (
-          <div className="px-6 py-2 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800">
-            <p className="text-sm text-blue-600 dark:text-blue-400">
-              📝 {t("draftRestored")} - {t("formDataSavedAutomatically")}
-            </p>
-          </div>
-        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -334,7 +263,6 @@ const CustomerForm = ({
                 error={errors.phone}
                 required
               />
-
 
               <div className="md:col-span-2">
                 <FormField
@@ -457,7 +385,7 @@ const CustomerForm = ({
           {/* Actions */}
           <div
             className={`flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700 ${
-            isRTL ? "flex-row" : ""
+              isRTL ? "flex-row" : ""
             }`}
           >
             <button

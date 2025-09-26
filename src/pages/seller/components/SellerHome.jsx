@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import {
   ShoppingCart,
@@ -23,26 +23,28 @@ import {
   formatDateTimeEnglish,
   formatNumberEnglish,
 } from "../../../utils";
-import { getFromStorage, setToStorage } from "../../../utils/localStorage";
-
-// Constants for localStorage keys
-const STORAGE_KEYS = {
-  ORDERS: "sales_app_orders",
-  CUSTOMERS: "sales_app_customers",
-  SALES_DATA: "seller_sales_data",
-  SETTINGS: "seller_settings",
-};
+import { fetchOrders } from "../../../store/slices/ordersSlice";
+import { fetchCustomers } from "../../../store/slices/customerSlice";
 
 const SellerHome = () => {
   const { t } = useTranslation();
+  const dispatch = useDispatch();
   const { isRTL } = useSelector((state) => state.language);
   const { products } = useSelector((state) => state.inventory);
+  const {
+    orders,
+    loading: ordersLoading,
+    error: ordersError,
+  } = useSelector((state) => state.orders);
+  const {
+    customers,
+    loading: customersLoading,
+    error: customersError,
+  } = useSelector((state) => state.customers);
 
   // State management
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [orders, setOrders] = useState([]);
-  const [customers, setCustomers] = useState([]);
   const [salesData, setSalesData] = useState({
     todayOrders: [],
     yesterdayOrders: [],
@@ -169,9 +171,6 @@ const SellerHome = () => {
           newCustomersThisWeek,
         };
 
-        // Store the calculated data in localStorage
-        setToStorage(STORAGE_KEYS.SALES_DATA, newSalesData);
-
         return newSalesData;
       } catch (err) {
         console.error("Error calculating statistics:", err);
@@ -181,50 +180,13 @@ const SellerHome = () => {
     [t]
   );
 
-  // Load data from localStorage
+  // Load data from Redux
   const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
 
-      // Load data from localStorage
-      const savedOrders = getFromStorage(STORAGE_KEYS.ORDERS, []);
-      const savedCustomers = getFromStorage(STORAGE_KEYS.CUSTOMERS, []);
-
-      console.log("Loaded data from localStorage:", {
-        savedOrders,
-        savedCustomers,
-      });
-
-      // Validate and set orders
-      if (Array.isArray(savedOrders)) {
-        // Ensure all orders have proper date format and numbers
-        const validOrders = savedOrders.map((order) => ({
-          ...order,
-          createdAt: order.createdAt || new Date().toISOString(),
-          total: Number(order.total || 0),
-          status: order.status || "pending",
-        }));
-        setOrders(validOrders);
-        console.log("Validated orders:", validOrders);
-      }
-
-      // Validate and set customers
-      if (Array.isArray(savedCustomers)) {
-        // Ensure all customers have proper date format
-        const validCustomers = savedCustomers.map((customer) => ({
-          ...customer,
-          createdAt: customer.createdAt || new Date().toISOString(),
-        }));
-        setCustomers(validCustomers);
-        console.log("Validated customers:", validCustomers);
-      }
-
-      // Calculate new statistics with validated data
-      const newSalesData = calculateStatistics(
-        Array.isArray(savedOrders) ? savedOrders : [],
-        Array.isArray(savedCustomers) ? savedCustomers : []
-      );
-      setSalesData(newSalesData);
+      // Fetch data from API via Redux
+      await Promise.all([dispatch(fetchOrders()), dispatch(fetchCustomers())]);
 
       setError(null);
     } catch (err) {
@@ -233,7 +195,7 @@ const SellerHome = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [calculateStatistics, t]);
+  }, [dispatch, t]);
 
   // Initialize data and set up auto-refresh
   useEffect(() => {
@@ -246,18 +208,25 @@ const SellerHome = () => {
     return () => clearInterval(intervalId);
   }, [loadData]);
 
-  // Save data when it changes
+  // Calculate statistics when data changes
   useEffect(() => {
-    if (!isLoading && !error) {
-      console.log("Saving data to localStorage:", {
-        orders,
-        customers,
-      });
-      // Don't save back to localStorage as we're reading from sales_app keys
-      // setToStorage(STORAGE_KEYS.ORDERS, orders);
-      // setToStorage(STORAGE_KEYS.CUSTOMERS, customers);
+    if (!ordersLoading && !customersLoading && orders && customers) {
+      try {
+        const newSalesData = calculateStatistics(orders, customers);
+        setSalesData(newSalesData);
+      } catch (err) {
+        console.error("Error calculating statistics:", err);
+        setError(t("errorCalculatingStats"));
+      }
     }
-  }, [orders, customers, isLoading, error]);
+  }, [
+    orders,
+    customers,
+    ordersLoading,
+    customersLoading,
+    calculateStatistics,
+    t,
+  ]);
 
   // Handle low stock products
   const lowStockProducts = products.filter(
@@ -392,7 +361,7 @@ const SellerHome = () => {
     },
   ];
 
-  if (isLoading) {
+  if (isLoading || ordersLoading || customersLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -400,12 +369,12 @@ const SellerHome = () => {
     );
   }
 
-  if (error) {
+  if (error || ordersError || customersError) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-red-600 text-center">
           <AlertTriangle className="w-12 h-12 mx-auto mb-4" />
-          <p>{error}</p>
+          <p>{error || ordersError || customersError}</p>
           <button
             onClick={loadData}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"

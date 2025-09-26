@@ -21,7 +21,6 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import FormField from "../FormField";
-import { getProducts } from "../../../utils/localStorage";
 
 const PaymentVoucherForm = ({
   isOpen,
@@ -32,6 +31,7 @@ const PaymentVoucherForm = ({
 }) => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
+  const { products } = useSelector((state) => state.inventory);
 
   const [formData, setFormData] = useState({
     voucherNumber: "",
@@ -111,13 +111,13 @@ const PaymentVoucherForm = ({
     handleInputChange(field, value);
   };
 
-  // Build supplier options from mock products
+  // Build supplier options from products
   const supplierOptions = (() => {
     try {
-      const products = getProducts() || [];
+      const productList = products || [];
       const names = Array.from(
         new Set(
-          products
+          productList
             .map((p) => p?.supplier)
             .filter((s) => typeof s === "string" && s.trim() !== "")
         )

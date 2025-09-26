@@ -19,7 +19,7 @@ import ActiveOrders from "./components/ActiveOrders";
 import KitchenReports from "./components/KitchenReports";
 import KitchenSettings from "./components/KitchenSettings";
 import AllOrders from "./components/AllOrders";
-import { refreshOrders } from "../../store/slices/ordersSlice";
+import { fetchOrders } from "../../store/slices/ordersSlice";
 
 const KitchenDashboard = () => {
   const { t } = useTranslation();
@@ -29,7 +29,7 @@ const KitchenDashboard = () => {
   // Auto-refresh every 20 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      dispatch(refreshOrders());
+      dispatch(fetchOrders());
     }, 20000);
     return () => clearInterval(interval);
   }, [dispatch]);

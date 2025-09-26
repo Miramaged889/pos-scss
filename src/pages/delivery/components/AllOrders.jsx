@@ -1,36 +1,28 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
 import { Search, Filter, ArrowUp, ArrowDown, Eye, Loader2 } from "lucide-react";
-import { syncDeliveryOrders } from "../../../utils/localStorage";
+import { fetchOrders } from "../../../store/slices/ordersSlice";
 
 const AllOrders = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [deliveryOrders, setDeliveryOrders] = useState([]);
+  const dispatch = useDispatch();
+  const { orders, loading, error } = useSelector((state) => state.orders);
   const [searchTerm, setSearchTerm] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [sortConfig, setSortConfig] = useState({
     key: "createdAt",
     direction: "desc",
   });
 
-  // Load delivery orders from localStorage
+  // Load delivery orders from API
   useEffect(() => {
     const loadOrders = async () => {
       try {
-        setLoading(true);
-        setError(null);
-
-        // Use syncDeliveryOrders to get the latest orders
-        const orders = await syncDeliveryOrders();
-        setDeliveryOrders(orders || []);
+        await dispatch(fetchOrders());
       } catch (err) {
         console.error("Error loading orders:", err);
-        setError(t("errorLoadingOrders"));
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -38,11 +30,11 @@ const AllOrders = () => {
     const interval = setInterval(loadOrders, 30000); // Refresh every 30 seconds
 
     return () => clearInterval(interval);
-  }, [t]);
+  }, [dispatch]);
 
   // Filter and sort orders
   const filteredOrders = useMemo(() => {
-    let result = [...deliveryOrders];
+    let result = [...(orders || [])];
 
     // Filter by search term
     if (searchTerm) {
@@ -71,7 +63,7 @@ const AllOrders = () => {
     });
 
     return result;
-  }, [deliveryOrders, searchTerm, sortConfig]);
+  }, [orders, searchTerm, sortConfig]);
 
   const handleSort = (key) => {
     setSortConfig((current) => ({

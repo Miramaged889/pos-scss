@@ -27,15 +27,12 @@ import {
 import {
   deleteOrder,
   updateOrder,
-  loadOrdersFromStorage,
+  fetchOrders,
 } from "../../../store/slices/ordersSlice";
-import { getFromStorage, setToStorage } from "../../../utils/localStorage";
-
-// Constants for localStorage keys
-const STORAGE_KEYS = {
-  ORDERS: "sales_app_orders",
-  CUSTOMERS: "sales_app_customers",
-};
+import {
+  fetchCustomers,
+  createCustomer,
+} from "../../../store/slices/customerSlice";
 
 const OrdersList = () => {
   const { t } = useTranslation();
@@ -54,9 +51,9 @@ const OrdersList = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editFormData, setEditFormData] = useState({});
 
-  // Load orders from localStorage on component mount
+  // Load orders from API on component mount
   useEffect(() => {
-    dispatch(loadOrdersFromStorage());
+    dispatch(fetchOrders());
   }, [dispatch]);
 
   // Filter orders based on status, search term and date range
@@ -131,72 +128,72 @@ const OrdersList = () => {
   };
 
   // Helper function to ensure customer exists
-  const ensureCustomerExists = (orderData) => {
-    const customers = getFromStorage(STORAGE_KEYS.CUSTOMERS, []);
-    const customerExists = customers.some(
-      (c) =>
-        (c.name &&
-          orderData.customer &&
-          c.name.toLowerCase() === orderData.customer.toLowerCase()) ||
-        (c.phone && orderData.phone && c.phone === orderData.phone)
-    );
+  const ensureCustomerExists = async (orderData) => {
+    try {
+      // First, fetch current customers to check if customer exists
+      const result = await dispatch(fetchCustomers());
+      const customers = result.payload || [];
 
-    if (!customerExists && orderData.customer) {
-      // Generate new customer ID
-      const maxId =
-        customers.length > 0
-          ? Math.max(
-              ...customers
-                .map((c) => c.id)
-                .filter((id) => id.startsWith("CUST-"))
-                .map((id) => parseInt(id.replace("CUST-", "")) || 0)
-            )
-          : 2;
-      const newCustomerId = `CUST-${maxId + 1}`;
+      const customerExists = customers.some(
+        (c) =>
+          (c.name &&
+            orderData.customer &&
+            c.name.toLowerCase() === orderData.customer.toLowerCase()) ||
+          (c.phone && orderData.phone && c.phone === orderData.phone)
+      );
 
-      // Create new customer
-      const newCustomer = {
-        id: newCustomerId,
-        name: orderData.customer,
-        email: "",
-        phone: orderData.phone || "",
-        address: orderData.deliveryAddress || "",
-        company: "",
-        notes: `Auto-created from order #${orderData.id}`,
-        vip: false,
-        status: "active",
-        joinDate: orderData.createdAt || new Date().toISOString(),
-        dateOfBirth: "",
-        preferredContactMethod: "phone",
-      };
+      if (!customerExists && orderData.customer) {
+        // Create new customer via API
+        const newCustomer = {
+          name: orderData.customer,
+          email: "",
+          phone: orderData.phone || "",
+          address: orderData.deliveryAddress || "",
+          company: "",
+          notes: `Auto-created from order #${orderData.id}`,
+          vip: false,
+          status: "active",
+          dateOfBirth: "",
+          preferredContactMethod: "phone",
+        };
 
-      // Save updated customers list
-      setToStorage(STORAGE_KEYS.CUSTOMERS, [...customers, newCustomer]);
+        await dispatch(createCustomer(newCustomer));
+      }
+    } catch (error) {
+      console.error("Error ensuring customer exists:", error);
     }
   };
 
   // Save edited order and ensure customer exists
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (selectedOrder) {
-      ensureCustomerExists(editFormData);
-      dispatch(
-        updateOrder({
-          orderId: selectedOrder.id,
-          updates: editFormData,
-        })
-      );
-      setShowEditModal(false);
-      setSelectedOrder(null);
-      setEditFormData({});
+      try {
+        await ensureCustomerExists(editFormData);
+        await dispatch(
+          updateOrder({
+            id: selectedOrder.id,
+            updates: editFormData,
+          })
+        );
+        setShowEditModal(false);
+        setSelectedOrder(null);
+        setEditFormData({});
+      } catch (error) {
+        console.error("Error saving order:", error);
+      }
     }
   };
 
   // Confirm delete order
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (selectedOrder) {
-      dispatch(deleteOrder(selectedOrder.id));
-      setShowDeleteModal(false);
-      setSelectedOrder(null);
+      try {
+        await dispatch(deleteOrder(selectedOrder.id));
+        setShowDeleteModal(false);
+        setSelectedOrder(null);
+      } catch (error) {
+        console.error("Error deleting order:", error);
+      }
     }
   };
 

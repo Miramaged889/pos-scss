@@ -7,33 +7,10 @@ import inventoryReducer from "./slices/inventorySlice";
 import kitchenReducer from "./slices/kitchenSlice";
 import managerReducer from "./slices/managerSlice";
 import sellerReducer from "./slices/sellerSlice";
+import customerReducer from "./slices/customerSlice";
+import supplierReducer from "./slices/supplierSlice";
 
-// Load initial state from localStorage
-const loadState = () => {
-  try {
-    const serializedState = localStorage.getItem("appState");
-    if (serializedState === null) {
-      return undefined;
-    }
-    return JSON.parse(serializedState);
-  } catch (err) {
-    console.error("Error loading state from localStorage:", err);
-    return undefined;
-  }
-};
-
-// Save state to localStorage
-const saveState = (state) => {
-  try {
-    const serializedState = JSON.stringify(state);
-    localStorage.setItem("appState", serializedState);
-  } catch (err) {
-    console.error("Error saving state to localStorage:", err);
-    // Handle errors here
-  }
-};
-
-const preloadedState = loadState();
+// No localStorage persistence - state will be managed by API calls
 
 const store = configureStore({
   reducer: {
@@ -45,13 +22,9 @@ const store = configureStore({
     kitchen: kitchenReducer,
     manager: managerReducer,
     seller: sellerReducer,
+    customers: customerReducer,
+    suppliers: supplierReducer,
   },
-  preloadedState,
-});
-
-// Subscribe to store changes and save to localStorage
-store.subscribe(() => {
-  saveState(store.getState());
 });
 
 // Export both as default and named export

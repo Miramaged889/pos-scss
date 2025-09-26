@@ -26,11 +26,7 @@ import {
   formatCurrencyEnglish,
   formatDateTimeEnglish,
 } from "../../../utils/formatters";
-import {
-  getOrders,
-  getFromStorage,
-  setToStorage,
-} from "../../../utils/localStorage";
+// Removed localStorage imports - using Redux instead
 import { CustomerInvoiceForm } from "../../../components/Forms/SellerForms";
 
 const PaymentManagement = () => {
@@ -49,53 +45,12 @@ const PaymentManagement = () => {
   useEffect(() => {
     const loadPayments = () => {
       try {
-        // Get all orders and payments
-        const orders = getOrders();
-        const storedPayments = getFromStorage("payments", []);
-
-        // Create payment entries for cash orders if they don't exist
-        const cashOrderPayments = orders
-          .filter(
-            (order) =>
-              order.paymentMethod === "cash" &&
-              !storedPayments.some((p) => p.orderId === order.id)
-          )
-          .map((order) => ({
-            transactionId: `PAY-${order.id.replace("ORD-", "")}`,
-            orderId: order.id,
-            amount: order.total,
-            method: "cash",
-            status: order.paymentStatus || "pending",
-            paymentDate: order.createdAt,
-            customer: order.customer,
-            customerPhone: order.phone,
-            description: `${
-              order.products?.map((p) => p.name).join(", ") || t("products")
-            } (${order.items || 0} ${t("items")})`,
-            fees: 0,
-            collectedBy: order.assignedDriver,
-            collectedAt: order.paymentCollectedAt,
-          }));
-
-        // Merge existing payments with new cash payments
-        const allPayments = [...storedPayments];
-        cashOrderPayments.forEach((newPayment) => {
-          const existingIndex = allPayments.findIndex(
-            (p) => p.orderId === newPayment.orderId
-          );
-          if (existingIndex === -1) {
-            allPayments.push(newPayment);
-          }
-        });
-
-        // Save merged payments back to localStorage
-        setToStorage("payments", allPayments);
+        // For now, use empty payments array - will be replaced with API calls
+        const allPayments = [];
 
         // Enhance payments with order details
         const enhancedPayments = allPayments.map((payment) => {
-          const relatedOrder = orders.find(
-            (order) => order.id === payment.orderId
-          );
+          const relatedOrder = null; // Will be fetched from Redux
           let fees = 0;
           if (payment.method === "card") {
             fees = payment.amount * 0.03;
@@ -202,14 +157,8 @@ const PaymentManagement = () => {
 
   const handleSubmitCustomerInvoice = async (invoice) => {
     try {
-      const existing = getFromStorage("customerInvoices", []);
-      const index = existing.findIndex((i) => i.id === invoice.id);
-      if (index >= 0) {
-        existing[index] = invoice;
-      } else {
-        existing.push(invoice);
-      }
-      setToStorage("customerInvoices", existing);
+      // Customer invoices will be handled by the backend API
+      console.log("Customer invoice submitted:", invoice);
     } catch (e) {
       console.error("Error saving customer invoice", e);
     } finally {

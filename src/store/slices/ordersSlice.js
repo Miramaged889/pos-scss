@@ -1,9 +1,66 @@
-import { createSlice } from "@reduxjs/toolkit";
-import {
-  getOrders,
-  saveOrders,
-  addOrder as addOrderToStorage,
-} from "../../utils/localStorage";
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import { orderService } from "../../services";
+
+// Async thunks for API calls
+export const fetchOrders = createAsyncThunk(
+  "orders/fetchOrders",
+  async (params = {}, { rejectWithValue }) => {
+    try {
+      const response = await orderService.getOrders(params);
+      return response.data || response;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const createOrder = createAsyncThunk(
+  "orders/createOrder",
+  async (orderData, { rejectWithValue }) => {
+    try {
+      const response = await orderService.createOrder(orderData);
+      return response.data || response;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const updateOrder = createAsyncThunk(
+  "orders/updateOrder",
+  async ({ id, updates }, { rejectWithValue }) => {
+    try {
+      const response = await orderService.updateOrder(id, updates);
+      return response.data || response;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const updateOrderStatus = createAsyncThunk(
+  "orders/updateOrderStatus",
+  async ({ id, status }, { rejectWithValue }) => {
+    try {
+      const response = await orderService.updateOrderStatus(id, status);
+      return response.data || response;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const deleteOrder = createAsyncThunk(
+  "orders/deleteOrder",
+  async (id, { rejectWithValue }) => {
+    try {
+      await orderService.deleteOrder(id);
+      return id;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
 
 const initialState = {
   orders: [],
@@ -21,57 +78,6 @@ const ordersSlice = createSlice({
   name: "orders",
   initialState,
   reducers: {
-    addOrder: (state, action) => {
-      // Use localStorage function to add order with unique ID and auto-create customer
-      const newOrder = addOrderToStorage({
-        items: action.payload.products?.length || 0,
-        ...action.payload,
-        status: "pending",
-        priority: action.payload.priority || "normal",
-        assignedDriver: null,
-      });
-
-      // Add to Redux state
-      state.orders.unshift(newOrder);
-    },
-    updateOrderStatus: (state, action) => {
-      const { orderId, status, notes, driverName } = action.payload;
-      const order = state.orders.find((order) => order.id === orderId);
-      if (order) {
-        order.status = status;
-        if (notes) order.kitchenNotes = notes;
-        if (driverName) order.assignedDriver = driverName;
-        order.updatedAt = new Date().toISOString();
-        saveOrders(state.orders);
-      }
-    },
-    assignDriver: (state, action) => {
-      const { orderId, driverName } = action.payload;
-      const order = state.orders.find((o) => o.id === orderId);
-      if (order) {
-        order.assignedDriver = driverName;
-        order.updatedAt = new Date().toISOString();
-        // Auto-update status if assigning driver to ready order
-        if (order.status === "ready") {
-          order.status = "out_for_delivery";
-        }
-        saveOrders(state.orders);
-      }
-    },
-    updateOrder: (state, action) => {
-      const { orderId, updates } = action.payload;
-      const order = state.orders.find((order) => order.id === orderId);
-      if (order) {
-        Object.assign(order, updates);
-        order.updatedAt = new Date().toISOString();
-        saveOrders(state.orders);
-      }
-    },
-    deleteOrder: (state, action) => {
-      const orderId = action.payload;
-      state.orders = state.orders.filter((order) => order.id !== orderId);
-      saveOrders(state.orders);
-    },
     setFilters: (state, action) => {
       state.filters = { ...state.filters, ...action.payload };
     },
@@ -81,24 +87,6 @@ const ordersSlice = createSlice({
         date: "all",
         priority: "all",
       };
-    },
-    loadOrdersFromStorage: (state) => {
-      const orders = getOrders();
-      state.orders = orders || [];
-    },
-    refreshOrders: (state) => {
-      // Simulate auto-refresh with updated timestamps
-      state.orders = state.orders.map((order) => ({
-        ...order,
-        lastRefresh: new Date().toISOString(),
-      }));
-    },
-    setLoading: (state, action) => {
-      state.loading = action.payload;
-    },
-    setError: (state, action) => {
-      state.error = action.payload;
-      state.loading = false;
     },
     clearError: (state) => {
       state.error = null;
@@ -115,20 +103,95 @@ const ordersSlice = createSlice({
       delete state.driverLocations[driverId];
     },
   },
+  extraReducers: (builder) => {
+    // Fetch orders
+    builder
+      .addCase(fetchOrders.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchOrders.fulfilled, (state, action) => {
+        state.loading = false;
+        state.orders = action.payload;
+      })
+      .addCase(fetchOrders.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Create order
+      .addCase(createOrder.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(createOrder.fulfilled, (state, action) => {
+        state.loading = false;
+        state.orders.unshift(action.payload);
+      })
+      .addCase(createOrder.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Update order
+      .addCase(updateOrder.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateOrder.fulfilled, (state, action) => {
+        state.loading = false;
+        const index = state.orders.findIndex(
+          (order) => order.id === action.payload.id
+        );
+        if (index !== -1) {
+          state.orders[index] = action.payload;
+        }
+      })
+      .addCase(updateOrder.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Update order status
+      .addCase(updateOrderStatus.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateOrderStatus.fulfilled, (state, action) => {
+        state.loading = false;
+        const index = state.orders.findIndex(
+          (order) => order.id === action.payload.id
+        );
+        if (index !== -1) {
+          state.orders[index] = action.payload;
+        }
+      })
+      .addCase(updateOrderStatus.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Delete order
+      .addCase(deleteOrder.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(deleteOrder.fulfilled, (state, action) => {
+        state.loading = false;
+        state.orders = state.orders.filter(
+          (order) => order.id !== action.payload
+        );
+      })
+      .addCase(deleteOrder.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+  },
 });
 
 export const {
-  addOrder,
-  updateOrderStatus,
-  assignDriver,
-  updateOrder,
-  deleteOrder,
-  loadOrdersFromStorage,
   setFilters,
   clearFilters,
-  refreshOrders,
-  setLoading,
-  setError,
   clearError,
   updateDriverLocation,
   clearDriverLocation,

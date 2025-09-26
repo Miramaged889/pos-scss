@@ -19,7 +19,7 @@ import {
   ChevronLeft,
 } from "lucide-react";
 
-import { logout } from "../../store/slices/authSlice";
+import { logoutUser } from "../../store/slices/authSlice";
 import { toggleLanguage, toggleTheme } from "../../store/slices/languageSlice";
 
 const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
@@ -87,10 +87,17 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
     };
   }, [isMobileView, sidebarOpen]);
 
-  const handleLogout = () => {
-    dispatch(logout());
-    navigate("/login");
-    setUserDropdownOpen(false);
+  const handleLogout = async () => {
+    try {
+      await dispatch(logoutUser());
+      navigate("/login");
+      setUserDropdownOpen(false);
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Still navigate to login even if API call fails
+      navigate("/login");
+      setUserDropdownOpen(false);
+    }
   };
 
   const handleLanguageToggle = () => {
@@ -114,91 +121,15 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
     }
   };
 
-  // Initialize default profile if it doesn't exist
-  const initializeProfile = () => {
-    try {
-      let profileKey = "sellerProfile";
-      let defaultName = "Seller";
-
-      if (role === "kitchen") {
-        profileKey = "kitchenProfile";
-        defaultName = "Kitchen";
-      } else if (role === "manager") {
-        profileKey = "managerProfile";
-        defaultName = "Manager";
-      }
-
-      const existingProfile = localStorage.getItem(profileKey);
-      if (!existingProfile) {
-        const defaultProfile = [
-          {
-            id: 1,
-            email: user?.email || `${role}@example.com`,
-            firstName: defaultName,
-            lastName: "User",
-            name: `${defaultName} User`,
-            role: role,
-            phone: "+966 50 123 4567",
-            address: "Riyadh, Saudi Arabia",
-            joinDate: new Date().toISOString(),
-          },
-        ];
-        localStorage.setItem(profileKey, JSON.stringify(defaultProfile));
-      }
-    } catch (error) {
-      console.error(`Error initializing ${role} profile:`, error);
-    }
-  };
-
   const getUserName = () => {
-    try {
-      // Get profile from localStorage based on role
-      let profileKey = "sellerProfile";
-
-      if (role === "kitchen") {
-        profileKey = "kitchenProfile";
-      } else if (role === "delivery") {
-        profileKey = "driverProfile";
-      } else if (role === "manager") {
-        profileKey = "managerProfile";
-      }
-      const profileData = localStorage.getItem(profileKey);
-
-      if (profileData) {
-        const profile = JSON.parse(profileData);
-
-        let userProfile = null;
-
-        // Handle both object and array formats
-        if (Array.isArray(profile)) {
-          // Array format: find by email or use first
-          userProfile =
-            profile.find((p) => p.email === user?.email) || profile[0];
-        } else if (typeof profile === "object" && profile !== null) {
-          // Direct object format
-          userProfile = profile;
-        }
-
-        if (userProfile) {
-          if (userProfile.name) return userProfile.name;
-          if (userProfile.fullName) return userProfile.fullName;
-          if (userProfile.firstName && userProfile.lastName) {
-            return `${userProfile.firstName} ${userProfile.lastName}`;
-          }
-          if (userProfile.firstName) return userProfile.firstName;
-          if (userProfile.lastName) return userProfile.lastName;
-          if (userProfile.managerName) return userProfile.managerName;
-        }
-      } else {
-        // Initialize profile if it doesn't exist
-        initializeProfile();
-      }
-    } catch (error) {
-      console.error(`Error reading ${role} profile from localStorage:`, error);
-    }
-
-    // Fallback to user data
+    // Use user data from API
     if (user?.name) return user.name;
+    if (user?.fullName) return user.fullName;
+    if (user?.firstName && user?.lastName) {
+      return `${user.firstName} ${user.lastName}`;
+    }
+    if (user?.firstName) return user.firstName;
+    if (user?.lastName) return user.lastName;
     if (user?.email) {
       return user.email.split("@")[0];
     }

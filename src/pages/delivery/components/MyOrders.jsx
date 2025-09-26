@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
 import {
   Truck,
   MapPin,
@@ -16,78 +17,45 @@ import {
 } from "lucide-react";
 
 import {
-  getFromStorage,
-  addDeliveryAction,
-  syncDeliveryOrders,
-  updateDeliveryOrder,
-  addPayment,
-  STORAGE_KEYS,
-  DELIVERY_ACTIONS,
-} from "../../../utils/localStorage";
+  fetchOrders,
+  updateOrderStatus,
+} from "../../../store/slices/ordersSlice";
+import { paymentService } from "../../../services/paymentService";
 
 const MyOrders = ({ isHome = false }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [localOrders, setLocalOrders] = useState([]);
+  const dispatch = useDispatch();
+  const { user } = useSelector((state) => state.auth);
+  const {
+    orders,
+    loading: ordersLoading,
+    error: ordersError,
+  } = useSelector((state) => state.orders);
+
   const [filter, setFilter] = useState("all");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentError, setPaymentError] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [processing, setProcessing] = useState(false);
 
-  // Get current user from localStorage
-  const user = getFromStorage(STORAGE_KEYS.AUTH, {})?.user;
-
-  // Load orders from localStorage
+  // Load orders from API
   useEffect(() => {
-    const loadOrders = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+    dispatch(fetchOrders());
 
-        // Sync delivery orders and update stats
-        const deliveryOrders = await syncDeliveryOrders(user?.name);
-
-        if (!Array.isArray(deliveryOrders)) {
-          setError(t("errorLoadingOrders"));
-          return;
-        }
-
-        // Filter and sort orders
-        const activeOrders = deliveryOrders
-          .filter(
-            (order) =>
-              order &&
-              (!order.isDelivered ||
-                order.deliveryStatus !== "delivered" ||
-                (order.assignedDriver === user?.name && !order.isPaid))
-          )
-          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-        setLocalOrders(activeOrders);
-      } catch (err) {
-        console.error("Error loading orders:", err);
-        setError(t("errorLoadingOrders"));
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadOrders();
+    // Refresh orders every 30 seconds
     const interval = setInterval(() => {
-      loadOrders();
+      dispatch(fetchOrders());
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [t, user?.name]);
+  }, [dispatch]);
 
   // Filter orders for this driver
   const filterOrders = () => {
-    let filteredOrders = localOrders.filter((order) => order && order.id); // Ensure valid orders
+    let filteredOrders = orders.filter((order) => order && order.id); // Ensure valid orders
 
     switch (filter) {
       case "pending":
@@ -127,33 +95,22 @@ const MyOrders = ({ isHome = false }) => {
 
   const handleStartDelivery = async (orderId) => {
     try {
-      // Create delivery action
-      const action = await addDeliveryAction({
-        type: DELIVERY_ACTIONS.START_DELIVERY,
-        driverId: user?.name,
-        orderId,
-      });
-
-      // Update order in localStorage
-      const updatedOrder = await updateDeliveryOrder(orderId, {
-        assignedDriver: user?.name,
-        deliveryStartTime: action.timestamp,
-        deliveryStatus: "delivering",
-      });
-
-      // Update local state
-      setLocalOrders((prevOrders) =>
-        prevOrders.map((order) => (order.id === orderId ? updatedOrder : order))
+      // Update order status via API
+      await dispatch(
+        updateOrderStatus({
+          id: orderId,
+          status: "delivering",
+          assignedDriver: user?.name,
+          deliveryStartTime: new Date().toISOString(),
+        })
       );
     } catch (err) {
       console.error("Error starting delivery:", err);
-      setError(t("errorStartingDelivery"));
     }
   };
 
   const handleCompleteDelivery = (order) => {
     if (!order.total) {
-      setError(t("invalidOrderTotal"));
       return;
     }
     setSelectedOrder(order);
@@ -185,15 +142,8 @@ const MyOrders = ({ isHome = false }) => {
 
       setProcessing(true);
 
-      // Create delivery action for completion
-      const completeAction = await addDeliveryAction({
-        type: DELIVERY_ACTIONS.COMPLETE_DELIVERY,
-        driverId: user?.name,
-        orderId: selectedOrder.id,
-      });
-
-      // Add payment record
-      const payment = await addPayment({
+      // Add payment record via API
+      const payment = await paymentService.createPayment({
         orderId: selectedOrder.id,
         amount: amount,
         collectedBy: user?.name,
@@ -201,29 +151,26 @@ const MyOrders = ({ isHome = false }) => {
         orderTotal: selectedOrder.total,
         method: "cash",
         status: "completed",
-        collectedAt: completeAction.timestamp,
+        collectedAt: new Date().toISOString(),
         paidAt: new Date().toISOString(),
         isPaid: true,
       });
 
       if (!payment) throw new Error("Failed to create payment");
 
-      // Update order status
-      const updatedOrder = await updateDeliveryOrder(selectedOrder.id, {
-        isDelivered: true,
-        deliveryEndTime: completeAction.timestamp,
-        deliveryStatus: "delivered",
-        isPaid: true,
-        paidAt: payment.paidAt || payment.collectedAt,
-        paymentId: payment.id,
-        paymentStatus: "completed",
-      });
-
-      // Update local state
-      setLocalOrders((prevOrders) =>
-        prevOrders.map((order) =>
-          order.id === selectedOrder.id ? updatedOrder : order
-        )
+      // Update order status via API
+      await dispatch(
+        updateOrderStatus({
+          id: selectedOrder.id,
+          status: "delivered",
+          isDelivered: true,
+          deliveryEndTime: new Date().toISOString(),
+          deliveryStatus: "delivered",
+          isPaid: true,
+          paidAt: payment.paidAt || payment.collectedAt,
+          paymentId: payment.id,
+          paymentStatus: "completed",
+        })
       );
 
       // Reset state
@@ -311,17 +258,17 @@ const MyOrders = ({ isHome = false }) => {
       </div>
 
       {/* Error Message */}
-      {error && (
+      {ordersError && (
         <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
           <div className="flex items-center gap-2 text-red-800 dark:text-red-400">
             <AlertCircle className="w-5 h-5" />
-            <p>{error}</p>
+            <p>{ordersError}</p>
           </div>
         </div>
       )}
 
       {/* Loading State */}
-      {loading ? (
+      {ordersLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 text-blue-600 dark:text-blue-400 animate-spin" />
         </div>

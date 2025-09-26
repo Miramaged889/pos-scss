@@ -4,12 +4,7 @@ import { useTranslation } from "react-i18next";
 import { X, Check, Package, Tag, DollarSign, Truck } from "lucide-react";
 import FormField from "../FormField";
 import {
-  saveFormDraft,
-  getFormDraft,
-  clearFormDraft,
-} from "../../../utils/localStorage";
-import {
-  addProduct,
+  createProduct,
   updateProduct,
 } from "../../../store/slices/inventorySlice";
 
@@ -38,7 +33,7 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Load form draft or product data when component mounts
+  // Load product data when component mounts
   useEffect(() => {
     if (product && mode === "edit") {
       setFormData({
@@ -58,61 +53,26 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
       });
       setImagePreview(product.imageUrl || null);
     } else if (mode === "create") {
-      // Try to load draft for new product form
-      const draft = getFormDraft("product_create");
-      if (draft) {
-        setFormData({
-          name: draft.name || "",
-          nameEn: draft.nameEn || "",
-          category: draft.category || "",
-          stock: draft.stock || "",
-          minStock: draft.minStock || "",
-          price: draft.price || "",
-          supplier: draft.supplier || "",
-          sku: draft.sku || "",
-          barcode: draft.barcode || "",
-          description: draft.description || "",
-          imageUrl: draft.imageUrl || "",
-          unitSize: draft.unitSize || "",
-          unitType: draft.unitType || "",
-        });
-        setImagePreview(draft.imageUrl || null);
-      } else {
-        // Reset form for new product
-        setFormData({
-          name: "",
-          nameEn: "",
-          category: "",
-          stock: "",
-          minStock: "",
-          price: "",
-          supplier: "",
-          sku: "",
-          barcode: "",
-          description: "",
-          imageUrl: "",
-          unitSize: "",
-          unitType: "",
-        });
-        setImagePreview(null);
-      }
+      // Reset form for new product
+      setFormData({
+        name: "",
+        nameEn: "",
+        category: "",
+        stock: "",
+        minStock: "",
+        price: "",
+        supplier: "",
+        sku: "",
+        barcode: "",
+        description: "",
+        imageUrl: "",
+        unitSize: "",
+        unitType: "",
+      });
+      setImagePreview(null);
     }
     setErrors({});
   }, [product, mode, isOpen]);
-
-  // Auto-save form draft when form data changes (for create mode only)
-  useEffect(() => {
-    if (mode === "create" && isOpen) {
-      const timeoutId = setTimeout(() => {
-        // Only save if form has some data
-        if (formData.name || formData.nameEn || formData.category) {
-          saveFormDraft("product_create", formData);
-        }
-      }, 1000); // Save after 1 second of inactivity
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [formData, mode, isOpen]);
 
   const categoryOptions = [
     { value: "main", label: t("mainCourse") },
@@ -214,39 +174,42 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
         unitType: formData.unitType || null,
       };
 
+      let result;
       if (mode === "edit" && product) {
-        // Update existing product using Redux
-        dispatch(
-          updateProduct({ productId: product.id, updates: productData })
+        // Update existing product via API
+        result = await dispatch(
+          updateProduct({ id: product.id, updates: productData })
         );
       } else {
-        // Add new product using Redux
-        dispatch(addProduct(productData));
-        // Clear the form draft after successful submission
-        clearFormDraft("product_create");
+        // Create new product via API
+        result = await dispatch(createProduct(productData));
       }
 
-      // Reset form if creating new product
-      if (mode === "create") {
-        setFormData({
-          name: "",
-          nameEn: "",
-          category: "",
-          stock: "",
-          minStock: "",
-          price: "",
-          supplier: "",
-          sku: "",
-          barcode: "",
-          description: "",
-          imageUrl: "",
-          unitSize: "",
-          unitType: "",
-        });
+      if (result.type.endsWith("/fulfilled")) {
+        // Reset form if creating new product
+        if (mode === "create") {
+          setFormData({
+            name: "",
+            nameEn: "",
+            category: "",
+            stock: "",
+            minStock: "",
+            price: "",
+            supplier: "",
+            sku: "",
+            barcode: "",
+            description: "",
+            imageUrl: "",
+            unitSize: "",
+            unitType: "",
+          });
+          setImagePreview(null);
+        }
         setErrors({});
+        onClose();
+      } else {
+        setErrors({ submit: result.payload || t("errorSavingProduct") });
       }
-
-      onClose();
     } catch (error) {
       console.error("Error saving product:", error);
       setErrors({ submit: t("errorSavingProduct") });
@@ -256,33 +219,7 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
   };
 
   const handleClose = () => {
-    // Save draft before closing if in create mode and form has data
-    if (
-      mode === "create" &&
-      (formData.name || formData.nameEn || formData.category)
-    ) {
-      saveFormDraft("product_create", formData);
-    }
     onClose();
-  };
-
-  const clearDraft = () => {
-    clearFormDraft("product_create");
-    setFormData({
-      name: "",
-      nameEn: "",
-      category: "",
-      stock: "",
-      minStock: "",
-      price: "",
-      supplier: "",
-      sku: "",
-      barcode: "",
-      description: "",
-      imageUrl: "",
-      unitSize: "",
-      unitType: "",
-    });
   };
 
   if (!isOpen) return null;
@@ -315,15 +252,6 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {mode === "create" && getFormDraft("product_create") && (
-                <button
-                  onClick={clearDraft}
-                  className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                  title={t("clearDraft")}
-                >
-                  {t("clearDraft")}
-                </button>
-              )}
               <button
                 onClick={handleClose}
                 className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -334,15 +262,6 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
             </div>
           </div>
         </div>
-
-        {/* Draft indicator */}
-        {mode === "create" && getFormDraft("product_create") && (
-          <div className="px-6 py-2 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800">
-            <p className="text-sm text-blue-600 dark:text-blue-400">
-              📝 {t("draftRestored")} - {t("formDataSavedAutomatically")}
-            </p>
-          </div>
-        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">

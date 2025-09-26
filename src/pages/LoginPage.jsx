@@ -4,49 +4,65 @@ import { useTranslation } from "react-i18next";
 import { toast } from "react-hot-toast";
 import { LogIn, Globe, Mail } from "lucide-react";
 
-import { login, ROLE_EMAILS } from "../store/slices/authSlice";
+import { loginUser } from "../store/slices/authSlice";
 import { toggleLanguage } from "../store/slices/languageSlice";
 
 const LoginPage = () => {
   const [email, setEmail] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [password, setPassword] = useState("");
 
   const dispatch = useDispatch();
   const { t } = useTranslation();
   const { currentLanguage, isRTL } = useSelector((state) => state.language);
+  const { loading, error } = useSelector((state) => state.auth);
 
   const handleLogin = async (e) => {
     e.preventDefault();
 
-    if (!email.trim()) {
-      toast.error(t("enterEmail"));
+    if (!email.trim() || !password.trim()) {
+      toast.error(t("enterEmailAndPassword"));
       return;
     }
 
-    if (!ROLE_EMAILS[email]) {
-      toast.error(t("invalidEmail"));
-      return;
+    try {
+      const result = await dispatch(
+        loginUser({
+          email: email.trim(),
+          password: password.trim(),
+        })
+      );
+
+      if (loginUser.fulfilled.match(result)) {
+        toast.success(t("success"));
+      } else {
+        toast.error(result.payload || t("loginFailed"));
+      }
+    } catch (error) {
+      toast.error(t("loginFailed"));
     }
-
-    setIsLoading(true);
-
-    // Simulate login delay
-    setTimeout(() => {
-      dispatch(login({ email: email.trim() }));
-      toast.success(t("success"));
-      setIsLoading(false);
-    }, 1000);
   };
 
   const handleLanguageToggle = () => {
     dispatch(toggleLanguage());
   };
 
-  const demoEmails = [
-    { email: "seller@company.com", role: t("seller") },
-    { email: "kitchen@company.com", role: t("kitchen") },
-    { email: "delivery@company.com", role: t("delivery") },
-    { email: "manager@company.com", role: t("manager") },
+  const demoAccounts = [
+    { email: "seller@company.com", password: "password123", role: t("seller") },
+    {
+      email: "kitchen@company.com",
+      password: "password123",
+      role: t("kitchen"),
+    },
+    {
+      email: "delivery@company.com",
+      password: "password123",
+      role: t("delivery"),
+    },
+    {
+      email: "manager@company.com",
+      password: "password123",
+      role: t("manager"),
+    },
   ];
 
   return (
@@ -111,12 +127,38 @@ const LoginPage = () => {
               </div>
             </div>
 
+            <div>
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                {t("password")}
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={`block w-full ${
+                  isRTL ? "text-right" : "text-left"
+                } py-3 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors`}
+                placeholder={t("enterPassword")}
+              />
+            </div>
+
+            {error && (
+              <div className="text-red-600 text-sm text-center">{error}</div>
+            )}
+
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={loading}
               className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {isLoading ? (
+              {loading ? (
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
               ) : (
                 t("loginButton")
@@ -130,20 +172,25 @@ const LoginPage = () => {
               {currentLanguage === "ar" ? "حسابات تجريبية:" : "Demo Accounts:"}
             </p>
             <div className="space-y-2">
-              {demoEmails.map(({ email: demoEmail, role }) => (
-                <button
-                  key={demoEmail}
-                  onClick={() => setEmail(demoEmail)}
-                  className="w-full text-left p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-900">
-                      {role}
-                    </span>
-                    <span className="text-xs text-gray-500">{demoEmail}</span>
-                  </div>
-                </button>
-              ))}
+              {demoAccounts.map(
+                ({ email: demoEmail, password: demoPassword, role }) => (
+                  <button
+                    key={demoEmail}
+                    onClick={() => {
+                      setEmail(demoEmail);
+                      setPassword(demoPassword);
+                    }}
+                    className="w-full text-left p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-900">
+                        {role}
+                      </span>
+                      <span className="text-xs text-gray-500">{demoEmail}</span>
+                    </div>
+                  </button>
+                )
+              )}
             </div>
           </div>
         </div>

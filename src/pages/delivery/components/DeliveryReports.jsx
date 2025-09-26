@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { useSelector, useDispatch } from "react-redux";
 import {
   TrendingUp,
   Clock,
@@ -24,10 +25,8 @@ import {
   ArcElement,
 } from "chart.js";
 import { Line, Bar, Doughnut } from "react-chartjs-2";
-import { getFromStorage, STORAGE_KEYS } from "../../../utils/localStorage";
-import { initializeMockData } from "../../../utils/mockData";
 import StatsCard from "../../../components/Common/StatsCard";
-import useAutoRefresh from "../../../hooks/useAutoRefresh";
+import { fetchOrders } from "../../../store/slices/ordersSlice";
 
 // Register ChartJS components
 ChartJS.register(
@@ -44,72 +43,31 @@ ChartJS.register(
 
 const DeliveryReports = () => {
   const { t } = useTranslation();
-  const [orders, setOrders] = useState([]);
+  const dispatch = useDispatch();
+  const { isRTL } = useSelector((state) => state.language);
+  const { orders, loading, error } = useSelector((state) => state.orders);
   const [stats, setStats] = useState(null);
-  const [actions, setActions] = useState([]);
-  const { isRTL } = getFromStorage(STORAGE_KEYS.LANGUAGE, { isRTL: false });
   const [dateRange, setDateRange] = useState("today");
 
-  // Get completed deliveries
-  const completedDeliveries = actions.filter(
-    (action) => action.type === "COMPLETE_DELIVERY"
+  // Get completed deliveries from orders
+  const completedDeliveries = orders.filter(
+    (order) => order.status === "delivered" || order.status === "completed"
   );
 
-  // Initialize mock data on component mount
+  // Load orders from API
   useEffect(() => {
-    console.log("Checking for existing data...");
-    const existingOrders = getFromStorage(STORAGE_KEYS.ORDERS, []);
-    const existingPayments = getFromStorage(STORAGE_KEYS.PAYMENTS, []);
-    const existingActions = getFromStorage(STORAGE_KEYS.DELIVERY_ACTIONS, []);
+    dispatch(fetchOrders());
+  }, [dispatch]);
 
-    if (
-      !existingOrders.length ||
-      !existingPayments.length ||
-      !existingActions.length
-    ) {
-      console.log("No existing data found, initializing mock data...");
-      try {
-        initializeMockData();
-        console.log("Mock data initialized successfully");
-      } catch (error) {
-        console.error("Error initializing mock data:", error);
-      }
-    } else {
-      console.log("Existing data found:", {
-        orders: existingOrders.length,
-        payments: existingPayments.length,
-        actions: existingActions.length,
-      });
-    }
-  }, []);
-
-  // Load data from localStorage
-  const loadData = async () => {
-    try {
-      console.log("Loading data from localStorage...");
-
-      // Get data directly from localStorage
-      const deliveryOrders = getFromStorage(STORAGE_KEYS.ORDERS, []);
-      const payments = getFromStorage(STORAGE_KEYS.PAYMENTS, []);
-      const deliveryActions = getFromStorage(STORAGE_KEYS.DELIVERY_ACTIONS, []);
-
-      console.log("Retrieved data:", {
-        orders: deliveryOrders.length,
-        payments: payments.length,
-        actions: deliveryActions.length,
-      });
-
-      // Calculate overall stats
-      const completedOrders = deliveryOrders.filter(
-        (order) => order.deliveryStatus === "delivered"
-      );
-
-      const totalEarnings = payments.reduce(
-        (sum, payment) => sum + (payment.amount || 0),
+  // Calculate stats from orders data
+  useEffect(() => {
+    if (orders.length > 0) {
+      const totalEarnings = orders.reduce(
+        (sum, order) => sum + (order.total || 0),
         0
       );
 
-      const deliveryTimes = completedOrders.map(
+      const deliveryTimes = completedDeliveries.map(
         (order) => order.deliveryTime || 0
       );
 
@@ -118,40 +76,24 @@ const DeliveryReports = () => {
           deliveryTimes.length
         : 0;
 
-      const onTimeDeliveries = completedOrders.filter(
+      const onTimeDeliveries = completedDeliveries.filter(
         (order) => !order.isDelayed
       ).length;
 
-      const onTimeRate = completedOrders.length
-        ? (onTimeDeliveries / completedOrders.length) * 100
+      const onTimeRate = completedDeliveries.length
+        ? (onTimeDeliveries / completedDeliveries.length) * 100
         : 100;
 
       const overallStats = {
-        totalDeliveries: completedOrders.length,
+        totalDeliveries: completedDeliveries.length,
         totalEarnings,
         averageDeliveryTime: Math.round(avgDeliveryTime),
         onTimeRate,
       };
 
-      console.log("Calculated overall stats:", overallStats);
-
-      setOrders(deliveryOrders);
       setStats(overallStats);
-      setActions(deliveryActions);
-
-      console.log("State updated successfully");
-    } catch (err) {
-      console.error("Error loading delivery data:", err);
     }
-  };
-
-  // Auto refresh data every 30 seconds
-  useAutoRefresh(loadData, 30000);
-
-  // Initial data load
-  useEffect(() => {
-    loadData();
-  }, []);
+  }, [orders, completedDeliveries]);
 
   // Prepare stats cards data with null check
   const statsCards = (() => {

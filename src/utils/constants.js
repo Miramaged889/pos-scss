@@ -3,14 +3,9 @@ export const API_BASE_URL =
   import.meta.env.VITE_API_URL || "http://localhost:3001/api";
 export const API_TIMEOUT = 30000; // 30 seconds
 
-// Local Storage Keys
+// Storage Keys (for API token only)
 export const STORAGE_KEYS = {
   AUTH_TOKEN: "auth_token",
-  USER_DATA: "user_data",
-  LANGUAGE: "app_language",
-  THEME: "app_theme",
-  CART_ITEMS: "cart_items",
-  SETTINGS: "app_settings",
 };
 
 // Order Status Constants
@@ -41,11 +36,10 @@ export const STATUS_COLORS = {
 
 // User Roles
 export const USER_ROLES = {
-  ADMIN: "admin",
+  MANAGER: "manager",
   SELLER: "seller",
   KITCHEN: "kitchen",
   DELIVERY: "delivery",
-  CUSTOMER: "customer",
 };
 
 // Payment Methods
@@ -125,12 +119,12 @@ export const FILE_UPLOAD = {
   ALLOWED_EXTENSIONS: [".jpg", ".jpeg", ".png", ".gif", ".pdf"],
 };
 
-// Demo Account Emails
+// Demo Account Credentials (for development only)
 export const DEMO_ACCOUNTS = {
-  SELLER: "seller@company.com",
-  KITCHEN: "kitchen@company.com",
-  DELIVERY: "delivery@company.com",
-  ADMIN: "admin@company.com",
+  SELLER: { email: "seller@company.com", password: "password123" },
+  KITCHEN: { email: "kitchen@company.com", password: "password123" },
+  DELIVERY: { email: "delivery@company.com", password: "password123" },
+  MANAGER: { email: "manager@company.com", password: "password123" },
 };
 
 // Route Paths
@@ -140,6 +134,6 @@ export const ROUTES = {
   SELLER: "/seller",
   KITCHEN: "/kitchen",
   DELIVERY: "/delivery",
-  ADMIN: "/admin",
+  MANAGER: "/manager",
   NOT_FOUND: "/404",
 };

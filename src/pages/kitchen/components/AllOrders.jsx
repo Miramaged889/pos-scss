@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import {
   Filter,
   Search,
@@ -9,24 +9,23 @@ import {
   RefreshCw,
   Download,
 } from "lucide-react";
-import { getOrders } from "../../../utils/localStorage";
+import { fetchOrders } from "../../../store/slices/ordersSlice";
 import OrderCard from "./OrderCard";
 
 const AllOrders = () => {
   const { t } = useTranslation();
+  const dispatch = useDispatch();
   const { theme } = useSelector((state) => state.language);
-  const [orders, setOrders] = useState([]);
+  const { orders, loading, error } = useSelector((state) => state.orders);
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateRange, setDateRange] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
 
-  const loadOrders = useCallback(() => {
-    const allOrders = getOrders();
-    setOrders(allOrders);
-    applyFilters(allOrders, searchTerm, statusFilter, dateRange, sortBy);
-  }, [searchTerm, statusFilter, dateRange, sortBy]);
+  const loadOrders = useCallback(async () => {
+    await dispatch(fetchOrders());
+  }, [dispatch]);
 
   useEffect(() => {
     loadOrders();

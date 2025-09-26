@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -26,12 +26,7 @@ import {
 } from "lucide-react";
 
 import StatsCard from "../../../components/Common/StatsCard";
-import {
-  getFromStorage,
-  setToStorage,
-  getOrders,
-  saveOrders,
-} from "../../../utils/localStorage";
+import { fetchOrders } from "../../../store/slices/ordersSlice";
 
 // Register ChartJS components
 ChartJS.register(
@@ -48,25 +43,16 @@ ChartJS.register(
 
 const KitchenReports = () => {
   const { t } = useTranslation();
-  const reduxOrders = useSelector((state) => state.orders.orders);
+  const dispatch = useDispatch();
+  const { orders, loading, error } = useSelector((state) => state.orders);
   const { theme } = useSelector((state) => state.language);
   const [dateRange, setDateRange] = useState("week");
   const [reportData, setReportData] = useState({});
 
-  // Update localStorage when new orders come from Redux
+  // Load orders from API
   useEffect(() => {
-    if (reduxOrders && reduxOrders.length > 0) {
-      const existingOrders = getOrders();
-      const newOrders = reduxOrders.filter(
-        (order) => !existingOrders.find((eo) => eo.id === order.id)
-      );
-
-      if (newOrders.length > 0) {
-        const updatedOrders = [...existingOrders, ...newOrders];
-        saveOrders(updatedOrders);
-      }
-    }
-  }, [reduxOrders]);
+    dispatch(fetchOrders());
+  }, [dispatch]);
 
   const generateReportData = useCallback(() => {
     const now = new Date();
@@ -86,8 +72,8 @@ const KitchenReports = () => {
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     }
 
-    // Get orders from localStorage using the utility function
-    const allOrders = getOrders();
+    // Get orders from Redux state
+    const allOrders = orders || [];
     const filteredOrders = allOrders.filter(
       (order) => new Date(order.createdAt) >= startDate
     );
@@ -156,18 +142,15 @@ const KitchenReports = () => {
       lastUpdated: new Date().toISOString(),
     };
 
-    setToStorage("kitchenReportData", reportDataToStore);
     setReportData(reportDataToStore);
   }, [dateRange]);
 
   // Load report data from localStorage on mount and when date range changes
   useEffect(() => {
-    const storedReportData = getFromStorage("kitchenReportData", null);
-    if (storedReportData) {
-      setReportData(storedReportData);
+    if (orders && orders.length > 0) {
+      generateReportData();
     }
-    generateReportData();
-  }, [generateReportData]);
+  }, [generateReportData, orders]);
 
   const getChartOptions = (isDark) => ({
     responsive: true,

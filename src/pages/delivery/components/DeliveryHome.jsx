@@ -13,15 +13,16 @@ import {
 } from "lucide-react";
 
 import { setOnlineStatus } from "../../../store/slices/deliverySlice";
+import { fetchOrders } from "../../../store/slices/ordersSlice";
 import StatsCard from "../../../components/Common/StatsCard";
 import MyOrders from "./MyOrders";
-import { getDeliveryOrders, getPayments } from "../../../utils/localStorage";
 
 const DeliveryHome = () => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
   const { isOnline } = useSelector((state) => state.delivery);
+  const { orders, loading, error } = useSelector((state) => state.orders);
   const [todaysStats, setTodaysStats] = useState({
     completedToday: 0,
     pendingDeliveries: 0,
@@ -30,27 +31,34 @@ const DeliveryHome = () => {
 
   // Load orders and calculate statistics
   useEffect(() => {
-    const loadOrdersAndStats = () => {
-      // Get all delivery orders
-      const deliveryOrders = getDeliveryOrders();
-      console.log("All delivery orders:", deliveryOrders);
+    const loadOrdersAndStats = async () => {
+      // Fetch orders from API
+      await dispatch(fetchOrders());
+    };
 
+    loadOrdersAndStats();
+    const interval = setInterval(loadOrdersAndStats, 30000); // Refresh every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [dispatch]);
+
+  // Calculate statistics when orders change
+  useEffect(() => {
+    if (orders && orders.length > 0) {
       // Filter orders for this driver
-      const driverOrders = deliveryOrders.filter(
+      const driverOrders = orders.filter(
         (order) =>
           order.assignedDriver === user?.name ||
           (!order.assignedDriver &&
             order.deliveryType === "delivery" &&
             !order.isDelivered)
       );
-      console.log("Driver orders:", driverOrders);
 
       // Get today's orders
       const today = new Date().toDateString();
       const todaysOrders = driverOrders.filter(
         (order) => new Date(order.createdAt).toDateString() === today
       );
-      console.log("Today's orders:", todaysOrders);
 
       // Calculate statistics
       const completed = todaysOrders.filter(
@@ -58,15 +66,9 @@ const DeliveryHome = () => {
       ).length;
       const pending = driverOrders.filter((order) => !order.isDelivered).length;
 
-      // Get payments for earnings calculation
-      const payments = getPayments();
-      const todaysPayments = payments.filter(
-        (payment) =>
-          payment.collectedBy === user?.name &&
-          new Date(payment.collectedAt).toDateString() === today
-      );
-      const earnings = todaysPayments.reduce(
-        (sum, payment) => sum + payment.amount * 0.1,
+      // Calculate earnings (simplified without payments data)
+      const earnings = todaysOrders.reduce(
+        (sum, order) => sum + (order.total || 0) * 0.1,
         0
       );
 
@@ -75,13 +77,8 @@ const DeliveryHome = () => {
         pendingDeliveries: pending,
         todaysEarnings: earnings,
       });
-    };
-
-    loadOrdersAndStats();
-    const interval = setInterval(loadOrdersAndStats, 30000); // Refresh every 30 seconds
-
-    return () => clearInterval(interval);
-  }, [user?.name]);
+    }
+  }, [orders, user?.name]);
 
   const stats = [
     {

@@ -27,12 +27,7 @@ import {
   formatDateTimeEnglish,
   formatNumberEnglish,
 } from "../../../utils/formatters";
-import {
-  getReturns,
-  addReturn,
-  updateReturn,
-  deleteReturn,
-} from "../../../utils/localStorage";
+import { returnService } from "../../../services";
 
 const ReturnsManagement = () => {
   const { t } = useTranslation();
@@ -40,6 +35,8 @@ const ReturnsManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [returns, setReturns] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showReturnForm, setShowReturnForm] = useState(false);
   const [editingReturn, setEditingReturn] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
@@ -48,12 +45,25 @@ const ReturnsManagement = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
 
-  // Load returns from localStorage
+  // Load returns from API
   useEffect(() => {
-    const loadedReturns = getReturns();
-    console.log("Loaded returns:", loadedReturns);
-    setReturns(loadedReturns);
-  }, []);
+    const loadReturns = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await returnService.getReturns();
+        setReturns(response.data || response);
+      } catch (err) {
+        console.error("Error loading returns:", err);
+        setError(t("errorLoadingReturns"));
+        setReturns([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadReturns();
+  }, [t]);
 
   // Calculate stats
   const totalReturns = returns.length;
@@ -129,19 +139,23 @@ const ReturnsManagement = () => {
     setShowDeleteModal(true);
   };
 
-  const handleReturnSubmit = (returnData) => {
-    if (editingReturn) {
-      updateReturn(editingReturn.id, returnData);
-    } else {
-      addReturn(returnData);
+  const handleReturnSubmit = async (returnData) => {
+    try {
+      if (editingReturn) {
+        await returnService.updateReturn(editingReturn.id, returnData);
+      } else {
+        await returnService.createReturn(returnData);
+      }
+
+      // Reload returns from API
+      const response = await returnService.getReturns();
+      setReturns(response.data || response);
+      setShowReturnForm(false);
+      setEditingReturn(null);
+    } catch (err) {
+      console.error("Error saving return:", err);
+      setError(t("errorSavingReturn"));
     }
-
-    // Reload returns from localStorage to ensure consistency
-    const updatedReturns = getReturns();
-    setReturns(updatedReturns);
-
-    setShowReturnForm(false);
-    setEditingReturn(null);
   };
 
   const confirmDelete = async () => {
@@ -150,11 +164,10 @@ const ReturnsManagement = () => {
     setIsDeleting(true);
 
     try {
-      // Simulate API call delay for better UX
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Delete the return via API
+      await returnService.deleteReturn(selectedReturn.id);
 
-      // Delete the return
-      deleteReturn(selectedReturn.id);
+      // Update local state
       setReturns(returns.filter((r) => r.id !== selectedReturn.id));
 
       // Reset states
@@ -168,7 +181,7 @@ const ReturnsManagement = () => {
       );
     } catch (error) {
       console.error("Error deleting return:", error);
-      // Handle error (you can add error toast here)
+      setError(t("errorDeletingReturn"));
     } finally {
       setIsDeleting(false);
     }
@@ -411,14 +424,30 @@ const ReturnsManagement = () => {
         </div>
       </div>
 
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <div className="flex items-center gap-2 text-red-800 dark:text-red-400">
+            <AlertCircle className="w-5 h-5" />
+            <p>{error}</p>
+          </div>
+        </div>
+      )}
+
       {/* Returns Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:shadow-xl border border-gray-200 dark:border-gray-700 transition-all duration-300">
-        <DataTable
-          data={filteredReturns}
-          columns={returnColumns}
-          searchable={false}
-          pageable={true}
-        />
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
+          </div>
+        ) : (
+          <DataTable
+            data={filteredReturns}
+            columns={returnColumns}
+            searchable={false}
+            pageable={true}
+          />
+        )}
       </div>
 
       {/* Return Form Modal */}

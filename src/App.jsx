@@ -23,8 +23,6 @@ const AppContent = () => {
   const { isAuthenticated, role } = useSelector((state) => state.auth);
   const { currentLanguage, isRTL } = useSelector((state) => state.language);
 
-  console.log("Current auth state:", { isAuthenticated, role });
-
   useEffect(() => {
     // Sync i18n with Redux state
     if (i18n.language !== currentLanguage) {

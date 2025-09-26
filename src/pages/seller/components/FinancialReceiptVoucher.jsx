@@ -42,74 +42,11 @@ const FinancialReceiptVoucher = () => {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Mock customers data
-  const [customers] = useState([
-    {
-      id: 1,
-      name: "أحمد محمد",
-      email: "ahmed@example.com",
-      phone: "+966501234567",
-      outstandingCredit: 5000,
-    },
-    {
-      id: 2,
-      name: "فاطمة علي",
-      email: "fatima@example.com",
-      phone: "+966507654321",
-      outstandingCredit: 3200,
-    },
-    {
-      id: 3,
-      name: "محمد عبدالله",
-      email: "mohammed@example.com",
-      phone: "+966509876543",
-      outstandingCredit: 7800,
-    },
-    {
-      id: 4,
-      name: "سارة أحمد",
-      email: "sara@example.com",
-      phone: "+966501112223",
-      outstandingCredit: 1500,
-    },
-    {
-      id: 5,
-      name: "علي حسن",
-      email: "ali@example.com",
-      phone: "+966504445556",
-      outstandingCredit: 4200,
-    },
-  ]);
+  // Customers will be loaded from API
+  const [customers] = useState([]);
 
-  // Receipts list
-  const [receipts, setReceipts] = useState([
-    {
-      id: 1,
-      receiptNumber: "0001",
-      customerName: "أحمد محمد",
-      amount: 1500,
-      date: "2024-01-10",
-      bankName: "البنك الأهلي",
-      purpose: "دفعة جزئية للمديونية",
-      receiver: "محمد أحمد",
-      paymentMethod: "cash",
-      referenceNumber: "REF-001",
-      images: [],
-    },
-    {
-      id: 2,
-      receiptNumber: "0002",
-      customerName: "فاطمة علي",
-      amount: 800,
-      date: "2024-01-12",
-      bankName: "بنك الراجحي",
-      purpose: "دفعة على الفاتورة INV-002",
-      receiver: "أحمد محمد",
-      paymentMethod: "bank_transfer",
-      referenceNumber: "REF-002",
-      images: [],
-    },
-  ]);
+  // Receipts will be loaded from API
+  const [receipts, setReceipts] = useState([]);
 
   // File upload handlers
   const handleFileSelect = (files) => {
@@ -409,7 +346,6 @@ const FinancialReceiptVoucher = () => {
     }
 
     const newReceipt = {
-      id: receipts.length + 1,
       receiptNumber:
         manualReceiptNumber?.trim() ||
         String(receipts.length + 1).padStart(4, "0"),
@@ -560,8 +496,7 @@ const FinancialReceiptVoucher = () => {
                             <option key={customer.id} value={customer.id}>
                               {customer.name} -{" "}
                               {t("financialReceipt.outstandingCredit")}:{" "}
-                              {customer.outstandingCredit}{" "}
-                              {t("currency")}
+                              {customer.outstandingCredit} {t("currency")}
                             </option>
                           ))}
                         </select>

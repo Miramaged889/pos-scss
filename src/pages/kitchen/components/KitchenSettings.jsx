@@ -26,10 +26,6 @@ import {
 } from "lucide-react";
 
 import { toggleTheme, setLanguage } from "../../../store/slices/languageSlice";
-import {
-  getFromStorage as getFromLocalStorage,
-  setToStorage as saveToLocalStorage,
-} from "../../../utils/localStorage";
 
 const KitchenSettings = () => {
   const { t, i18n } = useTranslation();
@@ -39,24 +35,15 @@ const KitchenSettings = () => {
   );
   const { user } = useSelector((state) => state.auth);
 
-  // Load kitchen profile data from localStorage or use defaults
-  const loadKitchenProfile = () => {
-    const savedProfile = getFromLocalStorage("kitchenProfile");
-    if (savedProfile) {
-      return savedProfile;
-    }
-    return {
-      kitchenName: user?.kitchenName || "المطبخ الرئيسي",
-      managerName: user?.managerName || "محمد أحمد",
-      phone: user?.phone || "+966501234567",
-      location: user?.location || "المطبخ المركزي - الطابق الأول",
-      capacity: user?.capacity || "50 طلب/ساعة",
-      description:
-        user?.description || "مطبخ متخصص في تحضير الوجبات السريعة والمشويات",
-    };
-  };
-
-  const [profileData, setProfileData] = useState(loadKitchenProfile);
+  const [profileData, setProfileData] = useState({
+    kitchenName: user?.kitchenName || "المطبخ الرئيسي",
+    managerName: user?.managerName || "محمد أحمد",
+    phone: user?.phone || "+966501234567",
+    location: user?.location || "المطبخ المركزي - الطابق الأول",
+    capacity: user?.capacity || "50 طلب/ساعة",
+    description:
+      user?.description || "مطبخ متخصص في تحضير الوجبات السريعة والمشويات",
+  });
   const [unsavedChanges, setUnsavedChanges] = useState(false);
 
   const [kitchenSettings, setKitchenSettings] = useState({
@@ -74,16 +61,7 @@ const KitchenSettings = () => {
     confirmStatusUpdates: true,
   });
 
-  // Load settings from localStorage
-  useEffect(() => {
-    const savedSettings = getFromLocalStorage("kitchenSettings", {});
-    setKitchenSettings((prev) => ({ ...prev, ...savedSettings }));
-  }, []);
-
-  // Save profile data to localStorage whenever it changes
-  useEffect(() => {
-    saveToLocalStorage("kitchenProfile", profileData);
-  }, [profileData]);
+  // Settings are now managed in component state only
 
   const handleProfileChange = (field, value) => {
     setProfileData((prev) => ({ ...prev, [field]: value }));
@@ -104,10 +82,9 @@ const KitchenSettings = () => {
     dispatch(toggleTheme());
   };
 
-  // Save settings to localStorage
+  // Save settings (now managed in component state)
   const saveSettings = () => {
-    saveToLocalStorage("kitchenSettings", kitchenSettings);
-    saveToLocalStorage("kitchenProfile", profileData);
+    // Settings are now managed in component state
     setUnsavedChanges(false);
   };
 

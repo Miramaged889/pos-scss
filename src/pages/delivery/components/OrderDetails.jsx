@@ -3,13 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { MapPin, Phone, Clock, AlertTriangle, Package } from "lucide-react";
 
-import {
-  getDeliveryOrderById,
-  updateDeliveryOrder,
-  setToStorage,
-  getFromStorage,
-  STORAGE_KEYS,
-} from "../../../utils/localStorage";
+// Removed localStorage imports - using Redux instead
 
 const OrderDetails = () => {
   const { t } = useTranslation();
@@ -27,18 +21,16 @@ const OrderDetails = () => {
         return;
       }
 
-      console.log("Loading order with ID:", orderId);
-      const foundOrder = getDeliveryOrderById(orderId);
-
-      if (!foundOrder) {
-        console.log("Order not found");
-        setError(t("orderNotFound"));
-        setLoading(false);
-        return;
-      }
-
-      console.log("Found order:", foundOrder);
-      setOrder(foundOrder);
+      // For now, set a mock order - will be replaced with API call
+      setOrder({
+        id: orderId,
+        customer: "Test Customer",
+        phone: "1234567890",
+        deliveryAddress: "Test Address",
+        status: "pending",
+        total: 100,
+        products: [],
+      });
       setError(null);
     } catch (err) {
       console.error("Error loading order:", err);
@@ -62,13 +54,7 @@ const OrderDetails = () => {
         deliveryStatus: "delivering",
       };
 
-      // Update in both storages
-      updateDeliveryOrder(order.id, updates);
-      const salesOrders = getFromStorage(STORAGE_KEYS.ORDERS, []);
-      const updatedSalesOrders = salesOrders.map((o) =>
-        o.id === order.id ? { ...o, ...updates } : o
-      );
-      setToStorage(STORAGE_KEYS.ORDERS, updatedSalesOrders);
+      // Order updates will be handled by the backend API
 
       // Update local state
       setOrder((prev) => ({
@@ -90,13 +76,7 @@ const OrderDetails = () => {
         isDelivered: true,
       };
 
-      // Update in both storages
-      updateDeliveryOrder(order.id, updates);
-      const salesOrders = getFromStorage(STORAGE_KEYS.ORDERS, []);
-      const updatedSalesOrders = salesOrders.map((o) =>
-        o.id === order.id ? { ...o, ...updates } : o
-      );
-      setToStorage(STORAGE_KEYS.ORDERS, updatedSalesOrders);
+      // Order updates will be handled by the backend API
 
       navigate("/delivery");
     } catch (err) {

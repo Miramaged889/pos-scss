@@ -6,11 +6,6 @@ import { toast } from "react-hot-toast";
 
 import OrderCard from "./OrderCard";
 import StatusUpdateModal from "./StatusUpdateModal";
-import {
-  setToStorage as saveToLocalStorage,
-  getFromStorage as getFromLocalStorage,
-  getOrders,
-} from "../../../utils/localStorage";
 
 const ActiveOrders = ({ isHome = false }) => {
   const { t } = useTranslation();
@@ -21,43 +16,11 @@ const ActiveOrders = ({ isHome = false }) => {
   const [statusUpdateModal, setStatusUpdateModal] = useState(false);
   const [notes, setNotes] = useState("");
 
-  // Load orders from both Redux and localStorage
+  // Load orders from Redux
   useEffect(() => {
-    const loadOrders = () => {
-      const localOrders = getOrders();
-
-      if (reduxOrders && reduxOrders.length > 0) {
-        const mergedOrders = [...localOrders];
-
-        reduxOrders.forEach((reduxOrder) => {
-          const existingIndex = mergedOrders.findIndex(
-            (o) => o.id === reduxOrder.id
-          );
-          if (existingIndex === -1) {
-            mergedOrders.push(reduxOrder);
-          } else {
-            const existingOrder = mergedOrders[existingIndex];
-            const reduxOrderDate = new Date(
-              reduxOrder.lastUpdated || reduxOrder.createdAt
-            );
-            const existingOrderDate = new Date(
-              existingOrder.lastUpdated || existingOrder.createdAt
-            );
-
-            if (reduxOrderDate > existingOrderDate) {
-              mergedOrders[existingIndex] = reduxOrder;
-            }
-          }
-        });
-
-        saveToLocalStorage("sales_app_orders", mergedOrders);
-        setOrders(mergedOrders);
-      } else {
-        setOrders(localOrders);
-      }
-    };
-
-    loadOrders();
+    if (reduxOrders && reduxOrders.length > 0) {
+      setOrders(reduxOrders);
+    }
   }, [reduxOrders]);
 
   // Filter only uncompleted orders and sort by creation time (newest first)
@@ -81,29 +44,7 @@ const ActiveOrders = ({ isHome = false }) => {
         const currentStatus = updatedOrders[orderIndex].status;
         const nextStatus = getNextStatus(currentStatus);
 
-        // Track preparation time for analytics
-        if (currentStatus === "preparing" && nextStatus === "ready") {
-          const prepTimes = getFromLocalStorage("preparationTimes", []);
-          const startTime = getFromLocalStorage(
-            `orderStartTime_${selectedOrder}`
-          );
-
-          if (startTime) {
-            const prepTime = Math.round((Date.now() - startTime) / (1000 * 60));
-            prepTimes.push(prepTime);
-
-            if (prepTimes.length > 50) {
-              prepTimes.shift();
-            }
-
-            saveToLocalStorage("preparationTimes", prepTimes);
-          }
-        }
-
-        // Store start time when order begins preparation
-        if (currentStatus === "pending" && nextStatus === "preparing") {
-          saveToLocalStorage(`orderStartTime_${selectedOrder}`, Date.now());
-        }
+        // Preparation time tracking will be handled by the backend API
 
         // Update order status
         updatedOrders[orderIndex] = {
@@ -116,7 +57,6 @@ const ActiveOrders = ({ isHome = false }) => {
           }),
         };
 
-        saveToLocalStorage("sales_app_orders", updatedOrders);
         setOrders(updatedOrders);
 
         // Show appropriate status message

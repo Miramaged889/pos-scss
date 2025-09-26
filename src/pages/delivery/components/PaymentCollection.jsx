@@ -1,52 +1,50 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { useSelector, useDispatch } from "react-redux";
 import { DollarSign, Search, CreditCard, Clock } from "lucide-react";
-import { getFromStorage, STORAGE_KEYS } from "../../../utils/localStorage";
+import { fetchOrders } from "../../../store/slices/ordersSlice";
 
 const PaymentCollection = () => {
   const { t } = useTranslation();
+  const dispatch = useDispatch();
+  const { orders, loading, error } = useSelector((state) => state.orders);
   const [searchTerm, setSearchTerm] = useState("");
   const [payments, setPayments] = useState([]);
   const [totalCollected, setTotalCollected] = useState(0);
 
-  // Load payments from localStorage
+  // Load orders from API
   useEffect(() => {
-    const loadPayments = () => {
-      const allPayments = getFromStorage(STORAGE_KEYS.PAYMENTS, []);
-      const allOrders = getFromStorage(STORAGE_KEYS.ORDERS, []);
+    const loadOrders = async () => {
+      try {
+        await dispatch(fetchOrders());
+      } catch (err) {
+        console.error("Error loading orders:", err);
+      }
+    };
 
-      // Create a Map to store unique payments by orderId
-      const uniquePayments = new Map();
+    loadOrders();
+    const interval = setInterval(loadOrders, 30000);
+    return () => clearInterval(interval);
+  }, [dispatch]);
 
-      // Process all payments without filtering by driver
-      allPayments.forEach((payment) => {
-        const order = allOrders.find((o) => o.id === payment.orderId);
-        if (payment.status === "completed") {
-          // Use the most recent payment for each order
-          const existingPayment = uniquePayments.get(payment.orderId);
-          if (
-            !existingPayment ||
-            new Date(payment.collectedAt) >
-              new Date(existingPayment.collectedAt)
-          ) {
-            uniquePayments.set(payment.orderId, {
-              ...payment,
-              id: `${payment.orderId}-${payment.collectedAt}`, // Create unique ID
-              customerName: order?.customer || t("unknownCustomer"),
-              amount: payment.amount || 0,
-              commission: (payment.amount || 0) * 0.1,
-              deliveryStatus: order?.deliveryStatus || "pending",
-              isPaid: order?.isPaid || false,
-              paidAt: order?.paidAt || payment.collectedAt,
-            });
-          }
-        }
-      });
-
-      // Convert Map to array and sort by collection date
-      const processedPayments = Array.from(uniquePayments.values()).sort(
-        (a, b) => new Date(b.collectedAt) - new Date(a.collectedAt)
-      );
+  // Process orders to create payment data
+  useEffect(() => {
+    if (orders && orders.length > 0) {
+      // Create payment data from orders (simplified approach)
+      const processedPayments = orders
+        .filter((order) => order.status === "completed" || order.isPaid)
+        .map((order) => ({
+          id: `${order.id}-${order.createdAt}`,
+          orderId: order.id,
+          customerName: order.customer || t("unknownCustomer"),
+          amount: order.total || 0,
+          commission: (order.total || 0) * 0.1,
+          deliveryStatus: order.deliveryStatus || "pending",
+          isPaid: order.isPaid || false,
+          paidAt: order.paidAt || order.createdAt,
+          collectedAt: order.paidAt || order.createdAt,
+        }))
+        .sort((a, b) => new Date(b.collectedAt) - new Date(a.collectedAt));
 
       setPayments(processedPayments);
 
@@ -56,12 +54,8 @@ const PaymentCollection = () => {
         0
       );
       setTotalCollected(total);
-    };
-
-    loadPayments();
-    const interval = setInterval(loadPayments, 30000);
-    return () => clearInterval(interval);
-  }, [t]);
+    }
+  }, [orders, t]);
 
   // Filter payments by search term
   const filteredPayments = payments.filter(
