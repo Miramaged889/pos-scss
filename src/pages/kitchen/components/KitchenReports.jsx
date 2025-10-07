@@ -1,6 +1,25 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useSelector, useDispatch } from "react-redux";
+
+// Utility functions for localStorage
+const getFromStorage = (key, defaultValue = null) => {
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) : defaultValue;
+  } catch (error) {
+    console.error(`Error reading from localStorage key "${key}":`, error);
+    return defaultValue;
+  }
+};
+
+const setToStorage = (key, value) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.error(`Error writing to localStorage key "${key}":`, error);
+  }
+};
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -44,7 +63,7 @@ ChartJS.register(
 const KitchenReports = () => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
-  const { orders, loading, error } = useSelector((state) => state.orders);
+  const { orders } = useSelector((state) => state.orders);
   const { theme } = useSelector((state) => state.language);
   const [dateRange, setDateRange] = useState("week");
   const [reportData, setReportData] = useState({});
@@ -339,7 +358,7 @@ const KitchenReports = () => {
       generatedAt: new Date().toISOString(),
       stats: reportData,
       previousStats: getFromStorage("previousStats", {}),
-      orders: getOrders(),
+      orders: orders,
       lastUpdated: new Date().toISOString(),
     };
 
@@ -376,7 +395,6 @@ const KitchenReports = () => {
 
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-gray-500 dark:text-gray-400" />
             <select
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value)}
@@ -589,8 +607,8 @@ const KitchenReports = () => {
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <div className="flex items-center">
-              <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-400 mr-2" />
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
                 {t("peakHours")}
               </span>
@@ -601,8 +619,8 @@ const KitchenReports = () => {
           </div>
 
           <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-            <div className="flex items-center">
-              <Clock className="w-5 h-5 text-green-600 dark:text-green-400 mr-2" />
+            <div className="flex items-center gap-2">
+              <Clock className="w-5 h-5 text-green-600 dark:text-green-400" />
               <span className="text-sm font-medium text-green-900 dark:text-green-200">
                 {t("efficiency")}
               </span>
@@ -615,8 +633,8 @@ const KitchenReports = () => {
           </div>
 
           <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-            <div className="flex items-center">
-              <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mr-2" />
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
               <span className="text-sm font-medium text-yellow-900 dark:text-yellow-200">
                 {t("recommendations")}
               </span>

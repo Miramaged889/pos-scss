@@ -13,6 +13,7 @@ import {
   Truck,
 } from "lucide-react";
 import FormField from "../FormField";
+import { supplierService } from "../../../services/supplierService";
 
 const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const { t } = useTranslation();
@@ -20,38 +21,92 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const { products } = useSelector((state) => state.inventory);
   const [formData, setFormData] = useState({
     supplier: "",
-    items: [{ name: "", customName: "", quantity: 1, price: 0 }],
-    expectedDelivery: "",
+    items: [{ item_name: "", customName: "", quantity: 1, unit_price: 0 }],
+    expected_delivery: "",
     notes: "",
-    status: "pending",
+    status: "Pending",
   });
   const [errors, setErrors] = useState({});
+  const [suppliers, setSuppliers] = useState([]);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+  const [supplierItems, setSupplierItems] = useState([]);
+  const [loadingSupplierItems, setLoadingSupplierItems] = useState(false);
+
+  // Load suppliers from API
+  const loadSuppliers = async () => {
+    setLoadingSuppliers(true);
+    try {
+      const response = await supplierService.getSuppliers();
+      const suppliersList = response.results || response || [];
+      setSuppliers(suppliersList);
+    } catch (error) {
+      console.error("Error loading suppliers:", error);
+      setSuppliers([]);
+    } finally {
+      setLoadingSuppliers(false);
+    }
+  };
+
+  // Load items for selected supplier
+  const loadSupplierItems = async (supplierId) => {
+    if (!supplierId) {
+      setSupplierItems([]);
+      return;
+    }
+
+    setLoadingSupplierItems(true);
+    try {
+      const items = await supplierService.getSupplierItems(supplierId);
+      setSupplierItems(items);
+    } catch (error) {
+      console.error("Error loading supplier items:", error);
+      setSupplierItems([]);
+    } finally {
+      setLoadingSupplierItems(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      loadSuppliers();
+    }
+  }, [isOpen]);
+
+  // Load supplier items when supplier changes
+  useEffect(() => {
+    if (formData.supplier) {
+      loadSupplierItems(formData.supplier);
+    } else {
+      setSupplierItems([]);
+    }
+  }, [formData.supplier]);
 
   useEffect(() => {
     if (editData) {
       setFormData({
-        ...editData,
-        // Convert ISO date to datetime-local format for input
-        expectedDelivery: editData.expectedDelivery
-          ? new Date(editData.expectedDelivery).toISOString().slice(0, 16)
+        supplier: editData.supplier || "",
+        expected_delivery: editData.expected_delivery
+          ? new Date(editData.expected_delivery).toISOString().slice(0, 16)
           : "",
+        status: editData.status || "Pending",
+        notes: editData.notes || "",
+        // Ensure items have correct field names and preserve IDs for updates
+        items: editData.items?.map((item) => ({
+          id: item.id, // Preserve item ID for updates
+          item_name: item.item_name || item.name || "",
+          customName: item.customName || "",
+          quantity: item.quantity || 1,
+          unit_price: item.unit_price || item.price || 0,
+        })) || [{ item_name: "", customName: "", quantity: 1, unit_price: 0 }],
       });
     }
   }, [editData]);
 
-  const suppliers = [
-    { value: "مؤسسة الأغذية الطازجة", label: "مؤسسة الأغذية الطازجة" },
-    { value: "شركة المشروبات المميزة", label: "شركة المشروبات المميزة" },
-    { value: "مخبز الطازج", label: "مخبز الطازج" },
-    { value: "مؤسسة اللحوم المتميزة", label: "مؤسسة اللحوم المتميزة" },
-    { value: "شركة الخضار والفواكه", label: "شركة الخضار والفواكه" },
-  ];
-
   const statusOptions = [
-    { value: "pending", label: t("pending") },
-    { value: "confirmed", label: t("confirmed") },
-    { value: "delivered", label: t("delivered") },
-    { value: "cancelled", label: t("cancelled") },
+    { value: "Pending", label: t("pending") },
+    { value: "Confirmed", label: t("confirmed") },
+    { value: "Delivered", label: t("delivered") },
+    { value: "Cancelled", label: t("cancelled") },
   ];
 
   const addItem = () => {
@@ -59,7 +114,7 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
       ...prev,
       items: [
         ...prev.items,
-        { name: "", customName: "", quantity: 1, price: 0 },
+        { item_name: "", customName: "", quantity: 1, unit_price: 0 },
       ],
     }));
   };
@@ -84,7 +139,7 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
 
   const calculateTotal = () => {
     return formData.items.reduce(
-      (total, item) => total + (item.quantity || 0) * (item.price || 0),
+      (total, item) => total + (item.quantity || 0) * (item.unit_price || 0),
       0
     );
   };
@@ -92,20 +147,21 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.expectedDelivery) {
-      newErrors.expectedDelivery = t("expectedDeliveryRequired");
+    if (!formData.expected_delivery) {
+      newErrors.expected_delivery = t("expectedDeliveryRequired");
     }
 
     formData.items.forEach((item, index) => {
       // Check if item name is provided (either from dropdown or custom)
-      const itemName = item.name === "other" ? item.customName : item.name;
+      const itemName =
+        item.item_name === "other" ? item.customName : item.item_name;
       if (!itemName || !itemName.trim()) {
         newErrors[`item_${index}_name`] = t("itemNameRequired");
       }
       if (!item.quantity || item.quantity < 1) {
         newErrors[`item_${index}_quantity`] = t("validQuantityRequired");
       }
-      if (!item.price || item.price < 0) {
+      if (!item.unit_price || item.unit_price < 0) {
         newErrors[`item_${index}_price`] = t("validPriceRequired");
       }
     });
@@ -118,38 +174,71 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
     e.preventDefault();
     if (validateForm()) {
       const purchaseOrderData = {
-        ...formData,
-        // Generate ID for new orders
-        id: editData?.id || `PO-${Date.now()}`,
-        totalAmount: calculateTotal(),
-        orderDate: editData?.orderDate || new Date().toISOString(),
-        // Ensure expectedDelivery is in ISO format
-        expectedDelivery: formData.expectedDelivery
-          ? new Date(formData.expectedDelivery).toISOString()
-          : "",
+        supplier: parseInt(formData.supplier) || null,
+        expected_delivery: formData.expected_delivery
+          ? new Date(formData.expected_delivery).toISOString()
+          : null,
+        status: formData.status,
+        notes: formData.notes,
+        items: formData.items.map((item) => {
+          const unitPrice = parseFloat(item.unit_price);
+          const quantity = parseInt(item.quantity);
+          const subtotal = unitPrice * quantity;
+
+          const itemData = {
+            item_name:
+              item.item_name === "other" ? item.customName : item.item_name,
+            quantity: quantity,
+            unit_price: unitPrice.toFixed(2), // Format as string with 2 decimal places
+            subtotal: subtotal.toFixed(2), // Add subtotal field
+          };
+
+          // Include item ID if it exists (for updates)
+          if (item.id) {
+            itemData.id = item.id;
+          }
+
+          return itemData;
+        }),
       };
 
-      onSubmit(purchaseOrderData);
+
+      onSubmit(purchaseOrderData, editData?.id);
       handleClose();
     }
   };
 
   const handleSelectItem = (index, selectedName) => {
+    // Ignore divider selection
+    if (selectedName === "divider") {
+      return;
+    }
+
     const updatedItems = [...formData.items];
     updatedItems[index] = {
       ...updatedItems[index],
-      name: selectedName,
+      item_name: selectedName,
       customName:
         selectedName === "other" ? updatedItems[index].customName : "",
     };
 
-    // Auto-fill price if it's an existing inventory item
+    // Auto-fill price if it's an existing item
     if (selectedName && selectedName !== "other") {
-      const selectedProduct = (products || []).find(
-        (p) => p.name === selectedName
+      // First try to find in supplier items (previous purchases)
+      const supplierItem = supplierItems.find(
+        (item) => item.name === selectedName
       );
-      if (selectedProduct) {
-        updatedItems[index].price = selectedProduct.price || 0;
+      if (supplierItem) {
+        updatedItems[index].unit_price = supplierItem.lastPrice || 0;
+        updatedItems[index].quantity = supplierItem.lastQuantity || 1;
+      } else {
+        // Fallback to inventory items
+        const selectedProduct = (products || []).find(
+          (p) => p.name === selectedName
+        );
+        if (selectedProduct) {
+          updatedItems[index].unit_price = selectedProduct.price || 0;
+        }
       }
     }
 
@@ -159,12 +248,13 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const handleClose = () => {
     setFormData({
       supplier: "",
-      items: [{ name: "", customName: "", quantity: 1, price: 0 }],
-      expectedDelivery: "",
+      items: [{ item_name: "", customName: "", quantity: 1, unit_price: 0 }],
+      expected_delivery: "",
       notes: "",
-      status: "pending",
+      status: "Pending",
     });
     setErrors({});
+    setSupplierItems([]);
     onClose();
   };
 
@@ -205,29 +295,52 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
               name="supplier"
               type="select"
               value={formData.supplier}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, supplier: e.target.value }))
-              }
+              onChange={(e) => {
+                const newSupplierId = e.target.value;
+                setFormData((prev) => ({
+                  ...prev,
+                  supplier: newSupplierId,
+                  // Clear items when supplier changes to avoid confusion
+                  items:
+                    newSupplierId !== prev.supplier
+                      ? [
+                          {
+                            item_name: "",
+                            customName: "",
+                            quantity: 1,
+                            unit_price: 0,
+                          },
+                        ]
+                      : prev.items,
+                }));
+              }}
               error={errors.supplier}
               icon={<Building className="w-4 h-4" />}
+              disabled={loadingSuppliers}
               options={[
-                { value: "", label: t("selectSupplier") },
-                ...suppliers,
+                {
+                  value: "",
+                  label: loadingSuppliers ? t("loading") : t("selectSupplier"),
+                },
+                ...suppliers.map((supplier) => ({
+                  value: supplier.id,
+                  label: supplier.supplier_name || supplier.name,
+                })),
               ]}
             />
 
             <FormField
               label={t("expectedDelivery")}
-              name="expectedDelivery"
+              name="expected_delivery"
               type="datetime-local"
-              value={formData.expectedDelivery}
+              value={formData.expected_delivery}
               onChange={(e) =>
                 setFormData((prev) => ({
                   ...prev,
-                  expectedDelivery: e.target.value,
+                  expected_delivery: e.target.value,
                 }))
               }
-              error={errors.expectedDelivery}
+              error={errors.expected_delivery}
               required
               icon={<Calendar className="w-4 h-4" />}
             />
@@ -286,7 +399,7 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
                         label={t("itemName")}
                         name={`item_${index}_name`}
                         type="select"
-                        value={item.name}
+                        value={item.item_name}
                         onChange={(e) =>
                           handleSelectItem(index, e.target.value)
                         }
@@ -294,7 +407,29 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
                         required
                         icon={<Package className="w-4 h-4" />}
                         options={[
-                          { value: "", label: t("selectItem") },
+                          {
+                            value: "",
+                            label: loadingSupplierItems
+                              ? t("loading")
+                              : t("selectItem"),
+                          },
+                          // Show supplier-specific items first if supplier is selected
+                          ...(formData.supplier && supplierItems.length > 0
+                            ? [
+                                // Supplier items section
+                                ...supplierItems.map((item) => ({
+                                  value: item.name,
+                                  label: item.name,
+                                })),
+                                // Divider
+                                {
+                                  value: "divider",
+                                  label: "──────────",
+                                  disabled: true,
+                                },
+                              ]
+                            : []),
+                          // General inventory items
                           ...(products || []).map((product) => ({
                             value: product.name,
                             label: product.name,
@@ -303,7 +438,7 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
                         ]}
                       />
 
-                      {item.name === "other" && (
+                      {item.item_name === "other" && (
                         <FormField
                           label={t("customItemName")}
                           name={`item_${index}_customName`}
@@ -342,11 +477,11 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
                       label={t("unitPrice")}
                       name={`item_${index}_price`}
                       type="number"
-                      value={item.price}
+                      value={item.unit_price}
                       onChange={(e) =>
                         updateItem(
                           index,
-                          "price",
+                          "unit_price",
                           parseFloat(e.target.value) || 0
                         )
                       }
@@ -364,7 +499,7 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
                     }`}
                   >
                     {t("subtotal")}:{" "}
-                    {((item.quantity || 0) * (item.price || 0)).toFixed(2)}{" "}
+                    {((item.quantity || 0) * (item.unit_price || 0)).toFixed(2)}{" "}
                     {t("sar")}
                   </div>
                 </div>

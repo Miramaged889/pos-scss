@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useSelector, useDispatch } from "react-redux";
+import { useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
 import {
   Users,
@@ -28,20 +28,19 @@ import StatsCard from "../../../components/Common/StatsCard";
 import { CustomerForm } from "../../../components/Forms";
 import {
   formatCurrencyEnglish,
-  formatDateTimeEnglish,
   formatNumberEnglish,
 } from "../../../utils";
-import {
-  fetchCustomers,
-  deleteCustomer,
-} from "../../../store/slices/customerSlice";
+import { customerService } from "../../../services/customerService";
+import { toast } from "react-hot-toast";
 
 const CustomerManagement = () => {
   const { t } = useTranslation();
-  const dispatch = useDispatch();
   const { isRTL } = useSelector((state) => state.language);
-  const { customers, loading, error } = useSelector((state) => state.customers);
 
+  // Local state management
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -51,9 +50,28 @@ const CustomerManagement = () => {
   const [customerToDelete, setCustomerToDelete] = useState(null);
 
   // Load customers from API
+  const loadCustomers = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await customerService.getCustomers();
+      const transformedCustomers = response.map((customer) =>
+        customerService.transformCustomerFromAPI(customer)
+      );
+      setCustomers(transformedCustomers);
+    } catch (error) {
+      console.error("Error loading customers:", error);
+      setError(t("errorLoadingCustomers"));
+      toast.error(t("errorLoadingCustomers"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    dispatch(fetchCustomers());
-  }, [dispatch]);
+    loadCustomers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const getStatusBadge = (customer) => {
     if (customer.vip) {
@@ -116,17 +134,29 @@ const CustomerManagement = () => {
 
   const confirmDelete = async () => {
     try {
-      await dispatch(deleteCustomer(customerToDelete.id));
+      await customerService.deleteCustomer(customerToDelete.id);
+
+      // Remove customer from local state
+      setCustomers(customers.filter((c) => c.id !== customerToDelete.id));
+
       setDeleteModalOpen(false);
       setCustomerToDelete(null);
+      toast.success(t("customerDeletedSuccessfully"));
     } catch (error) {
       console.error("Error deleting customer:", error);
+      toast.error(t("errorDeletingCustomer"));
     }
   };
 
-  const handleFormSubmit = () => {
-    // Refresh customers from API
-    dispatch(fetchCustomers());
+  const handleFormSubmit = (newCustomer) => {
+    // Update local state based on mode
+    if (formMode === "add") {
+      setCustomers([newCustomer, ...customers]);
+    } else {
+      setCustomers(
+        customers.map((c) => (c.id === newCustomer.id ? newCustomer : c))
+      );
+    }
     setIsFormOpen(false);
   };
 

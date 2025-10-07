@@ -25,13 +25,15 @@ const FormField = ({
     block w-full py-2 px-3 border rounded-lg 
     focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400
     transition-colors duration-200
-    ${error 
-      ? "border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20 text-gray-900 dark:text-red-100" 
-      : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+    ${
+      error
+        ? "border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20 text-gray-900 dark:text-red-100"
+        : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
     }
-    ${disabled 
-      ? "bg-gray-100 dark:bg-gray-800 cursor-not-allowed text-gray-500 dark:text-gray-400" 
-      : ""
+    ${
+      disabled
+        ? "bg-gray-100 dark:bg-gray-800 cursor-not-allowed text-gray-500 dark:text-gray-400"
+        : ""
     }
     ${isRTL ? "text-right" : "text-left"}
     placeholder:text-gray-400 dark:placeholder:text-gray-500
@@ -81,7 +83,7 @@ const FormField = ({
         return (
           <input
             type="number"
-            value={value}
+            value={value || ""}
             onChange={onChange}
             placeholder={placeholder}
             required={required}
@@ -98,7 +100,7 @@ const FormField = ({
         return (
           <input
             type={type}
-            value={value}
+            value={value || ""}
             onChange={onChange}
             placeholder={placeholder}
             required={required}
@@ -115,7 +117,9 @@ const FormField = ({
       {label && (
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           {label}
-          {required && <span className="text-red-500 dark:text-red-400 ml-1">*</span>}
+          {required && (
+            <span className="text-red-500 dark:text-red-400 ml-1">*</span>
+          )}
         </label>
       )}
 

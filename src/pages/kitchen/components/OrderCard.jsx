@@ -1,9 +1,42 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { useSelector } from "react-redux";
 import { Clock, ChefHat, CheckCircle, AlertTriangle } from "lucide-react";
+import { productService } from "../../../services";
 
 const OrderCard = ({ order, priority, onStatusUpdate }) => {
   const { t } = useTranslation();
+  const { isRTL } = useSelector((state) => state.language);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch products when component mounts
+  useEffect(() => {
+    const fetchProducts = async () => {
+      if (order.products && order.products.length > 0) {
+        setLoading(true);
+        try {
+          const response = await productService.getProducts();
+          setProducts(response);
+        } catch (error) {
+          console.error("Error fetching products:", error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchProducts();
+  }, [order.products]);
+
+  // Helper function to get product name by ID
+  const getProductName = (productId) => {
+    const product = products.find((p) => p.id === productId);
+    if (product) {
+      return isRTL ? product.name : product.nameEn;
+    }
+    return `Product #${productId}`;
+  };
 
   const getStatusColor = (status) => {
     const colors = {
@@ -106,7 +139,8 @@ const OrderCard = ({ order, priority, onStatusUpdate }) => {
           {order.products?.slice(0, 3).map((product, index) => (
             <div key={index} className="flex justify-between text-sm">
               <span className="text-gray-700 dark:text-gray-300 truncate">
-                {product.quantity}x {product.name}
+                {product.quantity}x{" "}
+                {loading ? "..." : getProductName(product.id)}
               </span>
               <span className="text-gray-500 dark:text-gray-400 text-xs">
                 {product.notes}

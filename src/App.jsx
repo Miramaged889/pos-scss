@@ -17,6 +17,7 @@ import SellerDashboard from "./pages/seller/SellerDashboard";
 import KitchenDashboard from "./pages/kitchen/KitchenDashboard";
 import DeliveryDashboard from "./pages/delivery/DeliveryDashboard";
 import ManagerDashboard from "./pages/manager/ManagerDashboard";
+import { getRouteForRole } from "./utils/roleRouting";
 
 const AppContent = () => {
   const { i18n } = useTranslation();
@@ -43,20 +44,11 @@ const AppContent = () => {
       return <Navigate to="/login" replace />;
     }
 
-    if (allowedRole && role !== allowedRole) {
-      // Redirect to appropriate dashboard based on role
-      switch (role) {
-        case "seller":
-          return <Navigate to="/seller" replace />;
-        case "kitchen":
-          return <Navigate to="/kitchen" replace />;
-        case "delivery":
-          return <Navigate to="/delivery" replace />;
-        case "manager":
-          return <Navigate to="/manager" replace />;
-        default:
-          return <Navigate to="/login" replace />;
-      }
+    // If user is authenticated but trying to access wrong role dashboard
+    if (allowedRole && role?.toLowerCase() !== allowedRole.toLowerCase()) {
+      // Redirect to user's correct dashboard based on their role
+      const correctRoute = getRouteForRole(role);
+      return <Navigate to={correctRoute} replace />;
     }
 
     return children;
@@ -68,8 +60,8 @@ const AppContent = () => {
         <Route
           path="/login"
           element={
-            isAuthenticated ? (
-              <Navigate to={`/${role}`} replace />
+            isAuthenticated && role ? (
+              <Navigate to={getRouteForRole(role)} replace />
             ) : (
               <LoginPage />
             )
@@ -112,18 +104,57 @@ const AppContent = () => {
           }
         />
 
+        {/* Debug route to test role routing */}
+        <Route
+          path="/debug-role"
+          element={
+            <div style={{ padding: "20px", backgroundColor: "#f0f0f0" }}>
+              <h1>Role Debug Information</h1>
+              <p>
+                <strong>Current Role:</strong> {role}
+              </p>
+              <p>
+                <strong>Is Authenticated:</strong>{" "}
+                {isAuthenticated ? "Yes" : "No"}
+              </p>
+              <p>
+                <strong>Should Redirect To:</strong>{" "}
+                {isAuthenticated && role ? getRouteForRole(role) : "/login"}
+              </p>
+              <div style={{ marginTop: "20px" }}>
+                <h2>Available Role Routes:</h2>
+                <ul>
+                  <li>Manager: /manager</li>
+                  <li>Seller: /seller</li>
+                  <li>Kitchen: /kitchen</li>
+                  <li>Delivery: /delivery</li>
+                </ul>
+              </div>
+            </div>
+          }
+        />
+
         <Route
           path="/"
           element={
-            isAuthenticated ? (
-              <Navigate to={`/${role}`} replace />
+            isAuthenticated && role ? (
+              <Navigate to={getRouteForRole(role)} replace />
             ) : (
               <Navigate to="/login" replace />
             )
           }
         />
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route
+          path="*"
+          element={
+            isAuthenticated ? (
+              <Navigate to={getRouteForRole(role)} replace />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
       </Routes>
 
       {/* Toast notifications */}

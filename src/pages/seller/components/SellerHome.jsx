@@ -62,13 +62,6 @@ const SellerHome = () => {
   const calculateStatistics = useCallback(
     (currentOrders, currentCustomers) => {
       try {
-        console.log("Calculating statistics with:", {
-          ordersCount: currentOrders.length,
-          customersCount: currentCustomers.length,
-          orders: currentOrders,
-          customers: currentCustomers,
-        });
-
         const today = new Date();
         const yesterday = new Date(today);
         yesterday.setDate(yesterday.getDate() - 1);
@@ -95,13 +88,6 @@ const SellerHome = () => {
         const pendingOrders = currentOrders.filter(
           (order) => order.status === "pending"
         );
-
-        console.log("Filtered orders:", {
-          todayOrders,
-          yesterdayOrders,
-          completedOrders,
-          pendingOrders,
-        });
 
         // Calculate revenues
         const todayRevenue = todayOrders.reduce(
@@ -134,11 +120,6 @@ const SellerHome = () => {
           (order) => new Date(order.createdAt) >= thisMonth
         );
 
-        console.log("This month orders:", {
-          thisMonthOrders,
-          thisMonth: thisMonth.toISOString(),
-        });
-
         const totalOrderValue = thisMonthOrders.reduce(
           (sum, order) => sum + (Number(order.total) || 0),
           0
@@ -148,15 +129,6 @@ const SellerHome = () => {
           thisMonthOrders.length > 0
             ? totalOrderValue / thisMonthOrders.length
             : 0;
-
-        console.log("Calculations:", {
-          todayRevenue,
-          yesterdayRevenue,
-          totalOrderValue,
-          avgOrderValue,
-          customersCount: currentCustomers.length,
-          newCustomersThisWeek,
-        });
 
         const newSalesData = {
           todayOrders,

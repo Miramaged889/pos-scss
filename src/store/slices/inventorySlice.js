@@ -7,9 +7,10 @@ export const fetchProducts = createAsyncThunk(
   async (params = {}, { rejectWithValue }) => {
     try {
       const response = await productService.getProducts(params);
-      return response.data || response;
+      return response;
     } catch (error) {
-      return rejectWithValue(error.message);
+      console.error("Error fetching products:", error);
+      return rejectWithValue(error.message || "Failed to fetch products");
     }
   }
 );
@@ -19,9 +20,10 @@ export const createProduct = createAsyncThunk(
   async (productData, { rejectWithValue }) => {
     try {
       const response = await productService.createProduct(productData);
-      return response.data || response;
+      return response;
     } catch (error) {
-      return rejectWithValue(error.message);
+      console.error("Error creating product:", error);
+      return rejectWithValue(error.message || "Failed to create product");
     }
   }
 );
@@ -31,9 +33,10 @@ export const updateProduct = createAsyncThunk(
   async ({ id, updates }, { rejectWithValue }) => {
     try {
       const response = await productService.updateProduct(id, updates);
-      return response.data || response;
+      return response;
     } catch (error) {
-      return rejectWithValue(error.message);
+      console.error("Error updating product:", error);
+      return rejectWithValue(error.message || "Failed to update product");
     }
   }
 );
@@ -45,7 +48,8 @@ export const deleteProduct = createAsyncThunk(
       await productService.deleteProduct(id);
       return id;
     } catch (error) {
-      return rejectWithValue(error.message);
+      console.error("Error deleting product:", error);
+      return rejectWithValue(error.message || "Failed to delete product");
     }
   }
 );

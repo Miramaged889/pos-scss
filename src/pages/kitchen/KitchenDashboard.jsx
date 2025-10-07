@@ -44,7 +44,7 @@ const KitchenDashboard = () => {
     {
       name: t("activeOrders"),
       icon: ClipboardList,
-      href: "/kitchen",
+      href: "/kitchen/active-orders",
       current: false,
     },
     {
@@ -76,7 +76,7 @@ const KitchenDashboard = () => {
     >
       <Routes>
         <Route path="/home" element={<KitchenHome />} />
-        <Route path="/" element={<ActiveOrders />} />
+        <Route path="/active-orders" element={<ActiveOrders />} />
         <Route path="/all-orders" element={<AllOrders />} />
 
         <Route path="/reports" element={<KitchenReports />} />

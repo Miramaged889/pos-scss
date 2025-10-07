@@ -31,8 +31,9 @@ import { toast } from "react-hot-toast";
 import {
   ExpenseVoucherForm,
   PaymentVoucherForm,
-} from "../../../components/Forms/ManagerForms";
+} from "../../../components/Forms/SellerForms";
 import { numberToWords } from "../../../utils/formatters";
+import { voucherService } from "../../../services/voucherService";
 
 const VouchersPage = () => {
   const { t } = useTranslation();
@@ -53,75 +54,31 @@ const VouchersPage = () => {
 
   useEffect(() => {
     loadVouchers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadVouchers = () => {
+  const loadVouchers = async () => {
     setLoading(true);
-    // Mock data for expense vouchers
-    const mockExpenseVouchers = [
-      {
-        id: "EXP-001",
-        voucherNumber: "EXP-2024-001",
-        date: "2024-01-15",
-        amount: 500.0,
-        description: "Office supplies purchase",
-        category: "office_supplies",
-        paymentMethod: "cash",
-        recipient: "Office Store",
-        notes: "Monthly office supplies",
-        status: "approved",
-        createdAt: "2024-01-15T10:30:00",
-      },
-      {
-        id: "EXP-002",
-        voucherNumber: "EXP-2024-002",
-        date: "2024-01-14",
-        amount: 1200.0,
-        description: "Equipment maintenance",
-        category: "maintenance",
-        paymentMethod: "bank_transfer",
-        recipient: "Tech Services Co.",
-        notes: "Computer maintenance services",
-        status: "pending",
-        createdAt: "2024-01-14T14:20:00",
-      },
-    ];
+    try {
+      const response = await voucherService.getVouchers();
 
-    // Mock data for payment vouchers
-    const mockPaymentVouchers = [
-      {
-        id: "PAY-001",
-        voucherNumber: "PAY-2024-001",
-        date: "2024-01-15",
-        amount: 2500.0,
-        supplier: "ABC Suppliers",
-        invoiceNumber: "INV-2024-001",
-        paymentMethod: "bank_transfer",
-        description: "Raw materials payment",
-        notes: "Payment for January materials",
-        status: "completed",
-        createdAt: "2024-01-15T11:30:00",
-      },
-      {
-        id: "PAY-002",
-        voucherNumber: "PAY-2024-002",
-        date: "2024-01-14",
-        amount: 1800.0,
-        supplier: "XYZ Manufacturing",
-        invoiceNumber: "INV-2024-002",
-        paymentMethod: "check",
-        description: "Component parts payment",
-        notes: "Payment for electronic components",
-        status: "pending",
-        createdAt: "2024-01-14T16:45:00",
-      },
-    ];
+      // Transform API data to frontend format
+      const transformedVouchers = response.map((voucher) =>
+        voucherService.transformVoucherFromAPI(voucher)
+      );
 
-    setTimeout(() => {
-      setExpenseVouchers(mockExpenseVouchers);
-      setPaymentVouchers(mockPaymentVouchers);
+      // Separate expense and payment vouchers
+      const expenses = transformedVouchers.filter((v) => v.type === "expense");
+      const payments = transformedVouchers.filter((v) => v.type === "payment");
+
+      setExpenseVouchers(expenses);
+      setPaymentVouchers(payments);
+    } catch (error) {
+      console.error("Error loading vouchers:", error);
+      toast.error(t("errorLoadingVouchers"));
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   const getStatusBadge = (status) => {
@@ -222,33 +179,55 @@ const VouchersPage = () => {
     }
   };
 
-  const handleDeleteVoucher = (voucher, type) => {
-    if (type === "expense") {
-      setExpenseVouchers(expenseVouchers.filter((v) => v.id !== voucher.id));
-    } else {
-      setPaymentVouchers(paymentVouchers.filter((v) => v.id !== voucher.id));
+  const handleDeleteVoucher = async (voucher, type) => {
+    if (!window.confirm(t("confirmDeleteVoucher"))) {
+      return;
     }
-    toast.success(t("voucherDeleted"));
+
+    try {
+      await voucherService.deleteVoucher(voucher.id);
+
+      if (type === "expense") {
+        setExpenseVouchers(expenseVouchers.filter((v) => v.id !== voucher.id));
+      } else {
+        setPaymentVouchers(paymentVouchers.filter((v) => v.id !== voucher.id));
+      }
+
+      toast.success(t("voucherDeleted"));
+    } catch (error) {
+      console.error("Error deleting voucher:", error);
+      toast.error(t("errorDeletingVoucher"));
+    }
   };
 
-  const handleExpenseSubmit = (voucherData) => {
-    if (modalMode === "add") {
-      const newVoucher = {
-        ...voucherData,
-        id: `EXP-${Date.now()}`,
-        status: "pending",
-        createdAt: new Date().toISOString(),
-      };
-      setExpenseVouchers([newVoucher, ...expenseVouchers]);
-      toast.success(t("expenseVoucherCreated"));
-    } else {
-      const updatedVouchers = expenseVouchers.map((voucher) =>
-        voucher.id === editingVoucher.id ? voucherData : voucher
+  const handleExpenseSubmit = async (voucherData) => {
+    try {
+      if (modalMode === "add") {
+        const response = await voucherService.createVoucher(voucherData);
+        const newVoucher = voucherService.transformVoucherFromAPI(response);
+        setExpenseVouchers([newVoucher, ...expenseVouchers]);
+        toast.success(t("expenseVoucherCreated"));
+      } else {
+        const response = await voucherService.updateVoucher(
+          editingVoucher.id,
+          voucherData
+        );
+        const updatedVoucher = voucherService.transformVoucherFromAPI(response);
+        const updatedVouchers = expenseVouchers.map((voucher) =>
+          voucher.id === editingVoucher.id ? updatedVoucher : voucher
+        );
+        setExpenseVouchers(updatedVouchers);
+        toast.success(t("expenseVoucherUpdated"));
+      }
+      setExpenseModal(false);
+    } catch (error) {
+      console.error("Error submitting expense voucher:", error);
+      toast.error(
+        modalMode === "add"
+          ? t("errorCreatingVoucher")
+          : t("errorUpdatingVoucher")
       );
-      setExpenseVouchers(updatedVouchers);
-      toast.success(t("expenseVoucherUpdated"));
     }
-    setExpenseModal(false);
   };
 
   const handlePaymentSubmit = (voucherData) => {
@@ -279,7 +258,7 @@ const VouchersPage = () => {
       <html dir="rtl">
         <head>
           <title>${voucher.type === "expense" ? "سند صرف" : "سند دفع"} - ${
-      voucher.voucherNumber
+      voucher.voucherNumber || ""
     }</title>
           <style>
             body { 
@@ -330,17 +309,17 @@ const VouchersPage = () => {
         <body>
           <div class="header">
             <h1>${voucher.type === "expense" ? "سند صرف" : "سند دفع"}</h1>
-            <h2>${voucher.voucherNumber}</h2>
+            <h2>${voucher.voucherNumber || ""}</h2>
           </div>
           
           <div class="voucher-info">
             <div class="info-section">
               <h3>معلومات السند</h3>
-              <p><strong>رقم السند:</strong> ${voucher.voucherNumber}</p>
+              <p><strong>رقم السند:</strong> ${voucher.voucherNumber || ""}</p>
               <p><strong>التاريخ:</strong> ${voucher.date}</p>
-              <p><strong>المبلغ:</strong> ${voucher.amount.toFixed(2)} ${t(
-      "currency"
-    )}</p>
+              <p><strong>المبلغ:</strong> ${Number(voucher.amount).toFixed(
+                2
+              )} ${t("currency")}</p>
               <p><strong>طريقة الدفع:</strong> ${getPaymentMethodText(
                 voucher.paymentMethod
               )}</p>
@@ -357,18 +336,22 @@ const VouchersPage = () => {
               }</strong> ${
       voucher.type === "expense" ? voucher.recipient : voucher.supplier
     }</p>
-              <p><strong>الوصف:</strong> ${voucher.description}</p>
+              <p><strong>الوصف:</strong> ${voucher.description || ""}</p>
               ${
                 voucher.type === "payment"
-                  ? `<p><strong>رقم الفاتورة:</strong> ${voucher.invoiceNumber}</p>`
+                  ? `<p><strong>رقم الفاتورة:</strong> ${
+                      voucher.invoiceNumber || ""
+                    }</p>`
                   : ""
               }
             </div>
           </div>
           
           <div class="amount-section">
-            <h2>المبلغ: ${voucher.amount.toFixed(2)} ${t("currency")}</h2>
-            <p>${numberToWords(voucher.amount)}</p>
+            <h2>المبلغ: ${Number(voucher.amount).toFixed(2)} ${t(
+      "currency"
+    )}</h2>
+            <p>${numberToWords(Number(voucher.amount) || 0)}</p>
           </div>
           
           ${
@@ -438,18 +421,18 @@ const VouchersPage = () => {
       (sum, voucher) => sum + voucher.amount,
       0
     );
-    const pendingExpenses = expenseVouchers.filter(
-      (voucher) => voucher.status === "pending"
+    const acceptedExpenses = expenseVouchers.filter(
+      (v) => v.status === "approved" || v.status === "completed"
     ).length;
-    const pendingPayments = paymentVouchers.filter(
-      (voucher) => voucher.status === "pending"
+    const acceptedPayments = paymentVouchers.filter(
+      (v) => v.status === "approved" || v.status === "completed"
     ).length;
 
     return {
       totalExpenses: totalExpenses.toFixed(2),
       totalPayments: totalPayments.toFixed(2),
-      pendingExpenses,
-      pendingPayments,
+      acceptedExpenses,
+      acceptedPayments,
     };
   };
 
@@ -519,13 +502,13 @@ const VouchersPage = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                {t("pendingExpenses")}
+                {t("acceptedExpenses")}
               </p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {stats.pendingExpenses}
+                {stats.acceptedExpenses}
               </p>
             </div>
-            <Clock className="w-8 h-8 text-yellow-500" />
+            <CheckCircle className="w-8 h-8 text-green-500" />
           </div>
         </div>
 
@@ -533,13 +516,13 @@ const VouchersPage = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                {t("pendingPayments")}
+                {t("acceptedPayments")}
               </p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {stats.pendingPayments}
+                {stats.acceptedPayments}
               </p>
             </div>
-            <AlertCircle className="w-8 h-8 text-orange-500" />
+            <CheckCircle className="w-8 h-8 text-green-500" />
           </div>
         </div>
       </div>
@@ -574,7 +557,7 @@ const VouchersPage = () => {
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500 mx-auto"></div>
                 <p className="mt-2 text-gray-600 dark:text-gray-400">
-                  {t("loading")}...
+                  {t("loading")}
                 </p>
               </div>
             ) : expenseVouchers.length === 0 ? (
@@ -700,7 +683,7 @@ const VouchersPage = () => {
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto"></div>
                 <p className="mt-2 text-gray-600 dark:text-gray-400">
-                  {t("loading")}...
+                  {t("loading")}
                 </p>
               </div>
             ) : paymentVouchers.length === 0 ? (

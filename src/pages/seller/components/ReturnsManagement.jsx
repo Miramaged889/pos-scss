@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
+import { toast } from "react-hot-toast";
 import {
   RotateCcw,
   Package,
@@ -33,7 +34,6 @@ const ReturnsManagement = () => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [returns, setReturns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -67,11 +67,10 @@ const ReturnsManagement = () => {
 
   // Calculate stats
   const totalReturns = returns.length;
-  const pendingReturns = returns.filter((r) => r.status === "pending").length;
-  const approvedReturns = returns.filter((r) => r.status === "approved").length;
-  const totalRefunds = returns
-    .filter((r) => r.status === "approved")
-    .reduce((sum, r) => sum + (r.refundAmount || 0), 0);
+  const totalRefunds = returns.reduce(
+    (sum, r) => sum + (r.refundAmount || 0),
+    0
+  );
 
   // Filter returns
   const filteredReturns = returns.filter((returnItem) => {
@@ -87,9 +86,7 @@ const ReturnsManagement = () => {
         ?.toString()
         .toLowerCase()
         .includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      statusFilter === "all" || returnItem.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    return matchesSearch;
   });
 
   const stats = [
@@ -98,18 +95,6 @@ const ReturnsManagement = () => {
       value: formatNumberEnglish(totalReturns),
       icon: RotateCcw,
       color: "blue",
-    },
-    {
-      title: t("pendingReturns"),
-      value: formatNumberEnglish(pendingReturns),
-      icon: AlertCircle,
-      color: "yellow",
-    },
-    {
-      title: t("approvedReturns"),
-      value: formatNumberEnglish(approvedReturns),
-      icon: CheckCircle,
-      color: "green",
     },
     {
       title: t("totalRefunds"),
@@ -143,8 +128,14 @@ const ReturnsManagement = () => {
     try {
       if (editingReturn) {
         await returnService.updateReturn(editingReturn.id, returnData);
+        toast.success(
+          t("returnUpdatedSuccessfully") || "Return updated successfully"
+        );
       } else {
         await returnService.createReturn(returnData);
+        toast.success(
+          t("returnCreatedSuccessfully") || "Return created successfully"
+        );
       }
 
       // Reload returns from API
@@ -154,7 +145,9 @@ const ReturnsManagement = () => {
       setEditingReturn(null);
     } catch (err) {
       console.error("Error saving return:", err);
-      setError(t("errorSavingReturn"));
+      const errorMessage = err.message || t("errorSavingReturn");
+      setError(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
@@ -175,13 +168,15 @@ const ReturnsManagement = () => {
       setSelectedReturn(null);
       setDeleteConfirmationText("");
 
-      // Show success feedback (you can add toast notification here)
-      console.log(
+      // Show success toast
+      toast.success(
         `Return ${formatReturnId(selectedReturn.id)} deleted successfully`
       );
     } catch (error) {
       console.error("Error deleting return:", error);
-      setError(t("errorDeletingReturn"));
+      const errorMessage = error.message || t("errorDeletingReturn");
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsDeleting(false);
     }
@@ -195,42 +190,12 @@ const ReturnsManagement = () => {
   };
 
   const formatReturnId = (returnId) => {
-    // Since we have auto-migration in localStorage, just return the ID as-is
-    // The migration ensures all IDs are in RTN-001, RTN-002 format
+    // Format return ID
     if (typeof returnId === "string" && returnId.startsWith("RTN-")) {
       return returnId;
     }
     // Fallback for numeric IDs - format as RTN-001
     return `RTN-${String(returnId).padStart(3, "0")}`;
-  };
-
-  const getStatusBadge = (status) => {
-    const statusConfig = {
-      pending: {
-        bg: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400",
-        icon: AlertCircle,
-      },
-      approved: {
-        bg: "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400",
-        icon: CheckCircle,
-      },
-      rejected: {
-        bg: "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400",
-        icon: XCircle,
-      },
-    };
-
-    const config = statusConfig[status] || statusConfig.pending;
-    const Icon = config.icon;
-
-    return (
-      <span
-        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.bg}`}
-      >
-        <Icon className="w-3 h-3 mr-1" />
-        {t(status)}
-      </span>
-    );
   };
 
   const returnColumns = [
@@ -274,14 +239,9 @@ const ReturnsManagement = () => {
       accessor: "reason",
       render: (returnItem) => (
         <span className="text-sm text-gray-600 dark:text-gray-400">
-          {t(returnItem.reason)}
+          {returnItem.reason || t("notSpecified")}
         </span>
       ),
-    },
-    {
-      header: t("status"),
-      accessor: "status",
-      render: (returnItem) => getStatusBadge(returnItem.status),
     },
     {
       header: t("refundAmount"),
@@ -402,24 +362,6 @@ const ReturnsManagement = () => {
                 dir={isRTL ? "rtl" : "ltr"}
               />
             </div>
-          </div>
-
-          {/* Status Filter */}
-          <div className={`flex items-center gap-2 ${isRTL ? "flex-row" : ""}`}>
-            <Filter className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className={`px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 dark:focus:ring-orange-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-200 ${
-                isRTL ? "text-right" : "text-left"
-              }`}
-              dir={isRTL ? "rtl" : "ltr"}
-            >
-              <option value="all">{t("allReturns")}</option>
-              <option value="pending">{t("pending")}</option>
-              <option value="approved">{t("approved")}</option>
-              <option value="rejected">{t("rejected")}</option>
-            </select>
           </div>
         </div>
       </div>
@@ -574,17 +516,6 @@ const ReturnsManagement = () => {
                         {formatDateTimeEnglish(selectedReturn.returnDate)}
                       </span>
                     </div>
-                  </div>
-
-                  <div>
-                    <label
-                      className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 ${
-                        isRTL ? "text-right" : "text-left"
-                      }`}
-                    >
-                      {t("status")}
-                    </label>
-                    {getStatusBadge(selectedReturn.status)}
                   </div>
 
                   <div>

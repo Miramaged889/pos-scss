@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import {
   Search,
@@ -22,17 +23,25 @@ import {
 import { toast } from "react-hot-toast";
 
 import DataTable from "../../../components/Common/DataTable";
+import {
+  fetchOrders,
+  updateOrder,
+  deleteOrder,
+} from "../../../store/slices/ordersSlice";
 
 const OrdersManagement = () => {
   const { t } = useTranslation();
-  const [orders, setOrders] = useState([]);
+  const dispatch = useDispatch();
+
+  // Get data from Redux store
+  const { orders, loading, error } = useSelector((state) => state.orders);
+
+  // Local state for UI
   const [filteredOrders, setFilteredOrders] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sellerFilter, setSellerFilter] = useState("all");
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
-  const [sellers, setSellers] = useState([]);
 
   // Modal states
   const [viewModal, setViewModal] = useState(false);
@@ -42,16 +51,30 @@ const OrdersManagement = () => {
   const [editForm, setEditForm] = useState({});
 
   const filterOrders = useCallback(() => {
+    if (!Array.isArray(orders)) {
+      setFilteredOrders([]);
+      return;
+    }
+
     let filtered = [...orders];
 
     // Search filter
     if (searchTerm) {
       filtered = filtered.filter(
         (order) =>
-          order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          order.sellerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          order.customerPhone.includes(searchTerm)
+          (order.id || "")
+            .toString()
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          (order.customer?.name || order.customerName || "")
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          (order.seller?.name || order.sellerName || "")
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          (order.customer?.phone || order.customerPhone || "").includes(
+            searchTerm
+          )
       );
     }
 
@@ -62,13 +85,18 @@ const OrdersManagement = () => {
 
     // Seller filter
     if (sellerFilter !== "all") {
-      filtered = filtered.filter((order) => order.sellerEmail === sellerFilter);
+      filtered = filtered.filter(
+        (order) =>
+          (order.seller?.email || order.sellerEmail || "") === sellerFilter
+      );
     }
 
     // Date range filter
     if (dateRange.start && dateRange.end) {
       filtered = filtered.filter((order) => {
-        const orderDate = new Date(order.orderDate);
+        const orderDate = new Date(
+          order.createdAt || order.orderDate || order.date
+        );
         const startDate = new Date(dateRange.start);
         const endDate = new Date(dateRange.end);
         return orderDate >= startDate && orderDate <= endDate;
@@ -79,231 +107,30 @@ const OrdersManagement = () => {
   }, [orders, searchTerm, statusFilter, sellerFilter, dateRange]);
 
   useEffect(() => {
-    loadOrders();
-    loadSellers();
-  }, []);
+    dispatch(fetchOrders());
+  }, [dispatch]);
 
   useEffect(() => {
     filterOrders();
   }, [filterOrders]);
 
-  const loadOrders = () => {
-    setLoading(true);
-    // Enhanced mock data with more orders and sellers
-    const mockOrders = [
-      {
-        id: "ORD-001",
-        customerName: "أحمد محمد",
-        customerEmail: "ahmed.mohamed@email.com",
-        customerPhone: "+966 50 123 4567",
-        sellerName: "محمد علي",
-        sellerEmail: "mohamed.ali@company.com",
-        items: [
-          { name: "Pizza Margherita", quantity: 2, price: 25.0 },
-          { name: "Coca Cola", quantity: 1, price: 5.0 },
-        ],
-        totalAmount: 55.0,
-        status: "pending",
-        orderDate: "2024-01-15T10:30:00",
-        deliveryDate: "2024-01-15T12:00:00",
-        paymentMethod: "cash",
-        address: "Riyadh, Saudi Arabia",
-        notes: "Extra cheese please",
-      },
-      {
-        id: "ORD-002",
-        customerName: "فاطمة أحمد",
-        customerEmail: "fatima.ahmed@email.com",
-        customerPhone: "+966 50 234 5678",
-        sellerName: "علي حسن",
-        sellerEmail: "ali.hassan@company.com",
-        items: [
-          { name: "Burger Deluxe", quantity: 1, price: 30.0 },
-          { name: "French Fries", quantity: 1, price: 8.0 },
-        ],
-        totalAmount: 38.0,
-        status: "completed",
-        orderDate: "2024-01-14T15:45:00",
-        deliveryDate: "2024-01-14T17:15:00",
-        paymentMethod: "card",
-        address: "Jeddah, Saudi Arabia",
-        notes: "",
-      },
-      {
-        id: "ORD-003",
-        customerName: "خالد سعد",
-        customerEmail: "khalid.saad@email.com",
-        customerPhone: "+966 50 345 6789",
-        sellerName: "سارة محمد",
-        sellerEmail: "sara.mohamed@company.com",
-        items: [
-          { name: "Pasta Carbonara", quantity: 2, price: 35.0 },
-          { name: "Garlic Bread", quantity: 1, price: 6.0 },
-        ],
-        totalAmount: 76.0,
-        status: "processing",
-        orderDate: "2024-01-13T18:20:00",
-        deliveryDate: "2024-01-13T20:00:00",
-        paymentMethod: "cash",
-        address: "Dammam, Saudi Arabia",
-        notes: "No onions please",
-      },
-      {
-        id: "ORD-004",
-        customerName: "نورا عبدالله",
-        customerEmail: "nora.abdullah@email.com",
-        customerPhone: "+966 50 456 7890",
-        sellerName: "محمد علي",
-        sellerEmail: "mohamed.ali@company.com",
-        items: [
-          { name: "Chicken Shawarma", quantity: 3, price: 20.0 },
-          { name: "Hummus", quantity: 1, price: 12.0 },
-        ],
-        totalAmount: 72.0,
-        status: "cancelled",
-        orderDate: "2024-01-12T12:15:00",
-        deliveryDate: "2024-01-12T13:45:00",
-        paymentMethod: "card",
-        address: "Riyadh, Saudi Arabia",
-        notes: "Customer cancelled",
-      },
-      {
-        id: "ORD-005",
-        customerName: "عمر خالد",
-        customerEmail: "omar.khalid@email.com",
-        customerPhone: "+966 50 567 8901",
-        sellerName: "أحمد خالد",
-        sellerEmail: "ahmed.khalid@company.com",
-        items: [
-          { name: "Grilled Chicken", quantity: 1, price: 45.0 },
-          { name: "Rice", quantity: 1, price: 8.0 },
-          { name: "Salad", quantity: 1, price: 6.0 },
-        ],
-        totalAmount: 59.0,
-        status: "completed",
-        orderDate: "2024-01-11T19:30:00",
-        deliveryDate: "2024-01-11T21:00:00",
-        paymentMethod: "online",
-        address: "Riyadh, Saudi Arabia",
-        notes: "Extra spicy",
-      },
-      {
-        id: "ORD-006",
-        customerName: "ليلى محمد",
-        customerEmail: "layla.mohamed@email.com",
-        customerPhone: "+966 50 678 9012",
-        sellerName: "علي حسن",
-        sellerEmail: "ali.hassan@company.com",
-        items: [
-          { name: "Fish & Chips", quantity: 2, price: 28.0 },
-          { name: "Tartar Sauce", quantity: 1, price: 3.0 },
-        ],
-        totalAmount: 59.0,
-        status: "processing",
-        orderDate: "2024-01-10T14:15:00",
-        deliveryDate: "2024-01-10T15:45:00",
-        paymentMethod: "cash",
-        address: "Jeddah, Saudi Arabia",
-        notes: "Extra crispy",
-      },
-      {
-        id: "ORD-007",
-        customerName: "ياسر علي",
-        customerEmail: "yasser.ali@email.com",
-        customerPhone: "+966 50 789 0123",
-        sellerName: "سارة محمد",
-        sellerEmail: "sara.mohamed@company.com",
-        items: [
-          { name: "Beef Steak", quantity: 1, price: 65.0 },
-          { name: "Mashed Potatoes", quantity: 1, price: 12.0 },
-          { name: "Red Wine", quantity: 1, price: 25.0 },
-        ],
-        totalAmount: 102.0,
-        status: "pending",
-        orderDate: "2024-01-09T20:00:00",
-        deliveryDate: "2024-01-09T21:30:00",
-        paymentMethod: "card",
-        address: "Dammam, Saudi Arabia",
-        notes: "Medium rare",
-      },
-      {
-        id: "ORD-008",
-        customerName: "ريم عبدالرحمن",
-        customerEmail: "reem.abdulrahman@email.com",
-        customerPhone: "+966 50 890 1234",
-        sellerName: "أحمد خالد",
-        sellerEmail: "ahmed.khalid@company.com",
-        items: [
-          { name: "Vegetarian Pizza", quantity: 1, price: 32.0 },
-          { name: "Caesar Salad", quantity: 1, price: 15.0 },
-          { name: "Orange Juice", quantity: 2, price: 8.0 },
-        ],
-        totalAmount: 63.0,
-        status: "completed",
-        orderDate: "2024-01-08T16:45:00",
-        deliveryDate: "2024-01-08T18:15:00",
-        paymentMethod: "online",
-        address: "Riyadh, Saudi Arabia",
-        notes: "No cheese on pizza",
-      },
-      {
-        id: "ORD-009",
-        customerName: "عبدالله سعد",
-        customerEmail: "abdullah.saad@email.com",
-        customerPhone: "+966 50 901 2345",
-        sellerName: "محمد علي",
-        sellerEmail: "mohamed.ali@company.com",
-        items: [
-          { name: "Shrimp Pasta", quantity: 1, price: 42.0 },
-          { name: "Garlic Bread", quantity: 2, price: 6.0 },
-          { name: "Lemonade", quantity: 1, price: 5.0 },
-        ],
-        totalAmount: 59.0,
-        status: "cancelled",
-        orderDate: "2024-01-07T13:20:00",
-        deliveryDate: "2024-01-07T14:50:00",
-        paymentMethod: "cash",
-        address: "Jeddah, Saudi Arabia",
-        notes: "Allergic to shellfish",
-      },
-      {
-        id: "ORD-010",
-        customerName: "نادية أحمد",
-        customerEmail: "nadia.ahmed@email.com",
-        customerPhone: "+966 50 012 3456",
-        sellerName: "علي حسن",
-        sellerEmail: "ali.hassan@company.com",
-        items: [
-          { name: "Chicken Wings", quantity: 2, price: 18.0 },
-          { name: "Blue Cheese Dip", quantity: 1, price: 4.0 },
-          { name: "Cola", quantity: 2, price: 5.0 },
-        ],
-        totalAmount: 50.0,
-        status: "processing",
-        orderDate: "2024-01-06T18:30:00",
-        deliveryDate: "2024-01-06T20:00:00",
-        paymentMethod: "card",
-        address: "Dammam, Saudi Arabia",
-        notes: "Extra hot sauce",
-      },
-    ];
+  // Compute unique sellers from orders
+  const sellers = React.useMemo(() => {
+    if (!Array.isArray(orders)) return [];
 
-    setTimeout(() => {
-      setOrders(mockOrders);
-      setFilteredOrders(mockOrders); // Initialize filtered orders with all orders
-      setLoading(false);
-    }, 1000);
-  };
+    const uniqueSellers = new Set();
+    orders.forEach((order) => {
+      const sellerEmail = order.seller?.email || order.sellerEmail;
+      const sellerName = order.seller?.name || order.sellerName;
+      if (sellerEmail && sellerName) {
+        uniqueSellers.add(
+          JSON.stringify({ email: sellerEmail, name: sellerName })
+        );
+      }
+    });
 
-  const loadSellers = () => {
-    const mockSellers = [
-      { id: 1, name: "محمد علي", email: "mohamed.ali@company.com" },
-      { id: 2, name: "علي حسن", email: "ali.hassan@company.com" },
-      { id: 3, name: "سارة محمد", email: "sara.mohamed@company.com" },
-      { id: 4, name: "أحمد خالد", email: "ahmed.khalid@company.com" },
-    ];
-    setSellers(mockSellers);
-  };
+    return Array.from(uniqueSellers).map((seller) => JSON.parse(seller));
+  }, [orders]);
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -387,10 +214,10 @@ const OrdersManagement = () => {
       render: (item) => (
         <div>
           <p className="font-medium text-gray-900 dark:text-white">
-            {item.customerName}
+            {item.customer?.name || item.customerName || "Unknown Customer"}
           </p>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {item.customerPhone}
+            {item.customer?.phone || item.customerPhone || "N/A"}
           </p>
         </div>
       ),
@@ -401,10 +228,10 @@ const OrdersManagement = () => {
       render: (item) => (
         <div>
           <p className="font-medium text-gray-900 dark:text-white">
-            {item.sellerName}
+            {item.seller?.name || item.sellerName || "Unknown Seller"}
           </p>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {item.sellerEmail}
+            {item.seller?.email || item.sellerEmail || "N/A"}
           </p>
         </div>
       ),
@@ -414,13 +241,14 @@ const OrdersManagement = () => {
       accessor: "items",
       render: (item) => (
         <div className="max-w-xs">
-          {item.items.map((item, index) => (
+          {(item.items || []).map((orderItem, index) => (
             <div key={index} className="text-sm">
               <span className="text-gray-900 dark:text-white">
-                {item.quantity}x {item.name}
+                {orderItem.quantity || 1}x{" "}
+                {orderItem.name || orderItem.product?.name || "Item"}
               </span>
               <span className="text-gray-500 dark:text-gray-400 ml-2">
-                ${item.price.toFixed(2)}
+                ${(orderItem.price || orderItem.product?.price || 0).toFixed(2)}
               </span>
             </div>
           ))}
@@ -432,33 +260,40 @@ const OrdersManagement = () => {
       accessor: "totalAmount",
       render: (item) => (
         <span className="font-medium text-gray-900 dark:text-white">
-          ${item.totalAmount.toFixed(2)}
+          ${(item.totalAmount || item.total || 0).toFixed(2)}
         </span>
       ),
     },
     {
       header: t("status"),
       accessor: "status",
-      render: (item) => getStatusBadge(item.status),
+      render: (item) => getStatusBadge(item.status || "pending"),
     },
     {
       header: t("payment"),
       accessor: "paymentMethod",
-      render: (item) => getPaymentMethodBadge(item.paymentMethod),
+      render: (item) => getPaymentMethodBadge(item.paymentMethod || "cash"),
     },
     {
       header: t("date"),
       accessor: "orderDate",
-      render: (item) => (
-        <div>
-          <p className="text-sm text-gray-900 dark:text-white">
-            {new Date(item.orderDate).toLocaleDateString()}
-          </p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            {new Date(item.orderDate).toLocaleTimeString()}
-          </p>
-        </div>
-      ),
+      render: (item) => {
+        const orderDate =
+          item.createdAt ||
+          item.orderDate ||
+          item.date ||
+          new Date().toISOString();
+        return (
+          <div>
+            <p className="text-sm text-gray-900 dark:text-white">
+              {new Date(orderDate).toLocaleDateString()}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {new Date(orderDate).toLocaleTimeString()}
+            </p>
+          </div>
+        );
+      },
     },
     {
       header: t("actions"),
@@ -499,9 +334,9 @@ const OrdersManagement = () => {
   const handleEditOrder = (order) => {
     setSelectedOrder(order);
     setEditForm({
-      status: order.status,
-      notes: order.notes,
-      deliveryDate: order.deliveryDate.split("T")[0],
+      status: order.status || "pending",
+      notes: order.notes || "",
+      deliveryDate: order.deliveryDate ? order.deliveryDate.split("T")[0] : "",
     });
     setEditModal(true);
   };
@@ -511,39 +346,45 @@ const OrdersManagement = () => {
     setDeleteModal(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!selectedOrder) return;
 
-    const updatedOrders = orders.map((order) =>
-      order.id === selectedOrder.id
-        ? {
-            ...order,
-            status: editForm.status,
-            notes: editForm.notes,
-            deliveryDate: `${editForm.deliveryDate}T${
-              order.deliveryDate.split("T")[1]
-            }`,
-          }
-        : order
-    );
+    try {
+      const updates = {
+        status: editForm.status,
+        notes: editForm.notes,
+        deliveryDate: editForm.deliveryDate
+          ? `${editForm.deliveryDate}T${
+              (selectedOrder.deliveryDate || new Date().toISOString()).split(
+                "T"
+              )[1]
+            }`
+          : selectedOrder.deliveryDate,
+      };
 
-    setOrders(updatedOrders);
-    setEditModal(false);
-    setSelectedOrder(null);
-    setEditForm({});
-    toast.success(t("orderUpdated"));
+      await dispatch(updateOrder({ id: selectedOrder.id, updates }));
+      setEditModal(false);
+      setSelectedOrder(null);
+      setEditForm({});
+      toast.success(t("orderUpdated"));
+    } catch (error) {
+      console.error("Error updating order:", error);
+      toast.error(t("errorUpdatingOrder"));
+    }
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!selectedOrder) return;
 
-    const updatedOrders = orders.filter(
-      (order) => order.id !== selectedOrder.id
-    );
-    setOrders(updatedOrders);
-    setDeleteModal(false);
-    setSelectedOrder(null);
-    toast.success(t("orderDeleted"));
+    try {
+      await dispatch(deleteOrder(selectedOrder.id));
+      setDeleteModal(false);
+      setSelectedOrder(null);
+      toast.success(t("orderDeleted"));
+    } catch (error) {
+      console.error("Error deleting order:", error);
+      toast.error(t("errorDeletingOrder"));
+    }
   };
 
   const handleExportOrders = () => {
@@ -561,6 +402,15 @@ const OrdersManagement = () => {
 
   // Get statistics
   const getStats = () => {
+    if (!Array.isArray(orders)) {
+      return {
+        totalOrders: 0,
+        pendingOrders: 0,
+        completedOrders: 0,
+        totalRevenue: "0.00",
+      };
+    }
+
     const totalOrders = orders.length;
     const pendingOrders = orders.filter(
       (order) => order.status === "pending"
@@ -569,7 +419,7 @@ const OrdersManagement = () => {
       (order) => order.status === "completed"
     ).length;
     const totalRevenue = orders.reduce(
-      (sum, order) => sum + order.totalAmount,
+      (sum, order) => sum + (order.totalAmount || order.total || 0),
       0
     );
 
@@ -582,6 +432,27 @@ const OrdersManagement = () => {
   };
 
   const stats = getStats();
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <p className="text-red-600 dark:text-red-400">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -722,8 +593,8 @@ const OrdersManagement = () => {
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
               >
                 <option value="all">{t("allSellers")}</option>
-                {sellers.map((seller) => (
-                  <option key={seller.id} value={seller.email}>
+                {sellers.map((seller, index) => (
+                  <option key={index} value={seller.email}>
                     {seller.name}
                   </option>
                 ))}
@@ -815,13 +686,22 @@ const OrdersManagement = () => {
                     {t("customerInformation")}
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    <strong>{t("name")}:</strong> {selectedOrder.customerName}
+                    <strong>{t("name")}:</strong>{" "}
+                    {selectedOrder.customer?.name ||
+                      selectedOrder.customerName ||
+                      "Unknown"}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    <strong>{t("phone")}:</strong> {selectedOrder.customerPhone}
+                    <strong>{t("phone")}:</strong>{" "}
+                    {selectedOrder.customer?.phone ||
+                      selectedOrder.customerPhone ||
+                      "N/A"}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    <strong>{t("address")}:</strong> {selectedOrder.address}
+                    <strong>{t("address")}:</strong>{" "}
+                    {selectedOrder.customer?.address ||
+                      selectedOrder.address ||
+                      "N/A"}
                   </p>
                 </div>
 
@@ -831,15 +711,21 @@ const OrdersManagement = () => {
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("status")}:</strong>{" "}
-                    {getStatusBadge(selectedOrder.status)}
+                    {getStatusBadge(selectedOrder.status || "pending")}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("paymentMethod")}:</strong>{" "}
-                    {getPaymentMethodBadge(selectedOrder.paymentMethod)}
+                    {getPaymentMethodBadge(
+                      selectedOrder.paymentMethod || "cash"
+                    )}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("total")}:</strong> $
-                    {selectedOrder.totalAmount.toFixed(2)}
+                    {(
+                      selectedOrder.totalAmount ||
+                      selectedOrder.total ||
+                      0
+                    ).toFixed(2)}
                   </p>
                 </div>
               </div>
@@ -849,16 +735,17 @@ const OrdersManagement = () => {
                   {t("items")}
                 </h3>
                 <div className="space-y-2">
-                  {selectedOrder.items.map((item, index) => (
+                  {(selectedOrder.items || []).map((item, index) => (
                     <div
                       key={index}
                       className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-700 rounded"
                     >
                       <span className="text-sm text-gray-900 dark:text-white">
-                        {item.quantity}x {item.name}
+                        {item.quantity || 1}x{" "}
+                        {item.name || item.product?.name || "Item"}
                       </span>
                       <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        ${item.price.toFixed(2)}
+                        ${(item.price || item.product?.price || 0).toFixed(2)}
                       </span>
                     </div>
                   ))}

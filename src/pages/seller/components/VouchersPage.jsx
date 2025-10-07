@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import {
   FileText,
   DollarSign,
@@ -33,15 +33,20 @@ import {
   PaymentVoucherForm,
 } from "../../../components/Forms/SellerForms";
 import { numberToWords } from "../../../utils/formatters";
+import {
+  fetchVouchers,
+  createVoucher,
+  updateVoucher,
+  deleteVoucher,
+} from "../../../store/slices/voucherSlice";
 
 const VouchersPage = () => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
+  const dispatch = useDispatch();
 
-  // State for vouchers
-  const [expenseVouchers, setExpenseVouchers] = useState([]);
-  const [paymentVouchers, setPaymentVouchers] = useState([]);
-  const [loading, setLoading] = useState(false);
+  // Redux state
+  const { vouchers, loading } = useSelector((state) => state.vouchers);
 
   // Modal states
   const [expenseModal, setExpenseModal] = useState(false);
@@ -52,77 +57,12 @@ const VouchersPage = () => {
   const [modalMode, setModalMode] = useState("add");
 
   useEffect(() => {
-    loadVouchers();
-  }, []);
+    dispatch(fetchVouchers());
+  }, [dispatch]);
 
-  const loadVouchers = () => {
-    setLoading(true);
-    // Mock data for expense vouchers
-    const mockExpenseVouchers = [
-      {
-        id: "EXP-001",
-        voucherNumber: "EXP-2024-001",
-        date: "2024-01-15",
-        amount: 500.0,
-        description: "Office supplies purchase",
-        category: "office_supplies",
-        paymentMethod: "cash",
-        recipient: "Office Store",
-        notes: "Monthly office supplies",
-        status: "approved",
-        createdAt: "2024-01-15T10:30:00",
-      },
-      {
-        id: "EXP-002",
-        voucherNumber: "EXP-2024-002",
-        date: "2024-01-14",
-        amount: 1200.0,
-        description: "Equipment maintenance",
-        category: "maintenance",
-        paymentMethod: "bank_transfer",
-        recipient: "Tech Services Co.",
-        notes: "Computer maintenance services",
-        status: "pending",
-        createdAt: "2024-01-14T14:20:00",
-      },
-    ];
-
-    // Mock data for payment vouchers
-    const mockPaymentVouchers = [
-      {
-        id: "PAY-001",
-        voucherNumber: "PAY-2024-001",
-        date: "2024-01-15",
-        amount: 2500.0,
-        supplier: "شركة الأغذية المتحدة",
-        invoiceNumber: "INV-001",
-        paymentMethod: "bank_transfer",
-        description: "Payment for food supplies",
-        notes: "Monthly supplier payment",
-        status: "completed",
-        createdAt: "2024-01-15T09:15:00",
-      },
-      {
-        id: "PAY-002",
-        voucherNumber: "PAY-2024-002",
-        date: "2024-01-13",
-        amount: 1800.0,
-        supplier: "مؤسسة البناء الحديث",
-        invoiceNumber: "INV-002",
-        paymentMethod: "check",
-        description: "Payment for construction materials",
-        notes: "Building materials payment",
-        status: "pending",
-        createdAt: "2024-01-13T16:45:00",
-      },
-    ];
-
-    setTimeout(() => {
-      setExpenseVouchers(mockExpenseVouchers);
-      setPaymentVouchers(mockPaymentVouchers);
-      setLoading(false);
-    }, 1000);
-  };
+  // Separate vouchers by type
+  const expenseVouchers = vouchers.filter((v) => v.type === "expense");
+  const paymentVouchers = vouchers.filter((v) => v.type === "payment");
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -222,53 +162,72 @@ const VouchersPage = () => {
     }
   };
 
-  const handleDeleteVoucher = (voucher, type) => {
-    if (type === "expense") {
-      setExpenseVouchers(expenseVouchers.filter((v) => v.id !== voucher.id));
-    } else {
-      setPaymentVouchers(paymentVouchers.filter((v) => v.id !== voucher.id));
+  const handleDeleteVoucher = async (voucher) => {
+    if (!window.confirm(t("confirmDeleteVoucher"))) {
+      return;
     }
-    toast.success(t("voucherDeleted"));
+
+    try {
+      await dispatch(deleteVoucher(voucher.id));
+      toast.success(t("voucherDeleted"));
+    } catch (error) {
+      console.error("Error deleting voucher:", error);
+      toast.error(t("errorDeletingVoucher"));
+    }
   };
 
-  const handleExpenseSubmit = (voucherData) => {
-    if (modalMode === "add") {
-      const newVoucher = {
-        ...voucherData,
-        id: `EXP-${Date.now()}`,
-        status: "pending",
-        createdAt: new Date().toISOString(),
-      };
-      setExpenseVouchers([newVoucher, ...expenseVouchers]);
-      toast.success(t("expenseVoucherCreated"));
-    } else {
-      const updatedVouchers = expenseVouchers.map((voucher) =>
-        voucher.id === editingVoucher.id ? voucherData : voucher
+  const handleExpenseSubmit = async (voucherData) => {
+    try {
+      if (modalMode === "add") {
+        await dispatch(
+          createVoucher({ ...voucherData, voucherType: "Expense" })
+        );
+        toast.success(t("expenseVoucherCreated"));
+      } else {
+        await dispatch(
+          updateVoucher({
+            id: editingVoucher.id,
+            voucherData: { ...voucherData, voucherType: "Expense" },
+          })
+        );
+        toast.success(t("expenseVoucherUpdated"));
+      }
+      setExpenseModal(false);
+    } catch (error) {
+      console.error("Error submitting expense voucher:", error);
+      toast.error(
+        modalMode === "add"
+          ? t("errorCreatingVoucher")
+          : t("errorUpdatingVoucher")
       );
-      setExpenseVouchers(updatedVouchers);
-      toast.success(t("expenseVoucherUpdated"));
     }
-    setExpenseModal(false);
   };
 
-  const handlePaymentSubmit = (voucherData) => {
-    if (modalMode === "add") {
-      const newVoucher = {
-        ...voucherData,
-        id: `PAY-${Date.now()}`,
-        status: "pending",
-        createdAt: new Date().toISOString(),
-      };
-      setPaymentVouchers([newVoucher, ...paymentVouchers]);
-      toast.success(t("paymentVoucherCreated"));
-    } else {
-      const updatedVouchers = paymentVouchers.map((voucher) =>
-        voucher.id === editingVoucher.id ? voucherData : voucher
+  const handlePaymentSubmit = async (voucherData) => {
+    try {
+      if (modalMode === "add") {
+        await dispatch(
+          createVoucher({ ...voucherData, voucherType: "Supplier" })
+        );
+        toast.success(t("paymentVoucherCreated"));
+      } else {
+        await dispatch(
+          updateVoucher({
+            id: editingVoucher.id,
+            voucherData: { ...voucherData, voucherType: "Supplier" },
+          })
+        );
+        toast.success(t("paymentVoucherUpdated"));
+      }
+      setPaymentModal(false);
+    } catch (error) {
+      console.error("Error submitting payment voucher:", error);
+      toast.error(
+        modalMode === "add"
+          ? t("errorCreatingVoucher")
+          : t("errorUpdatingVoucher")
       );
-      setPaymentVouchers(updatedVouchers);
-      toast.success(t("paymentVoucherUpdated"));
     }
-    setPaymentModal(false);
   };
 
   const handlePrintVoucher = (voucher) => {
@@ -442,18 +401,18 @@ const VouchersPage = () => {
       (sum, voucher) => sum + voucher.amount,
       0
     );
-    const pendingExpenses = expenseVouchers.filter(
-      (v) => v.status === "pending"
+    const acceptedExpenses = expenseVouchers.filter(
+      (v) => v.status === "approved" || v.status === "completed"
     ).length;
-    const pendingPayments = paymentVouchers.filter(
-      (v) => v.status === "pending"
+    const acceptedPayments = paymentVouchers.filter(
+      (v) => v.status === "approved" || v.status === "completed"
     ).length;
 
     return {
       totalExpenses: totalExpenses.toFixed(2),
       totalPayments: totalPayments.toFixed(2),
-      pendingExpenses,
-      pendingPayments,
+      acceptedExpenses,
+      acceptedPayments,
     };
   };
 
@@ -523,13 +482,13 @@ const VouchersPage = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                {t("pendingExpenses")}
+                {t("acceptedExpenses")}
               </p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {stats.pendingExpenses}
+                {stats.acceptedExpenses}
               </p>
             </div>
-            <Clock className="w-8 h-8 text-yellow-500" />
+            <CheckCircle className="w-8 h-8 text-green-500" />
           </div>
         </div>
 
@@ -537,13 +496,13 @@ const VouchersPage = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                {t("pendingPayments")}
+                {t("acceptedPayments")}
               </p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {stats.pendingPayments}
+                {stats.acceptedPayments}
               </p>
             </div>
-            <AlertCircle className="w-8 h-8 text-orange-500" />
+            <CheckCircle className="w-8 h-8 text-green-500" />
           </div>
         </div>
       </div>
@@ -627,9 +586,7 @@ const VouchersPage = () => {
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() =>
-                            handleDeleteVoucher(voucher, "expense")
-                          }
+                          onClick={() => handleDeleteVoucher(voucher)}
                           className="p-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                           title={t("delete")}
                         >
@@ -753,9 +710,7 @@ const VouchersPage = () => {
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() =>
-                            handleDeleteVoucher(voucher, "payment")
-                          }
+                          onClick={() => handleDeleteVoucher(voucher)}
                           className="p-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                           title={t("delete")}
                         >

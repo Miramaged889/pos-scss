@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import {
   X,
   Save,
@@ -16,6 +16,10 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import {
+  createSupplier,
+  updateSupplier,
+} from "../../../store/slices/supplierSlice";
 
 import FormField from "../FormField";
 
@@ -27,21 +31,22 @@ const SupplierForm = ({
   mode = "add", // "add" or "edit"
 }) => {
   const { t } = useTranslation();
+  const dispatch = useDispatch();
   const { isRTL } = useSelector((state) => state.language);
 
   const [formData, setFormData] = useState({
-    name: "",
+    supplier_name: "",
     email: "",
-    phone: "",
+    phone_number: "",
     address: "",
     company: "",
-    contactPerson: "",
+    contact_person: "",
     notes: "",
-    status: "active",
+    status: "Active",
     rating: 4.0,
-    paymentTerms: "30 days",
-    creditLimit: 0,
-    joinDate: new Date().toISOString().split("T")[0],
+    payment_terms: "Cash",
+    credit_limit: 0,
+    join_date: new Date().toISOString().split("T")[0],
   });
 
   const [errors, setErrors] = useState({});
@@ -51,34 +56,39 @@ const SupplierForm = ({
     if (isOpen) {
       if (mode === "edit" && supplier) {
         setFormData({
-          name: supplier.name || "",
+          supplier_name: supplier.supplier_name || supplier.name || "",
           email: supplier.email || "",
-          phone: supplier.phone || "",
+          phone_number: supplier.phone_number || supplier.phone || "",
           address: supplier.address || "",
           company: supplier.company || "",
-          contactPerson: supplier.contactPerson || "",
+          contact_person:
+            supplier.contact_person || supplier.contactPerson || "",
           notes: supplier.notes || "",
-          status: supplier.status || "active",
+          status: supplier.status || "Active",
           rating: supplier.rating || 4.0,
-          paymentTerms: supplier.paymentTerms || "30 days",
-          creditLimit: supplier.creditLimit || 0,
-          joinDate: supplier.joinDate ? supplier.joinDate.split("T")[0] : new Date().toISOString().split("T")[0],
+          payment_terms:
+            supplier.payment_terms || supplier.paymentTerms || "Cash",
+          credit_limit: supplier.credit_limit || supplier.creditLimit || 0,
+          join_date:
+            supplier.join_date || supplier.joinDate
+              ? (supplier.join_date || supplier.joinDate).split("T")[0]
+              : new Date().toISOString().split("T")[0],
         });
       } else {
         // Reset form for add mode
         setFormData({
-          name: "",
+          supplier_name: "",
           email: "",
-          phone: "",
+          phone_number: "",
           address: "",
           company: "",
-          contactPerson: "",
+          contact_person: "",
           notes: "",
-          status: "active",
+          status: "Active",
           rating: 4.0,
-          paymentTerms: "30 days",
-          creditLimit: 0,
-          joinDate: new Date().toISOString().split("T")[0],
+          payment_terms: "Cash",
+          credit_limit: 0,
+          join_date: new Date().toISOString().split("T")[0],
         });
       }
       setErrors({});
@@ -108,8 +118,8 @@ const SupplierForm = ({
     const newErrors = {};
 
     // Required fields
-    if (!formData.name.trim()) {
-      newErrors.name = t("supplierNameRequired");
+    if (!formData.supplier_name.trim()) {
+      newErrors.supplier_name = t("supplierNameRequired");
     }
 
     if (!formData.email.trim()) {
@@ -118,16 +128,16 @@ const SupplierForm = ({
       newErrors.email = t("invalidEmailFormat");
     }
 
-    if (!formData.phone.trim()) {
-      newErrors.phone = t("phoneRequired");
+    if (!formData.phone_number.trim()) {
+      newErrors.phone_number = t("phoneRequired");
     }
 
     if (!formData.address.trim()) {
       newErrors.address = t("addressRequired");
     }
 
-    if (!formData.contactPerson.trim()) {
-      newErrors.contactPerson = t("contactPersonRequired");
+    if (!formData.contact_person.trim()) {
+      newErrors.contact_person = t("contactPersonRequired");
     }
 
     // Rating validation
@@ -136,8 +146,8 @@ const SupplierForm = ({
     }
 
     // Credit limit validation
-    if (formData.creditLimit < 0) {
-      newErrors.creditLimit = t("creditLimitPositive");
+    if (formData.credit_limit < 0) {
+      newErrors.credit_limit = t("creditLimitPositive");
     }
 
     setErrors(newErrors);
@@ -155,27 +165,30 @@ const SupplierForm = ({
     setIsSubmitting(true);
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
       // Prepare data for submission
       const submitData = {
         ...formData,
-        joinDate: new Date(formData.joinDate).toISOString(),
-        totalProducts: 0,
-        totalOrders: 0,
-        totalSpent: 0,
-        lastOrder: null,
+        join_date: new Date(formData.join_date).toISOString().split("T")[0],
       };
 
-      onSubmit(submitData);
+      if (mode === "add") {
+        await dispatch(createSupplier(submitData)).unwrap();
+        toast.success(t("supplierAddedSuccessfully"));
+      } else {
+        await dispatch(
+          updateSupplier({
+            id: supplier.id,
+            updates: submitData,
+          })
+        ).unwrap();
+        toast.success(t("supplierUpdatedSuccessfully"));
+      }
+
+      onSubmit();
       handleClose();
-      toast.success(
-        mode === "add" ? t("supplierAddedSuccessfully") : t("supplierUpdatedSuccessfully")
-      );
     } catch (error) {
       console.error("Error submitting supplier:", error);
-      toast.error(t("errorSavingSupplier"));
+      toast.error(error || t("errorSavingSupplier"));
     } finally {
       setIsSubmitting(false);
     }
@@ -183,18 +196,18 @@ const SupplierForm = ({
 
   const handleClose = () => {
     setFormData({
-      name: "",
+      supplier_name: "",
       email: "",
-      phone: "",
+      phone_number: "",
       address: "",
       company: "",
-      contactPerson: "",
+      contact_person: "",
       notes: "",
-      status: "active",
+      status: "Active",
       rating: 4.0,
-      paymentTerms: "30 days",
-      creditLimit: 0,
-      joinDate: new Date().toISOString().split("T")[0],
+      payment_terms: "Cash",
+      credit_limit: 0,
+      join_date: new Date().toISOString().split("T")[0],
     });
     setErrors({});
     setIsSubmitting(false);
@@ -203,18 +216,18 @@ const SupplierForm = ({
 
   const clearDraft = () => {
     setFormData({
-      name: "",
+      supplier_name: "",
       email: "",
-      phone: "",
+      phone_number: "",
       address: "",
       company: "",
-      contactPerson: "",
+      contact_person: "",
       notes: "",
-      status: "active",
+      status: "Active",
       rating: 4.0,
-      paymentTerms: "30 days",
-      creditLimit: 0,
-      joinDate: new Date().toISOString().split("T")[0],
+      payment_terms: "Cash",
+      credit_limit: 0,
+      join_date: new Date().toISOString().split("T")[0],
     });
     setErrors({});
   };
@@ -226,7 +239,11 @@ const SupplierForm = ({
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className={`flex items-center gap-3 ${isRTL ? "flex-row-reverse" : ""}`}>
+          <div
+            className={`flex items-center gap-3 ${
+              isRTL ? "flex-row" : ""
+            }`}
+          >
             <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
               <Building className="w-5 h-5 text-green-600 dark:text-green-400" />
             </div>
@@ -257,11 +274,11 @@ const SupplierForm = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 label={t("supplierName")}
-                value={formData.name}
-                onChange={handleFieldChange("name")}
+                value={formData.supplier_name}
+                onChange={handleFieldChange("supplier_name")}
                 placeholder={t("enterSupplierName")}
                 required
-                error={errors.name}
+                error={errors.supplier_name}
                 icon={Building}
               />
 
@@ -278,21 +295,21 @@ const SupplierForm = ({
 
               <FormField
                 label={t("phoneNumber")}
-                value={formData.phone}
-                onChange={handleFieldChange("phone")}
+                value={formData.phone_number}
+                onChange={handleFieldChange("phone_number")}
                 placeholder={t("enterPhoneNumber")}
                 required
-                error={errors.phone}
+                error={errors.phone_number}
                 icon={Phone}
               />
 
               <FormField
                 label={t("contactPerson")}
-                value={formData.contactPerson}
-                onChange={handleFieldChange("contactPerson")}
+                value={formData.contact_person}
+                onChange={handleFieldChange("contact_person")}
                 placeholder={t("enterContactPerson")}
                 required
-                error={errors.contactPerson}
+                error={errors.contact_person}
                 icon={User}
               />
 
@@ -307,8 +324,8 @@ const SupplierForm = ({
               <FormField
                 label={t("joinDate")}
                 type="date"
-                value={formData.joinDate}
-                onChange={handleFieldChange("joinDate")}
+                value={formData.join_date}
+                onChange={handleFieldChange("join_date")}
                 required
                 icon={Calendar}
               />
@@ -340,8 +357,8 @@ const SupplierForm = ({
                 value={formData.status}
                 onChange={handleFieldChange("status")}
                 options={[
-                  { value: "active", label: t("active") },
-                  { value: "inactive", label: t("inactive") },
+                  { value: "Active", label: t("active") },
+                  { value: "Inactive", label: t("inactive") },
                 ]}
                 required
               />
@@ -360,15 +377,15 @@ const SupplierForm = ({
               />
 
               <FormField
-                label={t("paymentTerms")}
+                label={t("paymentMethod")}
                 type="select"
-                value={formData.paymentTerms}
-                onChange={handleFieldChange("paymentTerms")}
+                value={formData.payment_terms}
+                onChange={handleFieldChange("payment_terms")}
                 options={[
-                  { value: "30 days", label: "30 days" },
-                  { value: "45 days", label: "45 days" },
-                  { value: "60 days", label: "60 days" },
-                  { value: "90 days", label: "90 days" },
+                  { value: "Cash", label: t("cash") },
+                  { value: "Credit Card", label: t("creditCard") },
+                  { value: "Bank Transfer", label: t("bankTransfer") },
+                  { value: "Check", label: t("check") },
                 ]}
                 required
               />
@@ -376,12 +393,12 @@ const SupplierForm = ({
               <FormField
                 label={t("creditLimit")}
                 type="number"
-                value={formData.creditLimit}
-                onChange={handleFieldChange("creditLimit")}
+                value={formData.credit_limit}
+                onChange={handleFieldChange("credit_limit")}
                 min={0}
                 step={1000}
                 required
-                error={errors.creditLimit}
+                error={errors.credit_limit}
                 icon={DollarSign}
               />
             </div>
@@ -405,7 +422,11 @@ const SupplierForm = ({
           {/* Error Summary */}
           {Object.keys(errors).length > 0 && (
             <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-              <div className={`flex items-center gap-2 ${isRTL ? "flex-row-reverse" : ""}`}>
+              <div
+                className={`flex items-center gap-2 ${
+                  isRTL ? "flex-row-reverse" : ""
+                }`}
+              >
                 <AlertCircle className="w-5 h-5 text-red-500" />
                 <h4 className="text-sm font-medium text-red-800 dark:text-red-200">
                   {t("pleaseFixErrors")}
@@ -423,7 +444,11 @@ const SupplierForm = ({
           )}
 
           {/* Actions */}
-          <div className={`flex items-center justify-between pt-6 border-t border-gray-200 dark:border-gray-700 ${isRTL ? "flex-row-reverse" : ""}`}>
+          <div
+            className={`flex items-center justify-between pt-6 border-t border-gray-200 dark:border-gray-700 ${
+              isRTL ? "flex-row-reverse" : ""
+            }`}
+          >
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -434,7 +459,11 @@ const SupplierForm = ({
               </button>
             </div>
 
-            <div className={`flex items-center gap-3 ${isRTL ? "flex-row-reverse" : ""}`}>
+            <div
+              className={`flex items-center gap-3 ${
+                isRTL ? "flex-row-reverse" : ""
+              }`}
+            >
               <button
                 type="button"
                 onClick={handleClose}
@@ -448,7 +477,11 @@ const SupplierForm = ({
                 className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-green-400 rounded-lg transition-colors flex items-center gap-2"
               >
                 <Save className="w-4 h-4" />
-                {isSubmitting ? t("saving") : mode === "add" ? t("addSupplier") : t("updateSupplier")}
+                {isSubmitting
+                  ? t("saving")
+                  : mode === "add"
+                  ? t("addSupplier")
+                  : t("updateSupplier")}
               </button>
             </div>
           </div>
@@ -458,4 +491,4 @@ const SupplierForm = ({
   );
 };
 
-export default SupplierForm; 
+export default SupplierForm;

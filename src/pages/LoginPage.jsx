@@ -1,19 +1,24 @@
 import React, { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
-import { LogIn, Globe, Mail } from "lucide-react";
+import { LogIn, Globe, Mail, Sun, Moon } from "lucide-react";
 
 import { loginUser } from "../store/slices/authSlice";
-import { toggleLanguage } from "../store/slices/languageSlice";
+import { toggleLanguage, toggleTheme } from "../store/slices/languageSlice";
+import { getRouteForRole } from "../utils/roleRouting";
 
 const LoginPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { t } = useTranslation();
-  const { currentLanguage, isRTL } = useSelector((state) => state.language);
+  const { currentLanguage, isRTL, theme } = useSelector(
+    (state) => state.language
+  );
   const { loading, error } = useSelector((state) => state.auth);
 
   const handleLogin = async (e) => {
@@ -34,10 +39,18 @@ const LoginPage = () => {
 
       if (loginUser.fulfilled.match(result)) {
         toast.success(t("success"));
+
+        // Navigate to role-based dashboard
+        const userRole = result.payload.role;
+        const dashboardRoute = getRouteForRole(userRole);
+
+        // Navigate to the appropriate dashboard
+        navigate(dashboardRoute);
       } else {
         toast.error(result.payload || t("loginFailed"));
       }
     } catch (error) {
+      console.error("Login error:", error);
       toast.error(t("loginFailed"));
     }
   };
@@ -46,37 +59,46 @@ const LoginPage = () => {
     dispatch(toggleLanguage());
   };
 
-  const demoAccounts = [
-    { email: "seller@company.com", password: "password123", role: t("seller") },
-    {
-      email: "kitchen@company.com",
-      password: "password123",
-      role: t("kitchen"),
-    },
-    {
-      email: "delivery@company.com",
-      password: "password123",
-      role: t("delivery"),
-    },
-    {
-      email: "manager@company.com",
-      password: "password123",
-      role: t("manager"),
-    },
-  ];
+  const handleThemeToggle = () => {
+    dispatch(toggleTheme());
+  };
 
   return (
     <div
-      className={`min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4 ${
+      className={`min-h-screen flex items-center justify-center px-4 ${
         isRTL ? "rtl" : "ltr"
+      } ${
+        theme === "dark"
+          ? "bg-gradient-to-br from-gray-900 to-gray-800"
+          : "bg-gradient-to-br from-blue-50 to-indigo-100"
       }`}
     >
       <div className="max-w-md w-full space-y-8">
-        {/* Language Toggle */}
-        <div className="flex justify-end">
+        {/* Controls */}
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={handleThemeToggle}
+            className={`flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors ${
+              theme === "dark"
+                ? "text-gray-300 hover:text-white hover:bg-gray-700"
+                : "text-gray-600 hover:text-gray-900 hover:bg-white"
+            }`}
+            title={t("toggleTheme")}
+          >
+            {theme === "dark" ? (
+              <Sun className="w-4 h-4" />
+            ) : (
+              <Moon className="w-4 h-4" />
+            )}
+            {theme === "dark" ? t("lightMode") : t("darkMode")}
+          </button>
           <button
             onClick={handleLanguageToggle}
-            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-white rounded-lg transition-colors"
+            className={`flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors ${
+              theme === "dark"
+                ? "text-gray-300 hover:text-white hover:bg-gray-700"
+                : "text-gray-600 hover:text-gray-900 hover:bg-white"
+            }`}
           >
             <Globe className="w-4 h-4" />
             {currentLanguage === "en" ? "العربية" : "English"}
@@ -84,22 +106,46 @@ const LoginPage = () => {
         </div>
 
         {/* Login Form */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
+        <div
+          className={`rounded-2xl shadow-xl p-8 ${
+            theme === "dark" ? "bg-gray-800 border border-gray-700" : "bg-white"
+          }`}
+        >
           <div className="text-center">
-            <div className="mx-auto h-16 w-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-              <LogIn className="w-8 h-8 text-blue-600" />
+            <div
+              className={`mx-auto h-16 w-16 rounded-full flex items-center justify-center mb-4 ${
+                theme === "dark" ? "bg-blue-900/30" : "bg-blue-100"
+              }`}
+            >
+              <LogIn
+                className={`w-8 h-8 ${
+                  theme === "dark" ? "text-blue-400" : "text-blue-600"
+                }`}
+              />
             </div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">
+            <h2
+              className={`text-3xl font-bold mb-2 ${
+                theme === "dark" ? "text-white" : "text-gray-900"
+              }`}
+            >
               {t("welcome")}
             </h2>
-            <p className="text-gray-600">{t("loginTitle")}</p>
+            <p
+              className={`${
+                theme === "dark" ? "text-gray-300" : "text-gray-600"
+              }`}
+            >
+              {t("loginTitle")}
+            </p>
           </div>
 
           <form onSubmit={handleLogin} className="mt-8 space-y-6">
             <div>
               <label
                 htmlFor="email"
-                className="block text-sm font-medium text-gray-700 mb-2"
+                className={`block text-sm font-medium mb-2 ${
+                  theme === "dark" ? "text-gray-300" : "text-gray-700"
+                }`}
               >
                 {t("email")}
               </label>
@@ -109,7 +155,11 @@ const LoginPage = () => {
                     isRTL ? "right-0 pr-3" : "left-0 pl-3"
                   } flex items-center pointer-events-none`}
                 >
-                  <Mail className="h-5 w-5 text-gray-400" />
+                  <Mail
+                    className={`h-5 w-5 ${
+                      theme === "dark" ? "text-gray-500" : "text-gray-400"
+                    }`}
+                  />
                 </div>
                 <input
                   id="email"
@@ -121,7 +171,11 @@ const LoginPage = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   className={`block w-full ${
                     isRTL ? "pr-10 text-right" : "pl-10"
-                  } py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors`}
+                  } py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
+                    theme === "dark"
+                      ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                      : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
+                  }`}
                   placeholder={t("enterEmail")}
                 />
               </div>
@@ -130,7 +184,9 @@ const LoginPage = () => {
             <div>
               <label
                 htmlFor="password"
-                className="block text-sm font-medium text-gray-700 mb-2"
+                className={`block text-sm font-medium mb-2 ${
+                  theme === "dark" ? "text-gray-300" : "text-gray-700"
+                }`}
               >
                 {t("password")}
               </label>
@@ -144,13 +200,17 @@ const LoginPage = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 className={`block w-full ${
                   isRTL ? "text-right" : "text-left"
-                } py-3 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors`}
+                } py-3 px-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
+                  theme === "dark"
+                    ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                    : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
+                }`}
                 placeholder={t("enterPassword")}
               />
             </div>
 
             {error && (
-              <div className="text-red-600 text-sm text-center">{error}</div>
+              <div className="text-red-500 text-sm text-center">{error}</div>
             )}
 
             <button
@@ -165,38 +225,14 @@ const LoginPage = () => {
               )}
             </button>
           </form>
-
-          {/* Demo Accounts */}
-          <div className="mt-8 border-t border-gray-200 pt-6">
-            <p className="text-sm text-gray-600 text-center mb-4">
-              {currentLanguage === "ar" ? "حسابات تجريبية:" : "Demo Accounts:"}
-            </p>
-            <div className="space-y-2">
-              {demoAccounts.map(
-                ({ email: demoEmail, password: demoPassword, role }) => (
-                  <button
-                    key={demoEmail}
-                    onClick={() => {
-                      setEmail(demoEmail);
-                      setPassword(demoPassword);
-                    }}
-                    className="w-full text-left p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-gray-900">
-                        {role}
-                      </span>
-                      <span className="text-xs text-gray-500">{demoEmail}</span>
-                    </div>
-                  </button>
-                )
-              )}
-            </div>
-          </div>
         </div>
 
         {/* Footer */}
-        <div className="text-center text-sm text-gray-600">
+        <div
+          className={`text-center text-sm ${
+            theme === "dark" ? "text-gray-400" : "text-gray-600"
+          }`}
+        >
           <p>
             {currentLanguage === "ar"
               ? "© 2024 نظام إدارة المبيعات والتوصيل"

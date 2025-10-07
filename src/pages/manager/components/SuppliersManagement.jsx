@@ -10,11 +10,7 @@ import {
   Edit,
   Eye,
   Search,
-  Filter,
-  Star,
   User,
-  Calendar,
-  DollarSign,
   ShoppingBag,
   Trash2,
   Building,
@@ -22,17 +18,12 @@ import {
   AlertCircle,
   CheckCircle,
   Package,
-  FileText,
 } from "lucide-react";
 
 import DataTable from "../../../components/Common/DataTable";
 import StatsCard from "../../../components/Common/StatsCard";
 import { SupplierForm } from "../../../components/Forms";
-import {
-  formatCurrencyEnglish,
-  formatDateTimeEnglish,
-  formatNumberEnglish,
-} from "../../../utils";
+import { formatCurrencyEnglish, formatNumberEnglish } from "../../../utils";
 import {
   fetchSuppliers,
   deleteSupplier,
@@ -77,12 +68,17 @@ const SuppliersManagement = () => {
     );
   };
 
-  const filteredSuppliers = suppliers.filter((supplier) => {
+  // Ensure suppliers is always an array
+  const suppliersArray = Array.isArray(suppliers) ? suppliers : [];
+
+  const filteredSuppliers = suppliersArray.filter((supplier) => {
     const matchesSearch =
-      supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      supplier.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      supplier.phone.includes(searchTerm) ||
-      supplier.company.toLowerCase().includes(searchTerm.toLowerCase());
+      (supplier.supplier_name || supplier.name || "")
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      (supplier.email || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (supplier.phone_number || supplier.phone || "").includes(searchTerm) ||
+      (supplier.company || "").toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus =
       statusFilter === "all" || supplier.status === statusFilter;
@@ -129,13 +125,15 @@ const SuppliersManagement = () => {
   };
 
   // Calculate statistics
-  const totalSuppliers = suppliers.length;
-  const activeSuppliers = suppliers.filter((s) => s.status === "active").length;
-  const totalProducts = suppliers.reduce(
+  const totalSuppliers = suppliersArray.length;
+  const activeSuppliers = suppliersArray.filter(
+    (s) => s.status === "Active"
+  ).length;
+  const totalProducts = suppliersArray.reduce(
     (sum, s) => sum + (s.totalProducts || 0),
     0
   );
-  const totalOrders = suppliers.reduce(
+  const totalOrders = suppliersArray.reduce(
     (sum, s) => sum + (s.totalOrders || 0),
     0
   );
@@ -143,7 +141,7 @@ const SuppliersManagement = () => {
   const columns = [
     {
       key: "name",
-      label: t("supplierName"),
+      header: t("supplierName"),
       render: (supplier) => (
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
@@ -151,12 +149,12 @@ const SuppliersManagement = () => {
           </div>
           <div>
             <div className="font-medium text-gray-900 dark:text-white">
-              {supplier.name}
+              {supplier.supplier_name || supplier.name}
             </div>
-            {supplier.contactPerson && (
+            {(supplier.contact_person || supplier.contactPerson) && (
               <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
                 <User className="w-3 h-3" />
-                {supplier.contactPerson}
+                {supplier.contact_person || supplier.contactPerson}
               </div>
             )}
           </div>
@@ -165,13 +163,13 @@ const SuppliersManagement = () => {
     },
     {
       key: "contact",
-      label: t("contactInfo"),
+      header: t("contactInfo"),
       render: (supplier) => (
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-sm">
             <Phone className="w-3 h-3 text-gray-400" />
             <span className="text-gray-600 dark:text-gray-300">
-              {supplier.phone}
+              {supplier.phone_number || supplier.phone}
             </span>
           </div>
           <div className="flex items-center gap-2 text-sm">
@@ -185,7 +183,7 @@ const SuppliersManagement = () => {
     },
     {
       key: "address",
-      label: t("address"),
+      header: t("address"),
       render: (supplier) => (
         <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
           <MapPin className="w-3 h-3 text-gray-400" />
@@ -195,12 +193,12 @@ const SuppliersManagement = () => {
     },
     {
       key: "status",
-      label: t("status"),
+      header: t("status"),
       render: (supplier) => getStatusBadge(supplier),
     },
     {
       key: "stats",
-      label: t("statistics"),
+      header: t("statistics"),
       render: (supplier) => (
         <div className="space-y-1 text-sm">
           <div className="flex items-center gap-2">
@@ -220,7 +218,7 @@ const SuppliersManagement = () => {
     },
     {
       key: "actions",
-      label: t("actions"),
+      header: t("actions"),
       render: (supplier) => (
         <div className="flex items-center gap-2">
           <button
@@ -394,7 +392,8 @@ const SuppliersManagement = () => {
                         {t("supplierName")}
                       </label>
                       <p className="text-gray-900 dark:text-white">
-                        {selectedSupplier.name}
+                        {selectedSupplier.supplier_name ||
+                          selectedSupplier.name}
                       </p>
                     </div>
                     <div>
@@ -410,7 +409,8 @@ const SuppliersManagement = () => {
                         {t("phoneNumber")}
                       </label>
                       <p className="text-gray-900 dark:text-white">
-                        {selectedSupplier.phone}
+                        {selectedSupplier.phone_number ||
+                          selectedSupplier.phone}
                       </p>
                     </div>
                     <div>

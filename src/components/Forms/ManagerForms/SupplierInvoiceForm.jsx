@@ -30,91 +30,96 @@ const SupplierInvoiceForm = ({
   const { isRTL } = useSelector((state) => state.language);
 
   const [formData, setFormData] = useState({
-    supplierId: "",
-    orderId: "",
-    amount: 0,
-    tax: 0,
-    total: 0,
-    status: "pending",
-    issueDate: new Date().toISOString().split("T")[0],
-    dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    supplier: "",
+    order_id: "",
+    issue_date: new Date().toISOString().split("T")[0],
+    due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       .toISOString()
       .split("T")[0],
-    paymentDate: "",
-    paymentMethod: "bank_transfer",
+    status: "Pending",
+    payment_method: "Bank Transfer",
     notes: "",
+    tax: 0,
+    total: 0,
     items: [],
   });
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newItem, setNewItem] = useState({
-    name: "",
+    item_name: "",
     quantity: 1,
-    unitPrice: 0,
+    unit_price: 0,
   });
 
   useEffect(() => {
     if (isOpen) {
       if (mode === "edit" && invoice) {
         setFormData({
-          supplierId: invoice.supplierId || "",
-          orderId: invoice.orderId || "",
-          amount: invoice.amount || 0,
+          supplier: invoice.supplier || invoice.supplierId || "",
+          order_id: invoice.order_id || invoice.orderId || "",
+          issue_date:
+            invoice.issue_date || invoice.issueDate
+              ? (invoice.issue_date || invoice.issueDate).split("T")[0]
+              : new Date().toISOString().split("T")[0],
+          due_date:
+            invoice.due_date || invoice.dueDate
+              ? (invoice.due_date || invoice.dueDate).split("T")[0]
+              : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+                  .toISOString()
+                  .split("T")[0],
+          status: invoice.status || "Pending",
+          payment_method:
+            invoice.payment_method || invoice.paymentMethod || "Bank Transfer",
+          notes: invoice.notes || "",
           tax: invoice.tax || 0,
           total: invoice.total || 0,
-          status: invoice.status || "pending",
-          issueDate: invoice.issueDate
-            ? invoice.issueDate.split("T")[0]
-            : new Date().toISOString().split("T")[0],
-          dueDate: invoice.dueDate
-            ? invoice.dueDate.split("T")[0]
-            : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-                .toISOString()
-                .split("T")[0],
-          paymentDate: invoice.paymentDate
-            ? invoice.paymentDate.split("T")[0]
-            : "",
-          paymentMethod: invoice.paymentMethod || "bank_transfer",
-          notes: invoice.notes || "",
-          items: invoice.items || [],
+          items: (invoice.items || []).map((item) => ({
+            id: item.id,
+            item_name: item.item_name,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            subtotal: item.subtotal || item.quantity * item.unit_price,
+          })),
         });
       } else {
         // Reset form for add mode
         setFormData({
-          supplierId: "",
-          orderId: "",
-          amount: 0,
-          tax: 0,
-          total: 0,
-          status: "pending",
-          issueDate: new Date().toISOString().split("T")[0],
-          dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+          supplier: "",
+          order_id: "",
+          issue_date: new Date().toISOString().split("T")[0],
+          due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
             .toISOString()
             .split("T")[0],
-          paymentDate: "",
-          paymentMethod: "bank_transfer",
+          status: "Pending",
+          payment_method: "Bank Transfer",
           notes: "",
+          tax: 0,
+          total: 0,
           items: [],
         });
       }
       setErrors({});
       setNewItem({
-        name: "",
+        item_name: "",
         quantity: 1,
-        unitPrice: 0,
+        unit_price: 0,
       });
     }
   }, [isOpen, mode, invoice]);
 
   useEffect(() => {
-    // Calculate total when amount or tax changes
-    const total = formData.amount + formData.tax;
+    // Calculate total when items or tax changes
+    const itemsTotal = formData.items.reduce((sum, item) => {
+      return sum + (parseFloat(item.subtotal || item.total) || 0);
+    }, 0);
+    const tax = parseFloat(formData.tax) || 0;
+    const total = itemsTotal + tax;
     setFormData((prev) => ({
       ...prev,
       total: total,
     }));
-  }, [formData.amount, formData.tax]);
+  }, [formData.items, formData.tax]);
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({
@@ -143,35 +148,39 @@ const SupplierInvoiceForm = ({
   };
 
   const addItem = () => {
-    if (!newItem.name.trim()) {
+    if (!newItem.item_name.trim()) {
       toast.error(t("pleaseFillItemDetails"));
       return;
     }
 
+    const quantity = parseFloat(newItem.quantity) || 0;
+    const unitPrice = parseFloat(newItem.unit_price) || 0;
+    const subtotal = quantity * unitPrice;
+
     const item = {
       ...newItem,
-      total: newItem.quantity * newItem.unitPrice,
+      quantity: quantity,
+      unit_price: unitPrice,
+      subtotal: subtotal,
+      total: subtotal, // Keep for backward compatibility
     };
 
     setFormData((prev) => ({
       ...prev,
       items: [...prev.items, item],
-      amount: prev.amount + item.total,
     }));
 
     setNewItem({
-      name: "",
+      item_name: "",
       quantity: 1,
-      unitPrice: 0,
+      unit_price: 0,
     });
   };
 
   const removeItem = (index) => {
-    const item = formData.items[index];
     setFormData((prev) => ({
       ...prev,
       items: prev.items.filter((_, i) => i !== index),
-      amount: prev.amount - item.total,
     }));
   };
 
@@ -179,30 +188,26 @@ const SupplierInvoiceForm = ({
     const newErrors = {};
 
     // Required fields
-    if (!formData.supplierId) {
-      newErrors.supplierId = t("supplierRequired");
+    if (!formData.supplier) {
+      newErrors.supplier = t("supplierRequired");
     }
 
-    if (!formData.orderId.trim()) {
-      newErrors.orderId = t("orderIdRequired");
+    if (!formData.order_id.trim()) {
+      newErrors.order_id = t("orderIdRequired");
     }
 
     if (formData.items.length === 0) {
       newErrors.items = t("atLeastOneItemRequired");
     }
 
-    // Amount validation
-    if (formData.amount <= 0) {
-      newErrors.amount = t("amountPositive");
-    }
-
+    // Tax validation
     if (formData.tax < 0) {
       newErrors.tax = t("taxPositive");
     }
 
     // Date validation
-    if (new Date(formData.dueDate) <= new Date(formData.issueDate)) {
-      newErrors.dueDate = t("dueDateAfterIssueDate");
+    if (new Date(formData.due_date) <= new Date(formData.issue_date)) {
+      newErrors.due_date = t("dueDateAfterIssueDate");
     }
 
     setErrors(newErrors);
@@ -226,16 +231,8 @@ const SupplierInvoiceForm = ({
       // Prepare data for submission
       const submitData = {
         ...formData,
-        issueDate: new Date(formData.issueDate).toISOString(),
-        dueDate: new Date(formData.dueDate).toISOString(),
-        paymentDate: formData.paymentDate
-          ? new Date(formData.paymentDate).toISOString()
-          : null,
-        id: mode === "edit" ? invoice.id : `SUP-INV-${Date.now()}`,
-        supplierName:
-          suppliers.find((s) => s.id === formData.supplierId)?.name || "",
-        supplierEmail:
-          suppliers.find((s) => s.id === formData.supplierId)?.email || "",
+        issue_date: formData.issue_date,
+        due_date: formData.due_date,
       };
 
       onSubmit(submitData);
@@ -255,19 +252,17 @@ const SupplierInvoiceForm = ({
 
   const handleClose = () => {
     setFormData({
-      supplierId: "",
-      orderId: "",
-      amount: 0,
-      tax: 0,
-      total: 0,
-      status: "pending",
-      issueDate: new Date().toISOString().split("T")[0],
-      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      supplier: "",
+      order_id: "",
+      issue_date: new Date().toISOString().split("T")[0],
+      due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
         .toISOString()
         .split("T")[0],
-      paymentDate: "",
-      paymentMethod: "bank_transfer",
+      status: "Pending",
+      payment_method: "Bank Transfer",
       notes: "",
+      tax: 0,
+      total: 0,
       items: [],
     });
     setErrors({});
@@ -277,19 +272,17 @@ const SupplierInvoiceForm = ({
 
   const clearDraft = () => {
     setFormData({
-      supplierId: "",
-      orderId: "",
-      amount: 0,
-      tax: 0,
-      total: 0,
-      status: "pending",
-      issueDate: new Date().toISOString().split("T")[0],
-      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      supplier: "",
+      order_id: "",
+      issue_date: new Date().toISOString().split("T")[0],
+      due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
         .toISOString()
         .split("T")[0],
-      paymentDate: "",
-      paymentMethod: "bank_transfer",
+      status: "Pending",
+      payment_method: "Bank Transfer",
       notes: "",
+      tax: 0,
+      total: 0,
       items: [],
     });
     setErrors({});
@@ -301,16 +294,16 @@ const SupplierInvoiceForm = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <div
-            className={`flex items-center gap-3 ${
-              isRTL ? "flex-row-reverse" : ""
-            }`}
-          >
+        <div
+          className={`flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 ${
+            isRTL ? "flex-row" : ""
+          }`}
+        >
+          <div className={`flex items-center gap-3 ${isRTL ? "flex-row" : ""}`}>
             <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
               <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             </div>
-            <div>
+            <div className={isRTL ? "text-right" : "text-left"}>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                 {mode === "add" ? t("addInvoice") : t("editInvoice")}
               </h2>
@@ -331,42 +324,46 @@ const SupplierInvoiceForm = ({
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Basic Information */}
           <div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+            <h3
+              className={`text-lg font-medium text-gray-900 dark:text-white mb-4 ${
+                isRTL ? "text-right" : "text-left"
+              }`}
+            >
               {t("invoiceInformation")}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 label={t("supplier")}
                 type="select"
-                value={formData.supplierId}
-                onChange={handleFieldChange("supplierId")}
+                value={formData.supplier}
+                onChange={handleFieldChange("supplier")}
                 options={[
                   { value: "", label: t("selectSupplier") },
                   ...suppliers.map((supplier) => ({
                     value: supplier.id,
-                    label: supplier.name,
+                    label: supplier.supplier_name || supplier.name,
                   })),
                 ]}
                 required
-                error={errors.supplierId}
+                error={errors.supplier}
                 icon={Building}
               />
 
               <FormField
                 label={t("orderId")}
-                value={formData.orderId}
-                onChange={handleFieldChange("orderId")}
+                value={formData.order_id}
+                onChange={handleFieldChange("order_id")}
                 placeholder={t("enterOrderId")}
                 required
-                error={errors.orderId}
+                error={errors.order_id}
                 icon={Package}
               />
 
               <FormField
                 label={t("issueDate")}
                 type="date"
-                value={formData.issueDate}
-                onChange={handleFieldChange("issueDate")}
+                value={formData.issue_date}
+                onChange={handleFieldChange("issue_date")}
                 required
                 icon={Calendar}
               />
@@ -374,10 +371,10 @@ const SupplierInvoiceForm = ({
               <FormField
                 label={t("dueDate")}
                 type="date"
-                value={formData.dueDate}
-                onChange={handleFieldChange("dueDate")}
+                value={formData.due_date}
+                onChange={handleFieldChange("due_date")}
                 required
-                error={errors.dueDate}
+                error={errors.due_date}
                 icon={Calendar}
               />
 
@@ -387,9 +384,9 @@ const SupplierInvoiceForm = ({
                 value={formData.status}
                 onChange={handleFieldChange("status")}
                 options={[
-                  { value: "pending", label: t("pending") },
-                  { value: "paid", label: t("paid") },
-                  { value: "overdue", label: t("overdue") },
+                  { value: "Pending", label: t("pending") },
+                  { value: "Paid", label: t("paid") },
+                  { value: "Overdue", label: t("overdue") },
                 ]}
                 required
               />
@@ -397,46 +394,44 @@ const SupplierInvoiceForm = ({
               <FormField
                 label={t("paymentMethod")}
                 type="select"
-                value={formData.paymentMethod}
-                onChange={handleFieldChange("paymentMethod")}
+                value={formData.payment_method}
+                onChange={handleFieldChange("payment_method")}
                 options={[
-                  { value: "bank_transfer", label: t("bankTransfer") },
-                  { value: "check", label: t("check") },
-                  { value: "cash", label: t("cash") },
+                  { value: "Bank Transfer", label: t("bankTransfer") },
+                  { value: "Check", label: t("check") },
+                  { value: "Cash", label: t("cash") },
                 ]}
                 required
               />
             </div>
-
-            {formData.status === "paid" && (
-              <div className="mt-4">
-                <FormField
-                  label={t("paymentDate")}
-                  type="date"
-                  value={formData.paymentDate}
-                  onChange={handleFieldChange("paymentDate")}
-                  icon={Calendar}
-                />
-              </div>
-            )}
           </div>
 
           {/* Items Section */}
           <div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+            <h3
+              className={`text-lg font-medium text-gray-900 dark:text-white mb-4 ${
+                isRTL ? "text-right" : "text-left"
+              }`}
+            >
               {t("invoiceItems")}
             </h3>
 
             {/* Add New Item */}
             <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg mb-4">
-              <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+              <h4
+                className={`text-sm font-medium text-gray-900 dark:text-white mb-3 ${
+                  isRTL ? "text-right" : "text-left"
+                }`}
+              >
                 {t("addNewItem")}
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <input
                   type="text"
-                  value={newItem.name}
-                  onChange={(e) => handleNewItemChange("name", e.target.value)}
+                  value={newItem.item_name}
+                  onChange={(e) =>
+                    handleNewItemChange("item_name", e.target.value)
+                  }
                   placeholder={t("itemName")}
                   className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                 />
@@ -452,9 +447,12 @@ const SupplierInvoiceForm = ({
                 />
                 <input
                   type="number"
-                  value={newItem.unitPrice}
+                  value={newItem.unit_price}
                   onChange={(e) =>
-                    handleNewItemChange("unitPrice", parseFloat(e.target.value))
+                    handleNewItemChange(
+                      "unit_price",
+                      parseFloat(e.target.value)
+                    )
                   }
                   placeholder={t("unitPrice")}
                   min="0"
@@ -476,29 +474,50 @@ const SupplierInvoiceForm = ({
               <div className="space-y-2">
                 {formData.items.map((item, index) => (
                   <div
-                    key={index}
-                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                    key={item.id || index}
+                    className={`grid grid-cols-4 gap-4 items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg ${
+                      isRTL ? "text-right" : "text-left"
+                    }`}
                   >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-4">
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">
-                          {item.quantity}x {item.name}
-                        </span>
-                        <span className="text-sm text-gray-600 dark:text-gray-400">
-                          ${item.unitPrice.toFixed(2)} each
-                        </span>
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">
-                          ${item.total.toFixed(2)}
-                        </span>
-                      </div>
+                    <div className={`${isRTL ? "text-right" : "text-left"}`}>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        {isRTL
+                          ? `${item.item_name} x ${item.quantity}`
+                          : `${item.quantity}x ${item.item_name}`}
+                      </span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => removeItem(index)}
-                      className="p-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                    <div className={`${isRTL ? "text-right" : "text-left"}`}>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        {isRTL
+                          ? ` ${t("each")} ${(
+                              parseFloat(item.unit_price) || 0
+                            ).toFixed(2)} `
+                          : ` ${(
+                              parseFloat(item.unit_price) || 0
+                            ).toFixed(2)} ${t("each")}`}
+                      </span>
+                    </div>
+                    <div className={`${isRTL ? "text-right" : "text-left"}`}>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        $
+                        {(parseFloat(item.subtotal || item.total) || 0).toFixed(
+                          2
+                        )}
+                      </span>
+                    </div>
+                    <div
+                      className={`flex ${
+                        isRTL ? "justify-end" : "justify-end"
+                      }`}
                     >
-                      <X className="w-4 h-4" />
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => removeItem(index)}
+                        className="p-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -513,19 +532,23 @@ const SupplierInvoiceForm = ({
 
           {/* Financial Information */}
           <div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+            <h3
+              className={`text-lg font-medium text-gray-900 dark:text-white mb-4 ${
+                isRTL ? "text-right" : "text-left"
+              }`}
+            >
               {t("financialInformation")}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <FormField
                 label={t("subtotal")}
                 type="number"
-                value={formData.amount}
-                onChange={handleFieldChange("amount")}
+                value={formData.items.reduce((sum, item) => {
+                  return sum + (parseFloat(item.subtotal || item.total) || 0);
+                }, 0)}
                 min="0"
                 step="0.01"
                 required
-                error={errors.amount}
                 icon={Calculator}
                 disabled
               />
@@ -546,7 +569,6 @@ const SupplierInvoiceForm = ({
                 label={t("total")}
                 type="number"
                 value={formData.total}
-                onChange={handleFieldChange("total")}
                 min="0"
                 step="0.01"
                 required
@@ -558,7 +580,11 @@ const SupplierInvoiceForm = ({
 
           {/* Additional Information */}
           <div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+            <h3
+              className={`text-lg font-medium text-gray-900 dark:text-white mb-4 ${
+                isRTL ? "text-right" : "text-left"
+              }`}
+            >
               {t("additionalInformation")}
             </h3>
             <FormField
@@ -575,9 +601,7 @@ const SupplierInvoiceForm = ({
           {Object.keys(errors).length > 0 && (
             <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
               <div
-                className={`flex items-center gap-2 ${
-                  isRTL ? "flex-row-reverse" : ""
-                }`}
+                className={`flex items-center gap-2 ${isRTL ? "flex-row" : ""}`}
               >
                 <AlertCircle className="w-5 h-5 text-red-500" />
                 <h4 className="text-sm font-medium text-red-800 dark:text-red-200">
@@ -598,7 +622,7 @@ const SupplierInvoiceForm = ({
           {/* Actions */}
           <div
             className={`flex items-center justify-between pt-6 border-t border-gray-200 dark:border-gray-700 ${
-              isRTL ? "flex-row-reverse" : ""
+              isRTL ? "flex-row" : ""
             }`}
           >
             <div className="flex items-center gap-3">
@@ -612,9 +636,7 @@ const SupplierInvoiceForm = ({
             </div>
 
             <div
-              className={`flex items-center gap-3 ${
-                isRTL ? "flex-row-reverse" : ""
-              }`}
+              className={`flex items-center gap-3 ${isRTL ? "flex-row" : ""}`}
             >
               <button
                 type="button"

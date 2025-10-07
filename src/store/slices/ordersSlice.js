@@ -7,7 +7,7 @@ export const fetchOrders = createAsyncThunk(
   async (params = {}, { rejectWithValue }) => {
     try {
       const response = await orderService.getOrders(params);
-      return response.data || response;
+      return response;
     } catch (error) {
       return rejectWithValue(error.message);
     }
@@ -16,10 +16,10 @@ export const fetchOrders = createAsyncThunk(
 
 export const createOrder = createAsyncThunk(
   "orders/createOrder",
-  async (orderData, { rejectWithValue }) => {
+  async ({ orderData, sellerId }, { rejectWithValue }) => {
     try {
-      const response = await orderService.createOrder(orderData);
-      return response.data || response;
+      const response = await orderService.createOrder(orderData, sellerId);
+      return response;
     } catch (error) {
       return rejectWithValue(error.message);
     }
@@ -28,10 +28,10 @@ export const createOrder = createAsyncThunk(
 
 export const updateOrder = createAsyncThunk(
   "orders/updateOrder",
-  async ({ id, updates }, { rejectWithValue }) => {
+  async ({ id, updates, sellerId }, { rejectWithValue }) => {
     try {
-      const response = await orderService.updateOrder(id, updates);
-      return response.data || response;
+      const response = await orderService.updateOrder(id, updates, sellerId);
+      return response;
     } catch (error) {
       return rejectWithValue(error.message);
     }
@@ -43,7 +43,7 @@ export const updateOrderStatus = createAsyncThunk(
   async ({ id, status }, { rejectWithValue }) => {
     try {
       const response = await orderService.updateOrderStatus(id, status);
-      return response.data || response;
+      return response;
     } catch (error) {
       return rejectWithValue(error.message);
     }

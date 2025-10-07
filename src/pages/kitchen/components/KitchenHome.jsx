@@ -19,8 +19,8 @@ const KitchenHome = () => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
   const { theme, isRTL } = useSelector((state) => state.language);
-  const { orders, loading, error } = useSelector((state) => state.orders);
-  const [kitchenSettings, setKitchenSettings] = useState({
+  const { orders } = useSelector((state) => state.orders);
+  const [kitchenSettings] = useState({
     autoRefresh: true,
     refreshInterval: 20,
     soundNotifications: true,

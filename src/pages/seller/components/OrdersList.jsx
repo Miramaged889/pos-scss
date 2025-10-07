@@ -33,10 +33,12 @@ import {
   fetchCustomers,
   createCustomer,
 } from "../../../store/slices/customerSlice";
+import { productService } from "../../../services";
 
 const OrdersList = () => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
+  const { user } = useSelector((state) => state.auth);
   const { orders } = useSelector((state) => state.orders);
   const dispatch = useDispatch();
 
@@ -50,11 +52,36 @@ const OrdersList = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editFormData, setEditFormData] = useState({});
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
 
-  // Load orders from API on component mount
+  // Load orders and products from API on component mount
   useEffect(() => {
     dispatch(fetchOrders());
+    fetchProducts();
   }, [dispatch]);
+
+  // Fetch products from API
+  const fetchProducts = async () => {
+    try {
+      setProductsLoading(true);
+      const response = await productService.getProducts();
+      setProducts(response);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+    } finally {
+      setProductsLoading(false);
+    }
+  };
+
+  // Helper function to get product name by ID
+  const getProductName = (productId) => {
+    const product = products.find((p) => p.id === productId);
+    if (product) {
+      return isRTL ? product.name : product.nameEn || product.name;
+    }
+    return `Product #${productId}`;
+  };
 
   // Filter orders based on status, search term and date range
   const filteredOrders = orders.filter((order) => {
@@ -169,10 +196,14 @@ const OrdersList = () => {
     if (selectedOrder) {
       try {
         await ensureCustomerExists(editFormData);
+
+        const sellerId = user?.id;
+
         await dispatch(
           updateOrder({
             id: selectedOrder.id,
             updates: editFormData,
+            sellerId,
           })
         );
         setShowEditModal(false);
@@ -556,7 +587,7 @@ const OrdersList = () => {
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div
                 className={`flex items-center justify-between ${
-                  isRTL ? "flex-row-reverse" : ""
+                  isRTL ? "flex-row" : ""
                 }`}
               >
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -622,7 +653,7 @@ const OrdersList = () => {
                       className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
                     >
                       <span className="text-gray-900 dark:text-white">
-                        {isRTL ? product.name : product.nameEn || product.name}
+                        {productsLoading ? "..." : getProductName(product.id)}
                       </span>
                       <span className="text-gray-600 dark:text-gray-400">
                         {formatNumberEnglish(product.quantity)} ×{" "}

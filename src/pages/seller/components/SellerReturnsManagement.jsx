@@ -9,34 +9,35 @@ import {
   Trash2,
   RotateCcw,
   Package,
-  Mail,
   DollarSign,
   Clock,
   CheckCircle,
-  XCircle,
   Building,
   Plus,
   X,
   Save,
   AlertCircle,
-  ArrowLeft,
-  ArrowRight,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 import DataTable from "../../../components/Common/DataTable";
-import { SellerReturnForm } from "../../../components/Forms/SellerForms";
+import { SellerReturnForm } from "../../../components/Forms";
+import { supplierService } from "../../../services/supplierService";
 
-const SellerReturnsManagement = () => {
+const SupplierReturnsManagement = () => {
   const { t } = useTranslation();
+
+  // Local state
   const [returns, setReturns] = useState([]);
-  const [filteredReturns, setFilteredReturns] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+  const [itemNames, setItemNames] = useState({}); // Store item ID to name mapping
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [filteredReturns, setFilteredReturns] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [supplierFilter, setSupplierFilter] = useState("all");
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
-  const [suppliers, setSuppliers] = useState([]);
 
   // Modal states
   const [viewModal, setViewModal] = useState(false);
@@ -50,48 +51,134 @@ const SellerReturnsManagement = () => {
   const [formMode, setFormMode] = useState("add");
   const [selectedReturnForForm, setSelectedReturnForForm] = useState(null);
 
+  // Load suppliers and returns data
+  const loadSuppliers = useCallback(async () => {
+    try {
+      const response = await supplierService.getSuppliers();
+      const suppliersList = response.results || response || [];
+      setSuppliers(suppliersList);
+    } catch (error) {
+      console.error("Error loading suppliers:", error);
+      setError(t("errorLoadingSuppliers"));
+    }
+  }, [t]);
+
+  // Load item names for all suppliers
+  const loadItemNames = useCallback(async () => {
+    try {
+      const itemNamesMap = {};
+
+      // Load items for each supplier to build the mapping
+      for (const supplier of suppliers) {
+        const items = await supplierService.getSupplierItems(supplier.id);
+        items.forEach((item) => {
+          itemNamesMap[item.id] = item.name;
+        });
+      }
+
+      setItemNames(itemNamesMap);
+    } catch (error) {
+      console.error("Error loading item names:", error);
+    }
+  }, [suppliers]);
+
+  const loadReturns = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await supplierService.getSupplierReturns();
+      const returnsList = response.results || response || [];
+
+      // Enrich returns with supplier information and item names
+      const enrichedReturns = await Promise.all(
+        returnsList.map(async (returnItem) => {
+          const supplier = suppliers.find((s) => s.id === returnItem.supplier);
+          return {
+            ...returnItem,
+            supplierName:
+              supplier?.supplier_name || supplier?.name || "Unknown",
+            supplierEmail: supplier?.email || "",
+            purchaseItemName:
+              itemNames[returnItem.purchase_item] ||
+              returnItem.purchase_item ||
+              "Unknown Item",
+          };
+        })
+      );
+
+      setReturns(enrichedReturns);
+    } catch (error) {
+      console.error("Error loading returns:", error);
+      setError(t("errorLoadingReturns"));
+    } finally {
+      setLoading(false);
+    }
+  }, [suppliers, itemNames, t]);
+
   useEffect(() => {
-    loadReturns();
     loadSuppliers();
-  }, []);
+  }, [loadSuppliers]);
+
+  useEffect(() => {
+    if (suppliers.length > 0) {
+      loadItemNames();
+    }
+  }, [suppliers, loadItemNames]);
+
+  useEffect(() => {
+    if (suppliers.length > 0 && Object.keys(itemNames).length > 0) {
+      loadReturns();
+    }
+  }, [suppliers, itemNames, loadReturns]);
+
+  // Show error toast when there's an error
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+    }
+  }, [error]);
 
   const filterReturns = useCallback(() => {
-    let filtered = [...returns];
+    let filtered = [...(returns || [])];
 
     // Search filter
     if (searchTerm) {
       filtered = filtered.filter(
         (returnItem) =>
-          returnItem.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          returnItem.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          returnItem.supplierName
+          returnItem.id
+            ?.toString()
             .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          returnItem.purchaseItemName
+            ?.toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          returnItem.purchase_item
+            ?.toString()
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          returnItem.supplierName
+            ?.toLowerCase()
             .includes(searchTerm.toLowerCase()) ||
           returnItem.supplierEmail
-            .toLowerCase()
+            ?.toLowerCase()
             .includes(searchTerm.toLowerCase()) ||
-          returnItem.reason.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    // Status filter
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(
-        (returnItem) => returnItem.status === statusFilter
+          returnItem.return_reason
+            ?.toLowerCase()
+            .includes(searchTerm.toLowerCase())
       );
     }
 
     // Supplier filter
     if (supplierFilter !== "all") {
       filtered = filtered.filter(
-        (returnItem) => returnItem.supplierId === supplierFilter
+        (returnItem) => returnItem.supplier?.toString() === supplierFilter
       );
     }
 
     // Date range filter
     if (dateRange.start && dateRange.end) {
       filtered = filtered.filter((returnItem) => {
-        const returnDate = new Date(returnItem.returnDate);
+        const returnDate = new Date(returnItem.created_at);
         const startDate = new Date(dateRange.start);
         const endDate = new Date(dateRange.end);
         return returnDate >= startDate && returnDate <= endDate;
@@ -99,311 +186,11 @@ const SellerReturnsManagement = () => {
     }
 
     setFilteredReturns(filtered);
-  }, [returns, searchTerm, statusFilter, supplierFilter, dateRange]);
+  }, [returns, searchTerm, supplierFilter, dateRange]);
 
   useEffect(() => {
     filterReturns();
   }, [filterReturns]);
-
-  const loadReturns = () => {
-    setLoading(true);
-    // Mock data for supplier returns
-    const mockReturns = [
-      {
-        id: "SUP-RET-001",
-        supplierId: "SUP-001",
-        supplierName: "شركة الأغذية المتحدة",
-        supplierEmail: "info@unitedfoods.com",
-        orderId: "PO-001",
-        invoiceId: "SUP-INV-001",
-        returnDate: "2024-01-15T10:30:00",
-        status: "approved",
-        reason: "Damaged goods during transport",
-        totalAmount: 2500.0,
-        refundAmount: 2500.0,
-        refundMethod: "bank_transfer",
-        notes: "Return processed and refund issued",
-        items: [
-          {
-            name: "Rice",
-            quantity: 10,
-            unitPrice: 50.0,
-            total: 500.0,
-            reason: "Damaged packaging",
-          },
-          {
-            name: "Oil",
-            quantity: 5,
-            unitPrice: 80.0,
-            total: 400.0,
-            reason: "Leaking containers",
-          },
-          {
-            name: "Sugar",
-            quantity: 15,
-            unitPrice: 40.0,
-            total: 600.0,
-            reason: "Contaminated",
-          },
-          {
-            name: "Flour",
-            quantity: 20,
-            unitPrice: 50.0,
-            total: 1000.0,
-            reason: "Expired",
-          },
-        ],
-        processedBy: "أحمد محمد",
-        processedDate: "2024-01-16T14:30:00",
-      },
-      {
-        id: "SUP-RET-002",
-        supplierId: "SUP-002",
-        supplierName: "مؤسسة البناء الحديث",
-        supplierEmail: "contact@modernbuilding.com",
-        orderId: "PO-002",
-        invoiceId: "SUP-INV-002",
-        returnDate: "2024-01-14T15:45:00",
-        status: "pending",
-        reason: "Wrong specifications delivered",
-        totalAmount: 5000.0,
-        refundAmount: 0.0,
-        refundMethod: null,
-        notes: "Awaiting supplier confirmation",
-        items: [
-          {
-            name: "Cement",
-            quantity: 50,
-            unitPrice: 25.0,
-            total: 1250.0,
-            reason: "Wrong grade",
-          },
-          {
-            name: "Steel",
-            quantity: 10,
-            unitPrice: 300.0,
-            total: 3000.0,
-            reason: "Incorrect dimensions",
-          },
-          {
-            name: "Bricks",
-            quantity: 200,
-            unitPrice: 5.0,
-            total: 1000.0,
-            reason: "Wrong color",
-          },
-        ],
-        processedBy: null,
-        processedDate: null,
-      },
-      {
-        id: "SUP-RET-003",
-        supplierId: "SUP-003",
-        supplierName: "شركة الإلكترونيات المتقدمة",
-        supplierEmail: "sales@advancedelectronics.com",
-        orderId: "PO-003",
-        invoiceId: "SUP-INV-003",
-        returnDate: "2024-01-13T18:20:00",
-        status: "rejected",
-        reason: "Customer changed mind",
-        totalAmount: 8000.0,
-        refundAmount: 0.0,
-        refundMethod: null,
-        notes: "Return rejected - not supplier's fault",
-        items: [
-          {
-            name: "Laptops",
-            quantity: 2,
-            unitPrice: 2000.0,
-            total: 4000.0,
-            reason: "No technical issue",
-          },
-          {
-            name: "Monitors",
-            quantity: 4,
-            unitPrice: 500.0,
-            total: 2000.0,
-            reason: "Working properly",
-          },
-          {
-            name: "Printers",
-            quantity: 1,
-            unitPrice: 1500.0,
-            total: 1500.0,
-            reason: "Functional",
-          },
-        ],
-        processedBy: "فاطمة أحمد",
-        processedDate: "2024-01-14T09:15:00",
-      },
-      {
-        id: "SUP-RET-004",
-        supplierId: "SUP-004",
-        supplierName: "مصنع النسيج الوطني",
-        supplierEmail: "info@nationaltextile.com",
-        orderId: "PO-004",
-        invoiceId: "SUP-INV-004",
-        returnDate: "2024-01-12T12:15:00",
-        status: "approved",
-        reason: "Quality issues",
-        totalAmount: 1800.0,
-        refundAmount: 1800.0,
-        refundMethod: "check",
-        notes: "Quality control failed - full refund issued",
-        items: [
-          {
-            name: "Cotton Fabric",
-            quantity: 15,
-            unitPrice: 80.0,
-            total: 1200.0,
-            reason: "Poor quality",
-          },
-          {
-            name: "Polyester",
-            quantity: 10,
-            unitPrice: 60.0,
-            total: 600.0,
-            reason: "Color fading",
-          },
-        ],
-        processedBy: "خالد سعد",
-        processedDate: "2024-01-13T11:45:00",
-      },
-      {
-        id: "SUP-RET-005",
-        supplierId: "SUP-005",
-        supplierName: "شركة الأدوية العالمية",
-        supplierEmail: "orders@globalpharma.com",
-        orderId: "PO-005",
-        invoiceId: "SUP-INV-005",
-        returnDate: "2024-01-11T09:30:00",
-        status: "approved",
-        reason: "Expired products",
-        totalAmount: 3500.0,
-        refundAmount: 3500.0,
-        refundMethod: "bank_transfer",
-        notes: "Expired medications returned - safety concern",
-        items: [
-          {
-            name: "Antibiotics",
-            quantity: 50,
-            unitPrice: 50.0,
-            total: 2500.0,
-            reason: "Expired",
-          },
-          {
-            name: "Painkillers",
-            quantity: 100,
-            unitPrice: 15.0,
-            total: 1500.0,
-            reason: "Expired",
-          },
-        ],
-        processedBy: "نورا عبدالله",
-        processedDate: "2024-01-12T16:20:00",
-      },
-    ];
-
-    setTimeout(() => {
-      setReturns(mockReturns);
-      setFilteredReturns(mockReturns);
-      setLoading(false);
-    }, 1000);
-  };
-
-  const loadSuppliers = () => {
-    const mockSuppliers = [
-      {
-        id: "SUP-001",
-        name: "شركة الأغذية المتحدة",
-        email: "info@unitedfoods.com",
-      },
-      {
-        id: "SUP-002",
-        name: "مؤسسة البناء الحديث",
-        email: "contact@modernbuilding.com",
-      },
-      {
-        id: "SUP-003",
-        name: "شركة الإلكترونيات المتقدمة",
-        email: "sales@advancedelectronics.com",
-      },
-      {
-        id: "SUP-004",
-        name: "مصنع النسيج الوطني",
-        email: "info@nationaltextile.com",
-      },
-      {
-        id: "SUP-005",
-        name: "شركة الأدوية العالمية",
-        email: "orders@globalpharma.com",
-      },
-    ];
-    setSuppliers(mockSuppliers);
-  };
-
-  const getStatusBadge = (status) => {
-    const statusConfig = {
-      approved: {
-        color:
-          "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-        icon: CheckCircle,
-      },
-      pending: {
-        color:
-          "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
-        icon: Clock,
-      },
-      rejected: {
-        color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-        icon: XCircle,
-      },
-    };
-
-    const config = statusConfig[status] || statusConfig.pending;
-    const Icon = config.icon;
-
-    return (
-      <span
-        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${config.color}`}
-      >
-        <Icon className="w-3 h-3" />
-        {t(status)}
-      </span>
-    );
-  };
-
-  const getRefundMethodBadge = (method) => {
-    if (!method) return null;
-
-    const methodConfig = {
-      bank_transfer: {
-        color:
-          "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-        text: t("bankTransfer"),
-      },
-      check: {
-        color:
-          "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
-        text: t("check"),
-      },
-      cash: {
-        color:
-          "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-        text: t("cash"),
-      },
-    };
-
-    const config = methodConfig[method] || methodConfig.bank_transfer;
-
-    return (
-      <span
-        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${config.color}`}
-      >
-        {config.text}
-      </span>
-    );
-  };
 
   const columns = [
     {
@@ -411,16 +198,16 @@ const SellerReturnsManagement = () => {
       accessor: "id",
       render: (item) => (
         <span className="font-medium text-gray-900 dark:text-white">
-          {item.id}
+          #{item.id}
         </span>
       ),
     },
     {
-      header: t("orderId"),
-      accessor: "orderId",
+      header: t("purchaseItem"),
+      accessor: "purchaseItemName",
       render: (item) => (
         <span className="text-sm text-gray-600 dark:text-gray-400">
-          {item.orderId}
+          {item.purchaseItemName}
         </span>
       ),
     },
@@ -440,52 +227,34 @@ const SellerReturnsManagement = () => {
     },
     {
       header: t("reason"),
-      accessor: "reason",
+      accessor: "return_reason",
       render: (item) => (
         <div className="max-w-xs">
           <p className="text-sm text-gray-900 dark:text-white truncate">
-            {item.reason}
+            {item.return_reason}
           </p>
         </div>
       ),
     },
     {
-      header: t("amount"),
-      accessor: "totalAmount",
+      header: t("quantity"),
+      accessor: "quantity",
       render: (item) => (
         <div>
           <p className="font-medium text-gray-900 dark:text-white">
-            ${item.totalAmount.toFixed(2)}
-          </p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Refund: ${item.refundAmount.toFixed(2)}
+            {item.quantity}
           </p>
         </div>
       ),
     },
     {
-      header: t("status"),
-      accessor: "status",
-      render: (item) => getStatusBadge(item.status),
-    },
-    {
-      header: t("refund"),
-      accessor: "refundMethod",
-      render: (item) => getRefundMethodBadge(item.refundMethod),
-    },
-    {
       header: t("returnDate"),
-      accessor: "returnDate",
+      accessor: "created_at",
       render: (item) => (
         <div>
           <p className="text-sm text-gray-900 dark:text-white">
-            {new Date(item.returnDate).toLocaleDateString()}
+            {new Date(item.created_at).toLocaleDateString()}
           </p>
-          {item.processedDate && (
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Processed: {new Date(item.processedDate).toLocaleDateString()}
-            </p>
-          )}
         </div>
       ),
     },
@@ -532,8 +301,7 @@ const SellerReturnsManagement = () => {
     setViewModal(true);
   };
 
-  const handleProcessReturn = (returnItem) => {
-    console.log("Process return:", returnItem);
+  const handleProcessReturn = () => {
     toast.success(t("returnProcessed"));
   };
 
@@ -542,40 +310,43 @@ const SellerReturnsManagement = () => {
     setDeleteModal(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!selectedReturn) return;
 
-    const updatedReturns = returns.map((returnItem) =>
-      returnItem.id === selectedReturn.id
-        ? {
-            ...returnItem,
-            status: editForm.status,
-            notes: editForm.notes,
-            refundAmount: editForm.refundAmount,
-            refundMethod: editForm.refundMethod,
-            processedBy: "أحمد محمد",
-            processedDate: new Date().toISOString(),
-          }
-        : returnItem
-    );
+    try {
+      const updateData = {
+        return_reason: editForm.return_reason || selectedReturn.return_reason,
+        quantity: editForm.quantity || selectedReturn.quantity,
+      };
 
-    setReturns(updatedReturns);
-    setEditModal(false);
-    setSelectedReturn(null);
-    setEditForm({});
-    toast.success(t("returnUpdated"));
+      await supplierService.updateSupplierReturn(selectedReturn.id, updateData);
+
+      setEditModal(false);
+      setSelectedReturn(null);
+      setEditForm({});
+      toast.success(t("returnUpdated"));
+      // Reload data
+      loadReturns();
+    } catch (error) {
+      console.error("Error updating return:", error);
+      toast.error(error?.message || t("updateFailed"));
+    }
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!selectedReturn) return;
 
-    const updatedReturns = returns.filter(
-      (returnItem) => returnItem.id !== selectedReturn.id
-    );
-    setReturns(updatedReturns);
-    setDeleteModal(false);
-    setSelectedReturn(null);
-    toast.success(t("returnDeleted"));
+    try {
+      await supplierService.deleteSupplierReturn(selectedReturn.id);
+      setDeleteModal(false);
+      setSelectedReturn(null);
+      toast.success(t("returnDeleted"));
+      // Reload data
+      loadReturns();
+    } catch (error) {
+      console.error("Error deleting return:", error);
+      toast.error(error?.message || t("deleteFailed"));
+    }
   };
 
   // Form handlers
@@ -591,22 +362,25 @@ const SellerReturnsManagement = () => {
     setFormModal(true);
   };
 
-  const handleFormSubmit = (formData) => {
-    if (formMode === "add") {
-      const newReturn = {
-        ...formData,
-        id: `SUP-RET-${Date.now()}`,
-      };
-      setReturns([newReturn, ...returns]);
-      toast.success(t("returnAddedSuccessfully"));
-    } else {
-      const updatedReturns = returns.map((returnItem) =>
-        returnItem.id === selectedReturnForForm.id ? formData : returnItem
-      );
-      setReturns(updatedReturns);
-      toast.success(t("returnUpdatedSuccessfully"));
+  const handleFormSubmit = async (formData) => {
+    try {
+      if (formMode === "add") {
+        await supplierService.createSupplierReturn(formData);
+        toast.success(t("returnAddedSuccessfully"));
+      } else {
+        await supplierService.updateSupplierReturn(
+          selectedReturnForForm.id,
+          formData
+        );
+        toast.success(t("returnUpdatedSuccessfully"));
+      }
+      setFormModal(false);
+      // Reload data
+      loadReturns();
+    } catch (error) {
+      console.error("Error submitting return:", error);
+      toast.error(error?.message || t("operationFailed"));
     }
-    setFormModal(false);
   };
 
   const handleFormClose = () => {
@@ -628,15 +402,16 @@ const SellerReturnsManagement = () => {
 
   // Get statistics
   const getStats = () => {
-    const totalReturns = returns.length;
-    const approvedReturns = returns.filter(
+    const returnList = returns || [];
+    const totalReturns = returnList.length;
+    const approvedReturns = returnList.filter(
       (returnItem) => returnItem.status === "approved"
     ).length;
-    const pendingReturns = returns.filter(
+    const pendingReturns = returnList.filter(
       (returnItem) => returnItem.status === "pending"
     ).length;
-    const totalRefundAmount = returns.reduce(
-      (sum, returnItem) => sum + returnItem.refundAmount,
+    const totalRefundAmount = returnList.reduce(
+      (sum, returnItem) => sum + (returnItem.refundAmount || 0),
       0
     );
 
@@ -649,6 +424,9 @@ const SellerReturnsManagement = () => {
   };
 
   const stats = getStats();
+
+  // Safe suppliers array to prevent map error
+  const safeSuppliers = Array.isArray(suppliers) ? suppliers : [];
 
   return (
     <div className="space-y-6">
@@ -795,7 +573,7 @@ const SellerReturnsManagement = () => {
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
               >
                 <option value="all">{t("allSuppliers")}</option>
-                {suppliers.map((supplier) => (
+                {safeSuppliers.map((supplier) => (
                   <option key={supplier.id} value={supplier.id}>
                     {supplier.name}
                   </option>
@@ -844,13 +622,13 @@ const SellerReturnsManagement = () => {
       {/* Results Summary */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          {t("showing")} {filteredReturns.length} {t("of")} {returns.length}{" "}
-          {t("returns")}
+          {t("showing")} {filteredReturns.length} {t("of")}{" "}
+          {(returns || []).length} {t("returns")}
         </p>
         <div className="flex items-center gap-2">
           <Building className="w-4 h-4 text-gray-500" />
           <span className="text-sm text-gray-600 dark:text-gray-400">
-            {suppliers.length} {t("activeSuppliers")}
+            {safeSuppliers.length} {t("activeSuppliers")}
           </span>
         </div>
       </div>
@@ -904,16 +682,16 @@ const SellerReturnsManagement = () => {
                     {t("returnInformation")}
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    <strong>{t("status")}:</strong>{" "}
-                    {getStatusBadge(selectedReturn.status)}
+                    <strong>{t("returnReason")}:</strong>{" "}
+                    {selectedReturn.return_reason}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    <strong>{t("totalAmount")}:</strong> $
-                    {selectedReturn.totalAmount.toFixed(2)}
+                    <strong>{t("quantity")}:</strong> {selectedReturn.quantity}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    <strong>{t("refundAmount")}:</strong> $
-                    {selectedReturn.refundAmount.toFixed(2)}
+                    <strong>{t("purchaseItem")}:</strong>{" "}
+                    {selectedReturn.purchaseItemName ||
+                      selectedReturn.purchase_item}
                   </p>
                 </div>
               </div>
@@ -1147,10 +925,10 @@ const SellerReturnsManagement = () => {
         onSubmit={handleFormSubmit}
         returnItem={selectedReturnForForm}
         mode={formMode}
-        suppliers={suppliers}
+        suppliers={safeSuppliers}
       />
     </div>
   );
 };
 
-export default SellerReturnsManagement;
+export default SupplierReturnsManagement;

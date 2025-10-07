@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import {
   Search,
@@ -12,161 +13,267 @@ import {
   CheckCircle,
   XCircle,
   Clock,
+  AlertCircle,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import {
+  fetchTenantUsers,
+  createTenantUser,
+  updateTenantUser,
+  deleteTenantUser,
+  clearError,
+} from "../../../store/slices/tenantUsersSlice";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 
 const UserManagement = () => {
   const { t } = useTranslation();
-  const [users, setUsers] = useState([]);
+  const dispatch = useDispatch();
+
+  // Get data from Redux store
+  const {
+    users: tenantUsers,
+    loading,
+    error,
+  } = useSelector((state) => state.tenantUsers);
+
+  // Get tenant info for user limits and module settings
+  const { tenantInfo } = useSelector((state) => state.tenant);
+
+  // Local state for UI
   const [filteredUsers, setFilteredUsers] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
 
-  // Form state for creating/editing user
+  // Form state for creating/editing user - matching API schema
   const [formData, setFormData] = useState({
+    username: "",
     email: "",
     password: "",
-    role: "seller",
+    role: "Seller",
   });
 
+  // Fetch tenant users and tenant info on component mount
+  useEffect(() => {
+    dispatch(fetchTenantUsers());
+    dispatch(fetchTenantInfo());
+  }, [dispatch]);
+
+  // Clear error when component unmounts
+  useEffect(() => {
+    return () => {
+      dispatch(clearError());
+    };
+  }, [dispatch]);
+
+  // Handle error display
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+    }
+  }, [error]);
+
+  // Use tenant users directly from Redux
+  const users = React.useMemo(() => tenantUsers || [], [tenantUsers]);
+
+  // Calculate user limits and availability
+  const userLimits = React.useMemo(() => {
+    if (!tenantInfo) {
+      return {
+        currentUsers: users.length,
+        maxUsers: 0,
+        canAddUser: false,
+        remainingUsers: 0,
+      };
+    }
+
+    const currentUsers = users.length;
+    const maxUsers = tenantInfo.no_users || 0;
+    const canAddUser = currentUsers < maxUsers;
+    const remainingUsers = Math.max(0, maxUsers - currentUsers);
+
+    return {
+      currentUsers,
+      maxUsers,
+      canAddUser,
+      remainingUsers,
+    };
+  }, [tenantInfo, users.length]);
+
+  // Get available roles based on enabled modules
+  const availableRoles = React.useMemo(() => {
+    if (!tenantInfo?.modules_enabled) {
+      return [
+        { value: "Seller", label: t("seller") },
+        { value: "Manager", label: t("manager") },
+      ];
+    }
+
+    const roles = [
+      { value: "Seller", label: t("seller") },
+      { value: "Manager", label: t("manager") },
+    ];
+
+    // Add kitchen role if kitchen module is enabled
+    if (tenantInfo.modules_enabled.kitchen === true) {
+      roles.push({ value: "Kitchen", label: t("kitchen") });
+    }
+
+    // Add delivery role if delivery module is enabled
+    if (tenantInfo.modules_enabled.Delivery === true) {
+      roles.push({ value: "Delivery", label: t("delivery") });
+    }
+
+    return roles;
+  }, [tenantInfo, t]);
+
   const filterUsers = useCallback(() => {
+    if (!Array.isArray(users)) {
+      setFilteredUsers([]);
+      return;
+    }
+
     let filtered = [...users];
 
-    // Search filter
+    // Search filter - search by username, email, or role
     if (searchTerm) {
-      filtered = filtered.filter((user) =>
-        user.email.toLowerCase().includes(searchTerm.toLowerCase())
+      filtered = filtered.filter(
+        (user) =>
+          (user.username &&
+            user.username.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (user.email &&
+            user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (user.role &&
+            user.role.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
 
     // Role filter
     if (roleFilter !== "all") {
-      filtered = filtered.filter((user) => user.role === roleFilter);
+      filtered = filtered.filter(
+        (user) =>
+          user.role && user.role.toLowerCase() === roleFilter.toLowerCase()
+      );
     }
 
     setFilteredUsers(filtered);
   }, [users, searchTerm, roleFilter]);
 
   useEffect(() => {
-    loadUsers();
-  }, []);
-
-  useEffect(() => {
     filterUsers();
   }, [filterUsers]);
 
-  const loadUsers = () => {
-    setLoading(true);
-    // Mock data with different user types
-    const mockUsers = [
-      {
-        id: 1,
-        email: "mohamed.ali@company.com",
-        role: "seller",
-        status: "active",
-        joinDate: "2024-01-01",
-      },
-      {
-        id: 2,
-        email: "ali.hassan@company.com",
-        role: "seller",
-        status: "active",
-        joinDate: "2024-01-05",
-      },
-      {
-        id: 3,
-        email: "sara.mohamed@company.com",
-        role: "kitchen",
-        status: "active",
-        joinDate: "2024-01-10",
-      },
-      {
-        id: 4,
-        email: "ahmed.khalid@company.com",
-        role: "delivery",
-        status: "active",
-        joinDate: "2024-01-15",
-      },
-    ];
-
-    setTimeout(() => {
-      setUsers(mockUsers);
-      setLoading(false);
-    }, 1000);
-  };
+  // Mock data removed - now using Redux data
 
   const handleCreateUser = () => {
+    // Check if user can add more users
+    if (!userLimits.canAddUser) {
+      toast.error(t("userLimitReached"));
+      return;
+    }
+
     setFormData({
+      username: "",
       email: "",
       password: "",
-      role: "seller",
+      role: "Seller",
     });
+    setSelectedUser(null);
     setShowCreateModal(true);
   };
 
   const handleEditUser = (user) => {
     setFormData({
-      email: user.email,
+      username: user.username || "",
+      email: user.email || "",
       password: "", // Don't show password in edit mode
-      role: user.role,
+      role: user.role || "Seller", // Keep the exact role from API
     });
     setSelectedUser(user);
     setShowEditModal(true);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validate email length
-    if (formData.email.length > 20) {
-      toast.error(t("emailTooLong"));
+    // Check user limits for new users
+    if (showCreateModal && !userLimits.canAddUser) {
+      toast.error(t("userLimitReached"));
       return;
     }
 
-    // Validate password
-    if (showCreateModal && formData.password.length < 6) {
+    // Validate username
+    if (!formData.username.trim()) {
+      toast.error(t("usernameRequired"));
+      return;
+    }
+
+    // Validate email
+    if (!formData.email.trim()) {
+      toast.error(t("emailRequired"));
+      return;
+    }
+
+    // Validate password for new users
+    if (
+      showCreateModal &&
+      (!formData.password || formData.password.length < 6)
+    ) {
       toast.error(t("passwordTooShort"));
       return;
     }
 
-    if (showCreateModal) {
-      // Create new user
-      const newUser = {
-        id: Date.now(),
-        ...formData,
-        status: "active",
-        joinDate: new Date().toISOString().split("T")[0],
-      };
+    try {
+      if (showCreateModal) {
+        // Create new user
+        await dispatch(createTenantUser(formData)).unwrap();
+        toast.success(t("userCreated"));
+      } else {
+        // Update existing user - only send fields that should be updated
+        const updateData = {
+          username: formData.username,
+          email: formData.email,
+          role: formData.role,
+        };
 
-      setUsers([...users, newUser]);
-      toast.success(t("userCreated"));
-    } else {
-      // Update existing user
-      const updatedUsers = users.map((user) =>
-        user.id === selectedUser.id ? { ...user, ...formData } : user
-      );
-      setUsers(updatedUsers);
-      toast.success(t("userUpdated"));
+        // Only include password if it's provided
+        if (formData.password && formData.password.length >= 6) {
+          updateData.password = formData.password;
+        }
+
+        await dispatch(
+          updateTenantUser({
+            id: selectedUser.id,
+            userData: updateData,
+          })
+        ).unwrap();
+        toast.success(t("userUpdated"));
+      }
+
+      setShowCreateModal(false);
+      setShowEditModal(false);
+      setFormData({
+        username: "",
+        email: "",
+        password: "",
+        role: "Seller",
+      });
+      setSelectedUser(null);
+    } catch (error) {
+      toast.error(error || t("operationFailed"));
     }
-
-    setShowCreateModal(false);
-    setShowEditModal(false);
-    setFormData({
-      email: "",
-      password: "",
-      role: "seller",
-    });
   };
 
-  const handleDeleteUser = (user) => {
+  const handleDeleteUser = async (user) => {
     if (window.confirm(t("confirmDeleteUser"))) {
-      const updatedUsers = users.filter((u) => u.id !== user.id);
-      setUsers(updatedUsers);
-      toast.success(t("userDeleted"));
+      try {
+        await dispatch(deleteTenantUser(user.id)).unwrap();
+        toast.success(t("userDeleted"));
+      } catch (error) {
+        toast.error(error || t("deleteFailed"));
+      }
     }
   };
 
@@ -221,9 +328,21 @@ const UserManagement = () => {
         icon: Truck,
         text: t("delivery"),
       },
+      manager: {
+        color:
+          "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+        icon: User,
+        text: t("manager"),
+      },
     };
 
-    const config = roleConfig[role] || roleConfig.seller;
+    // Normalize role to lowercase for comparison
+    const normalizedRole = role ? role.toLowerCase() : "seller";
+    const config = roleConfig[normalizedRole] || {
+      color: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300",
+      icon: User,
+      text: role || t("unknown"),
+    };
     const Icon = config.icon;
 
     return (
@@ -235,6 +354,27 @@ const UserManagement = () => {
       </span>
     );
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <p className="text-red-600 dark:text-red-400">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -249,7 +389,15 @@ const UserManagement = () => {
         <div className="flex items-center gap-3">
           <button
             onClick={handleCreateUser}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+            disabled={!userLimits.canAddUser}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+              userLimits.canAddUser
+                ? "text-white bg-blue-600 hover:bg-blue-700"
+                : "text-gray-400 bg-gray-300 dark:bg-gray-600 cursor-not-allowed"
+            }`}
+            title={
+              !userLimits.canAddUser ? t("userLimitReached") : t("addUser")
+            }
           >
             <Plus className="w-4 h-4" />
             {t("addUser")}
@@ -288,9 +436,11 @@ const UserManagement = () => {
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
             >
               <option value="all">{t("allRoles")}</option>
-              <option value="seller">{t("seller")}</option>
-              <option value="kitchen">{t("kitchen")}</option>
-              <option value="delivery">{t("delivery")}</option>
+              {availableRoles.map((role) => (
+                <option key={role.value} value={role.value.toLowerCase()}>
+                  {role.label}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -298,11 +448,32 @@ const UserManagement = () => {
 
       {/* Results Summary */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-600 dark:text-gray-400">
-          {t("showing")} {filteredUsers.length} {t("of")} {users.length}{" "}
-          {t("users")}
-        </p>
+        <div>
+          {tenantInfo && (
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {t("userLimit")}: {userLimits.currentUsers}/{userLimits.maxUsers}{" "}
+              ({userLimits.remainingUsers} {t("remaining")})
+            </p>
+          )}
+        </div>
       </div>
+
+      {/* User Limit Message - رسالة حد المستخدمين */}
+      {!userLimits.canAddUser && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <div className="flex items-center">
+            <AlertCircle className="w-5 h-5 text-red-500 mr-3 rtl:mr-0 rtl:ml-3" />
+            <div>
+              <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
+                {t("userLimitReached")}
+              </h3>
+              <p className="text-sm text-red-600 dark:text-red-300 mt-1">
+                {t("userLimit")}: {userLimits.currentUsers}/{userLimits.maxUsers}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Users Cards */}
       {loading ? (
@@ -319,16 +490,21 @@ const UserManagement = () => {
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                    {user.email}
+                    {user.username || user.email}
                   </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                    {user.email}
+                  </p>
                   <div className="flex items-center gap-2 mb-3">
                     {getRoleBadge(user.role)}
-                    {getStatusBadge(user.status)}
+                    {getStatusBadge(user.status || "active")}
                   </div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {t("joinDate")}:{" "}
-                    {new Date(user.joinDate).toLocaleDateString()}
-                  </p>
+                  {user.created_at && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {t("joinDate")}:{" "}
+                      {new Date(user.created_at).toLocaleDateString()}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -364,7 +540,23 @@ const UserManagement = () => {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {t("email")} ({t("max20Chars")})
+                  {t("username")} *
+                </label>
+                <input
+                  type="text"
+                  value={formData.username}
+                  onChange={(e) =>
+                    setFormData({ ...formData, username: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  required
+                  placeholder={t("enterUsername")}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {t("email")} *
                 </label>
                 <input
                   type="email"
@@ -374,19 +566,17 @@ const UserManagement = () => {
                   }
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                   required
-                  maxLength={20}
+                  placeholder={t("enterEmail")}
                 />
-                {formData.email.length > 20 && (
-                  <p className="text-red-500 text-xs mt-1">
-                    {t("emailTooLong")}
-                  </p>
-                )}
               </div>
 
-              {showCreateModal && (
+              {(showCreateModal || (showEditModal && formData.password)) && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t("password")} ({t("min6Chars")})
+                    {t("password")}{" "}
+                    {showCreateModal
+                      ? `(${t("min6Chars")})`
+                      : `(${t("optional")})`}
                   </label>
                   <input
                     type="password"
@@ -395,8 +585,11 @@ const UserManagement = () => {
                       setFormData({ ...formData, password: e.target.value })
                     }
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                    required
+                    required={showCreateModal}
                     minLength={6}
+                    placeholder={
+                      showEditModal ? t("leaveBlankToKeepCurrent") : ""
+                    }
                   />
                   {formData.password.length > 0 &&
                     formData.password.length < 6 && (
@@ -418,9 +611,11 @@ const UserManagement = () => {
                   }
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                 >
-                  <option value="seller">{t("seller")}</option>
-                  <option value="kitchen">{t("kitchen")}</option>
-                  <option value="delivery">{t("delivery")}</option>
+                  {availableRoles.map((role) => (
+                    <option key={role.value} value={role.value}>
+                      {role.label}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -430,6 +625,13 @@ const UserManagement = () => {
                   onClick={() => {
                     setShowCreateModal(false);
                     setShowEditModal(false);
+                    setFormData({
+                      username: "",
+                      email: "",
+                      password: "",
+                      role: "Seller",
+                    });
+                    setSelectedUser(null);
                   }}
                   className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                 >
@@ -437,9 +639,14 @@ const UserManagement = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                  disabled={loading}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {showCreateModal ? t("create") : t("update")}
+                  {loading
+                    ? t("loading")
+                    : showCreateModal
+                    ? t("create")
+                    : t("update")}
                 </button>
               </div>
             </form>

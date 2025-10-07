@@ -179,7 +179,7 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
   const isLinkActive = (href) => {
     if (href === `/${role}`) {
       return (
-        location.pathname === `/${role}` || location.pathname === `/${role}/`
+         location.pathname === `/${role}/`
       );
     }
     // For exact path matching to avoid conflicts with similar paths

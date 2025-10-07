@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { useSelector, useDispatch } from "react-redux";
 import {
   Search,
   Filter,
@@ -21,20 +22,31 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import {
+  fetchSupplierInvoices,
+  createSupplierInvoice,
+  updateSupplierInvoice,
+  deleteSupplierInvoice,
+  clearManagerError,
+} from "../../../store/slices/managerSlice";
+import { fetchSuppliers } from "../../../store/slices/supplierSlice";
 
 import DataTable from "../../../components/Common/DataTable";
 import { SupplierInvoiceForm } from "../../../components/Forms";
 
 const SupplierInvoicesManagement = () => {
   const { t } = useTranslation();
-  const [invoices, setInvoices] = useState([]);
+  const dispatch = useDispatch();
+
+  // Redux state
+  const { invoices, loading, error } = useSelector((state) => state.manager);
+  const { suppliers } = useSelector((state) => state.suppliers);
+
   const [filteredInvoices, setFilteredInvoices] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [supplierFilter, setSupplierFilter] = useState("all");
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
-  const [suppliers, setSuppliers] = useState([]);
 
   // Modal states
   const [viewModal, setViewModal] = useState(false);
@@ -49,188 +61,81 @@ const SupplierInvoicesManagement = () => {
   const [selectedInvoiceForForm, setSelectedInvoiceForForm] = useState(null);
 
   useEffect(() => {
-    loadInvoices();
-    loadSuppliers();
-  }, []);
+    dispatch(fetchSupplierInvoices());
+    dispatch(fetchSuppliers());
+  }, [dispatch]);
 
-  const loadInvoices = () => {
-    setLoading(true);
-    // Mock data for supplier invoices
-    const mockInvoices = [
-      {
-        id: "SUP-INV-001",
-        supplierId: "SUP-001",
-        supplierName: "شركة الأغذية المتحدة",
-        supplierEmail: "info@unitedfoods.com",
-        orderId: "PO-001",
-        amount: 15000.0,
-        tax: 1500.0,
-        total: 16500.0,
-        status: "paid",
-        issueDate: "2024-01-15T10:30:00",
-        dueDate: "2024-01-22T10:30:00",
-        paymentDate: "2024-01-15T11:00:00",
-        paymentMethod: "bank_transfer",
-        notes: "Payment for food supplies batch #123",
-        items: [
-          { name: "Rice", quantity: 100, unitPrice: 50.0, total: 5000.0 },
-          { name: "Oil", quantity: 50, unitPrice: 80.0, total: 4000.0 },
-          { name: "Sugar", quantity: 75, unitPrice: 40.0, total: 3000.0 },
-          { name: "Flour", quantity: 60, unitPrice: 50.0, total: 3000.0 },
-        ],
-      },
-      {
-        id: "SUP-INV-002",
-        supplierId: "SUP-002",
-        supplierName: "مؤسسة البناء الحديث",
-        supplierEmail: "contact@modernbuilding.com",
-        orderId: "PO-002",
-        amount: 25000.0,
-        tax: 2500.0,
-        total: 27500.0,
-        status: "pending",
-        issueDate: "2024-01-14T15:45:00",
-        dueDate: "2024-01-21T15:45:00",
-        paymentDate: null,
-        paymentMethod: "check",
-        notes: "Building materials for project #456",
-        items: [
-          { name: "Cement", quantity: 200, unitPrice: 25.0, total: 5000.0 },
-          { name: "Steel", quantity: 50, unitPrice: 300.0, total: 15000.0 },
-          { name: "Bricks", quantity: 1000, unitPrice: 5.0, total: 5000.0 },
-        ],
-      },
-      {
-        id: "SUP-INV-003",
-        supplierId: "SUP-003",
-        supplierName: "شركة الإلكترونيات المتقدمة",
-        supplierEmail: "sales@advancedelectronics.com",
-        orderId: "PO-003",
-        amount: 35000.0,
-        tax: 3500.0,
-        total: 38500.0,
-        status: "overdue",
-        issueDate: "2024-01-13T18:20:00",
-        dueDate: "2024-01-20T18:20:00",
-        paymentDate: null,
-        paymentMethod: "bank_transfer",
-        notes: "Electronic equipment for office setup",
-        items: [
-          { name: "Laptops", quantity: 10, unitPrice: 2000.0, total: 20000.0 },
-          { name: "Monitors", quantity: 15, unitPrice: 500.0, total: 7500.0 },
-          { name: "Printers", quantity: 5, unitPrice: 1500.0, total: 7500.0 },
-        ],
-      },
-      {
-        id: "SUP-INV-004",
-        supplierId: "SUP-004",
-        supplierName: "مصنع النسيج الوطني",
-        supplierEmail: "info@nationaltextile.com",
-        orderId: "PO-004",
-        amount: 12000.0,
-        tax: 1200.0,
-        total: 13200.0,
-        status: "paid",
-        issueDate: "2024-01-12T12:15:00",
-        dueDate: "2024-01-19T12:15:00",
-        paymentDate: "2024-01-12T13:45:00",
-        paymentMethod: "cash",
-        notes: "Textile materials for uniforms",
-        items: [
-          {
-            name: "Cotton Fabric",
-            quantity: 100,
-            unitPrice: 80.0,
-            total: 8000.0,
-          },
-          { name: "Polyester", quantity: 50, unitPrice: 60.0, total: 3000.0 },
-          { name: "Thread", quantity: 200, unitPrice: 10.0, total: 2000.0 },
-        ],
-      },
-      {
-        id: "SUP-INV-005",
-        supplierId: "SUP-005",
-        supplierName: "شركة الأدوية العالمية",
-        supplierEmail: "orders@globalpharma.com",
-        orderId: "PO-005",
-        amount: 45000.0,
-        tax: 4500.0,
-        total: 49500.0,
-        status: "pending",
-        issueDate: "2024-01-11T09:30:00",
-        dueDate: "2024-01-18T09:30:00",
-        paymentDate: null,
-        paymentMethod: "bank_transfer",
-        notes: "Pharmaceutical supplies for medical center",
-        items: [
-          {
-            name: "Antibiotics",
-            quantity: 500,
-            unitPrice: 50.0,
-            total: 25000.0,
-          },
-          {
-            name: "Painkillers",
-            quantity: 1000,
-            unitPrice: 15.0,
-            total: 15000.0,
-          },
-          { name: "Vitamins", quantity: 200, unitPrice: 25.0, total: 5000.0 },
-        ],
-      },
-    ];
+  // Clear error when component unmounts
+  useEffect(() => {
+    return () => {
+      dispatch(clearManagerError());
+    };
+  }, [dispatch]);
 
-    setTimeout(() => {
-      setInvoices(mockInvoices);
-      setFilteredInvoices(mockInvoices);
-      setLoading(false);
-    }, 1000);
-  };
+  // Show error toast when there's an error
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+    }
+  }, [error]);
 
-  const loadSuppliers = () => {
-    const mockSuppliers = [
-      {
-        id: "SUP-001",
-        name: "شركة الأغذية المتحدة",
-        email: "info@unitedfoods.com",
-      },
-      {
-        id: "SUP-002",
-        name: "مؤسسة البناء الحديث",
-        email: "contact@modernbuilding.com",
-      },
-      {
-        id: "SUP-003",
-        name: "شركة الإلكترونيات المتقدمة",
-        email: "sales@advancedelectronics.com",
-      },
-      {
-        id: "SUP-004",
-        name: "مصنع النسيج الوطني",
-        email: "info@nationaltextile.com",
-      },
-      {
-        id: "SUP-005",
-        name: "شركة الأدوية العالمية",
-        email: "orders@globalpharma.com",
-      },
-    ];
-    setSuppliers(mockSuppliers);
-  };
+  // Safe supplier data getter
+  const getSafeSuppliers = useCallback(() => {
+    if (!suppliers) return [];
+    if (Array.isArray(suppliers)) return suppliers;
+    if (
+      typeof suppliers === "object" &&
+      suppliers.data &&
+      Array.isArray(suppliers.data)
+    ) {
+      return suppliers.data;
+    }
+    return [];
+  }, [suppliers]);
+
+  // Get supplier name by ID
+  const getSupplierName = useCallback(
+    (supplierId) => {
+      const safeSuppliers = getSafeSuppliers();
+      const supplier = safeSuppliers.find((s) => s.id === supplierId);
+      return supplier
+        ? supplier.supplier_name || supplier.name
+        : `Supplier ${supplierId}`;
+    },
+    [getSafeSuppliers]
+  );
+
+  // Get supplier email by ID
+  const getSupplierEmail = useCallback(
+    (supplierId) => {
+      const safeSuppliers = getSafeSuppliers();
+      const supplier = safeSuppliers.find((s) => s.id === supplierId);
+      return supplier ? supplier.email : "";
+    },
+    [getSafeSuppliers]
+  );
 
   const filterInvoices = useCallback(() => {
-    let filtered = [...invoices];
+    let filtered = [...(invoices || [])];
 
     // Search filter
     if (searchTerm) {
       filtered = filtered.filter(
         (invoice) =>
-          invoice.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          invoice.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          invoice.supplierName
+          invoice.id
+            ?.toString()
             .toLowerCase()
             .includes(searchTerm.toLowerCase()) ||
-          invoice.supplierEmail.toLowerCase().includes(searchTerm.toLowerCase())
+          invoice.order_id
+            ?.toString()
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          getSupplierName(invoice.supplier)
+            ?.toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          getSupplierEmail(invoice.supplier)
+            ?.toLowerCase()
+            .includes(searchTerm.toLowerCase())
       );
     }
 
@@ -242,14 +147,15 @@ const SupplierInvoicesManagement = () => {
     // Supplier filter
     if (supplierFilter !== "all") {
       filtered = filtered.filter(
-        (invoice) => invoice.supplierId === supplierFilter
+        (invoice) => invoice.supplier?.toString() === supplierFilter.toString()
       );
     }
 
     // Date range filter
     if (dateRange.start && dateRange.end) {
       filtered = filtered.filter((invoice) => {
-        const invoiceDate = new Date(invoice.issueDate);
+        if (!invoice.issue_date) return false;
+        const invoiceDate = new Date(invoice.issue_date);
         const startDate = new Date(dateRange.start);
         const endDate = new Date(dateRange.end);
         return invoiceDate >= startDate && invoiceDate <= endDate;
@@ -257,7 +163,15 @@ const SupplierInvoicesManagement = () => {
     }
 
     setFilteredInvoices(filtered);
-  }, [invoices, searchTerm, statusFilter, supplierFilter, dateRange]);
+  }, [
+    invoices,
+    searchTerm,
+    statusFilter,
+    supplierFilter,
+    dateRange,
+    getSupplierName,
+    getSupplierEmail,
+  ]);
 
   useEffect(() => {
     filterInvoices();
@@ -265,23 +179,23 @@ const SupplierInvoicesManagement = () => {
 
   const getStatusBadge = (status) => {
     const statusConfig = {
-      paid: {
+      Paid: {
         color:
           "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
         icon: CheckCircle,
       },
-      pending: {
+      Pending: {
         color:
           "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
         icon: Clock,
       },
-      overdue: {
+      Overdue: {
         color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
         icon: XCircle,
       },
     };
 
-    const config = statusConfig[status] || statusConfig.pending;
+    const config = statusConfig[status] || statusConfig.Pending;
     const Icon = config.icon;
 
     return (
@@ -289,31 +203,31 @@ const SupplierInvoicesManagement = () => {
         className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${config.color}`}
       >
         <Icon className="w-3 h-3" />
-        {t(status)}
+        {t(status.toLowerCase())}
       </span>
     );
   };
 
   const getPaymentMethodBadge = (method) => {
     const methodConfig = {
-      bank_transfer: {
+      "Bank Transfer": {
         color:
           "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
         text: t("bankTransfer"),
       },
-      check: {
+      Check: {
         color:
           "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
         text: t("check"),
       },
-      cash: {
+      Cash: {
         color:
           "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
         text: t("cash"),
       },
     };
 
-    const config = methodConfig[method] || methodConfig.bank_transfer;
+    const config = methodConfig[method] || methodConfig["Bank Transfer"];
 
     return (
       <span
@@ -336,23 +250,23 @@ const SupplierInvoicesManagement = () => {
     },
     {
       header: t("orderId"),
-      accessor: "orderId",
+      accessor: "order_id",
       render: (item) => (
         <span className="text-sm text-gray-600 dark:text-gray-400">
-          {item.orderId}
+          {item.order_id}
         </span>
       ),
     },
     {
       header: t("supplier"),
-      accessor: "supplierName",
+      accessor: "supplier",
       render: (item) => (
         <div>
           <p className="font-medium text-gray-900 dark:text-white">
-            {item.supplierName}
+            {getSupplierName(item.supplier)}
           </p>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {item.supplierEmail}
+            {getSupplierEmail(item.supplier)}
           </p>
         </div>
       ),
@@ -360,16 +274,36 @@ const SupplierInvoicesManagement = () => {
     {
       header: t("amount"),
       accessor: "total",
-      render: (item) => (
-        <div>
-          <p className="font-medium text-gray-900 dark:text-white">
-            ${item.total.toFixed(2)}
-          </p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Tax: ${item.tax.toFixed(2)}
-          </p>
-        </div>
-      ),
+      render: (item) => {
+        try {
+          const itemsTotal =
+            item.items?.reduce((sum, item) => {
+              return sum + (parseFloat(item.subtotal || item.total) || 0);
+            }, 0) || 0;
+          const tax = parseFloat(item.tax) || 0;
+          const total = itemsTotal + tax;
+          return (
+            <div>
+              <p className="font-medium text-gray-900 dark:text-white">
+                ${total.toFixed(2)}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Tax: ${tax.toFixed(2)}
+              </p>
+            </div>
+          );
+        } catch (error) {
+          console.warn("Error calculating item total:", error, item);
+          return (
+            <div>
+              <p className="font-medium text-gray-900 dark:text-white">$0.00</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Tax: $0.00
+              </p>
+            </div>
+          );
+        }
+      },
     },
     {
       header: t("status"),
@@ -378,19 +312,19 @@ const SupplierInvoicesManagement = () => {
     },
     {
       header: t("payment"),
-      accessor: "paymentMethod",
-      render: (item) => getPaymentMethodBadge(item.paymentMethod),
+      accessor: "payment_method",
+      render: (item) => getPaymentMethodBadge(item.payment_method),
     },
     {
       header: t("issueDate"),
-      accessor: "issueDate",
+      accessor: "issue_date",
       render: (item) => (
         <div>
           <p className="text-sm text-gray-900 dark:text-white">
-            {new Date(item.issueDate).toLocaleDateString()}
+            {new Date(item.issue_date).toLocaleDateString()}
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            Due: {new Date(item.dueDate).toLocaleDateString()}
+            Due: {new Date(item.due_date).toLocaleDateString()}
           </p>
         </div>
       ),
@@ -460,41 +394,47 @@ const SupplierInvoicesManagement = () => {
     setDeleteModal(true);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!selectedInvoice) return;
 
-    const updatedInvoices = invoices.map((invoice) =>
-      invoice.id === selectedInvoice.id
-        ? {
-            ...invoice,
-            status: editForm.status,
-            notes: editForm.notes,
-            paymentDate: editForm.paymentDate
-              ? `${editForm.paymentDate}T${
-                  invoice.paymentDate?.split("T")[1] || "00:00:00"
-                }`
-              : null,
-          }
-        : invoice
-    );
+    try {
+      const updateData = {
+        status: editForm.status,
+        notes: editForm.notes,
+        paymentDate: editForm.paymentDate
+          ? `${editForm.paymentDate}T${
+              selectedInvoice.paymentDate?.split("T")[1] || "00:00:00"
+            }`
+          : null,
+      };
 
-    setInvoices(updatedInvoices);
-    setEditModal(false);
-    setSelectedInvoice(null);
-    setEditForm({});
-    toast.success(t("invoiceUpdated"));
+      await dispatch(
+        updateSupplierInvoice({
+          id: selectedInvoice.id,
+          invoiceData: updateData,
+        })
+      ).unwrap();
+
+      setEditModal(false);
+      setSelectedInvoice(null);
+      setEditForm({});
+      toast.success(t("invoiceUpdated"));
+    } catch (error) {
+      toast.error(error || t("updateFailed"));
+    }
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!selectedInvoice) return;
 
-    const updatedInvoices = invoices.filter(
-      (invoice) => invoice.id !== selectedInvoice.id
-    );
-    setInvoices(updatedInvoices);
-    setDeleteModal(false);
-    setSelectedInvoice(null);
-    toast.success(t("invoiceDeleted"));
+    try {
+      await dispatch(deleteSupplierInvoice(selectedInvoice.id)).unwrap();
+      setDeleteModal(false);
+      setSelectedInvoice(null);
+      toast.success(t("invoiceDeleted"));
+    } catch (error) {
+      toast.error(error || t("deleteFailed"));
+    }
   };
 
   // Form handlers
@@ -510,22 +450,24 @@ const SupplierInvoicesManagement = () => {
     setFormModal(true);
   };
 
-  const handleFormSubmit = (formData) => {
-    if (formMode === "add") {
-      const newInvoice = {
-        ...formData,
-        id: `SUP-INV-${Date.now()}`,
-      };
-      setInvoices([newInvoice, ...invoices]);
-      toast.success(t("invoiceAddedSuccessfully"));
-    } else {
-      const updatedInvoices = invoices.map((invoice) =>
-        invoice.id === selectedInvoiceForForm.id ? formData : invoice
-      );
-      setInvoices(updatedInvoices);
-      toast.success(t("invoiceUpdatedSuccessfully"));
+  const handleFormSubmit = async (formData) => {
+    try {
+      if (formMode === "add") {
+        await dispatch(createSupplierInvoice(formData)).unwrap();
+        toast.success(t("invoiceAddedSuccessfully"));
+      } else {
+        await dispatch(
+          updateSupplierInvoice({
+            id: selectedInvoiceForForm.id,
+            invoiceData: formData,
+          })
+        ).unwrap();
+        toast.success(t("invoiceUpdatedSuccessfully"));
+      }
+      setFormModal(false);
+    } catch (error) {
+      toast.error(error || t("operationFailed"));
     }
-    setFormModal(false);
   };
 
   const handleFormClose = () => {
@@ -547,27 +489,40 @@ const SupplierInvoicesManagement = () => {
 
   // Get statistics
   const getStats = () => {
-    const totalInvoices = invoices.length;
-    const paidInvoices = invoices.filter(
-      (invoice) => invoice.status === "paid"
+    const invoiceList = invoices || [];
+    const totalInvoices = invoiceList.length;
+    const paidInvoices = invoiceList.filter(
+      (invoice) => invoice.status === "Paid"
     ).length;
-    const pendingInvoices = invoices.filter(
-      (invoice) => invoice.status === "pending"
+    const pendingInvoices = invoiceList.filter(
+      (invoice) => invoice.status === "Pending"
     ).length;
-    const totalAmount = invoices.reduce(
-      (sum, invoice) => sum + invoice.total,
-      0
-    );
+
+    const totalAmount = invoiceList.reduce((sum, invoice) => {
+      try {
+        const itemsTotal =
+          invoice.items?.reduce((itemSum, item) => {
+            return itemSum + (parseFloat(item.subtotal || item.total) || 0);
+          }, 0) || 0;
+        const tax = parseFloat(invoice.tax) || 0;
+        return sum + itemsTotal + tax;
+      } catch (error) {
+        console.warn("Error calculating invoice total:", error, invoice);
+        return sum;
+      }
+    }, 0);
 
     return {
       totalInvoices,
       paidInvoices,
       pendingInvoices,
-      totalAmount: totalAmount.toFixed(2),
+      totalAmount:
+        typeof totalAmount === "number" ? totalAmount.toFixed(2) : "0.00",
     };
   };
 
   const stats = getStats();
+  const safeSuppliers = getSafeSuppliers();
 
   return (
     <div className="space-y-6">
@@ -697,9 +652,9 @@ const SupplierInvoicesManagement = () => {
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
               >
                 <option value="all">{t("allStatuses")}</option>
-                <option value="paid">{t("paid")}</option>
-                <option value="pending">{t("pending")}</option>
-                <option value="overdue">{t("overdue")}</option>
+                <option value="Paid">{t("paid")}</option>
+                <option value="Pending">{t("pending")}</option>
+                <option value="Overdue">{t("overdue")}</option>
               </select>
             </div>
 
@@ -714,9 +669,9 @@ const SupplierInvoicesManagement = () => {
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
               >
                 <option value="all">{t("allSuppliers")}</option>
-                {suppliers.map((supplier) => (
+                {safeSuppliers.map((supplier) => (
                   <option key={supplier.id} value={supplier.id}>
-                    {supplier.name}
+                    {supplier.supplier_name || supplier.name}
                   </option>
                 ))}
               </select>
@@ -763,13 +718,13 @@ const SupplierInvoicesManagement = () => {
       {/* Results Summary */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          {t("showing")} {filteredInvoices.length} {t("of")} {invoices.length}{" "}
-          {t("invoices")}
+          {t("showing")} {filteredInvoices.length} {t("of")}{" "}
+          {(invoices || []).length} {t("invoices")}
         </p>
         <div className="flex items-center gap-2">
           <Building className="w-4 h-4 text-gray-500" />
           <span className="text-sm text-gray-600 dark:text-gray-400">
-            {suppliers.length} {t("activeSuppliers")}
+            {safeSuppliers.length} {t("activeSuppliers")}
           </span>
         </div>
       </div>
@@ -807,14 +762,15 @@ const SupplierInvoicesManagement = () => {
                     {t("supplierInformation")}
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    <strong>{t("name")}:</strong> {selectedInvoice.supplierName}
+                    <strong>{t("name")}:</strong>{" "}
+                    {getSupplierName(selectedInvoice.supplier)}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("email")}:</strong>{" "}
-                    {selectedInvoice.supplierEmail}
+                    {getSupplierEmail(selectedInvoice.supplier)}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    <strong>{t("orderId")}:</strong> {selectedInvoice.orderId}
+                    <strong>{t("orderId")}:</strong> {selectedInvoice.order_id}
                   </p>
                 </div>
 
@@ -828,11 +784,31 @@ const SupplierInvoicesManagement = () => {
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("paymentMethod")}:</strong>{" "}
-                    {getPaymentMethodBadge(selectedInvoice.paymentMethod)}
+                    {getPaymentMethodBadge(selectedInvoice.payment_method)}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("total")}:</strong> $
-                    {selectedInvoice.total.toFixed(2)}
+                    {(() => {
+                      try {
+                        const itemsTotal =
+                          selectedInvoice.items?.reduce((sum, item) => {
+                            return (
+                              sum +
+                              (parseFloat(item.subtotal || item.total) || 0)
+                            );
+                          }, 0) || 0;
+                        const tax = parseFloat(selectedInvoice.tax) || 0;
+                        const total = itemsTotal + tax;
+                        return total.toFixed(2);
+                      } catch (error) {
+                        console.warn(
+                          "Error calculating total:",
+                          error,
+                          selectedInvoice
+                        );
+                        return "0.00";
+                      }
+                    })()}
                   </p>
                 </div>
               </div>
@@ -842,19 +818,42 @@ const SupplierInvoicesManagement = () => {
                   {t("items")}
                 </h3>
                 <div className="space-y-2">
-                  {selectedInvoice.items.map((item, index) => (
-                    <div
-                      key={index}
-                      className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-700 rounded"
-                    >
-                      <span className="text-sm text-gray-900 dark:text-white">
-                        {item.quantity}x {item.name}
-                      </span>
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        ${item.total.toFixed(2)}
-                      </span>
-                    </div>
-                  ))}
+                  {selectedInvoice.items.map((item, index) => {
+                    try {
+                      const quantity = parseFloat(item.quantity) || 0;
+                      const subtotal =
+                        parseFloat(item.subtotal || item.total) || 0;
+                      return (
+                        <div
+                          key={index}
+                          className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-700 rounded"
+                        >
+                          <span className="text-sm text-gray-900 dark:text-white">
+                            {quantity}x {item.item_name}
+                          </span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            ${subtotal.toFixed(2)}
+                          </span>
+                        </div>
+                      );
+                    } catch (error) {
+                      console.warn("Error displaying item:", error, item);
+                      return (
+                        <div
+                          key={index}
+                          className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-700 rounded"
+                        >
+                          <span className="text-sm text-gray-900 dark:text-white">
+                            {item.quantity || 0}x{" "}
+                            {item.item_name || "Unknown Item"}
+                          </span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            $0.00
+                          </span>
+                        </div>
+                      );
+                    }
+                  })}
                 </div>
               </div>
 
@@ -901,9 +900,9 @@ const SupplierInvoicesManagement = () => {
                   }
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                 >
-                  <option value="pending">{t("pending")}</option>
-                  <option value="paid">{t("paid")}</option>
-                  <option value="overdue">{t("overdue")}</option>
+                  <option value="Pending">{t("pending")}</option>
+                  <option value="Paid">{t("paid")}</option>
+                  <option value="Overdue">{t("overdue")}</option>
                 </select>
               </div>
 
@@ -1015,7 +1014,7 @@ const SupplierInvoicesManagement = () => {
         onSubmit={handleFormSubmit}
         invoice={selectedInvoiceForForm}
         mode={formMode}
-        suppliers={suppliers}
+        suppliers={safeSuppliers}
       />
     </div>
   );

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import {
   ShoppingCart,
@@ -15,129 +16,240 @@ import {
 
 import StatsCard from "../../../components/Common/StatsCard";
 import DataTable from "../../../components/Common/DataTable";
+import { fetchOrders } from "../../../store/slices/ordersSlice";
+import { fetchProducts } from "../../../store/slices/inventorySlice";
+import { formatCurrencyEnglish, formatNumberEnglish } from "../../../utils";
 
 const ManagerHome = () => {
   const { t } = useTranslation();
-  const [recentOrders, setRecentOrders] = useState([]);
-  const [topSellers, setTopSellers] = useState([]);
+  const dispatch = useDispatch();
+
+  // Get data from Redux store
+  const { orders, loading: ordersLoading } = useSelector(
+    (state) => state.orders
+  );
+  const { products, loading: productsLoading } = useSelector(
+    (state) => state.inventory
+  );
+
+  // Local state for computed data
   const [alerts, setAlerts] = useState([]);
 
   useEffect(() => {
-    // Load mock data
-    const mockRecentOrders = [
+    // Fetch data from API
+    dispatch(fetchOrders());
+    dispatch(fetchProducts());
+  }, [dispatch]);
+
+  // Compute recent orders from Redux data
+  const recentOrders = React.useMemo(() => {
+    if (!Array.isArray(orders)) return [];
+
+    return orders
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date)
+      )
+      .slice(0, 5)
+      .map((order) => ({
+        id: order.id,
+        customer:
+          order.customer?.name || order.customerName || "Unknown Customer",
+        seller: order.seller?.name || order.sellerName || "Unknown Seller",
+        amount: order.totalAmount || order.total || 0,
+        status: order.status || "pending",
+        date:
+          order.createdAt ||
+          order.date ||
+          new Date().toISOString().split("T")[0],
+      }));
+  }, [orders]);
+
+  // Compute top sellers from orders data
+  const topSellers = React.useMemo(() => {
+    if (!Array.isArray(orders)) return [];
+
+    const sellerStats = {};
+
+    orders.forEach((order) => {
+      const sellerName =
+        order.seller?.name || order.sellerName || "Unknown Seller";
+      const sellerEmail =
+        order.seller?.email ||
+        `${sellerName.toLowerCase().replace(/\s+/g, ".")}@company.com`;
+
+      if (!sellerStats[sellerName]) {
+        sellerStats[sellerName] = {
+          name: sellerName,
+          email: sellerEmail,
+          sales: 0,
+          orders: 0,
+        };
+      }
+
+      sellerStats[sellerName].sales += order.totalAmount || order.total || 0;
+      sellerStats[sellerName].orders += 1;
+    });
+
+    return Object.values(sellerStats)
+      .sort((a, b) => b.sales - a.sales)
+      .slice(0, 3)
+      .map((seller, index) => ({
+        id: index + 1,
+        ...seller,
+        rating: 4.5 + Math.random() * 0.5, // Mock rating for now
+      }));
+  }, [orders]);
+
+  useEffect(() => {
+    // Generate alerts based on real data
+    const newAlerts = [];
+
+    // Ensure products is an array before filtering
+    if (Array.isArray(products)) {
+      // Low inventory alert
+      const lowStockProducts = products.filter(
+        (product) => (product.stockQuantity || 0) < 10
+      );
+
+      if (lowStockProducts.length > 0) {
+        newAlerts.push({
+          id: 1,
+          type: "warning",
+          message: `${t("lowInventoryAlert")} for ${
+            lowStockProducts.length
+          } products`,
+          time: "2 hours ago",
+        });
+      }
+    }
+
+    // Ensure orders is an array before filtering
+    if (Array.isArray(orders)) {
+      // Pending orders alert
+      const pendingOrders = orders.filter(
+        (order) => order.status === "pending"
+      );
+      if (pendingOrders.length > 5) {
+        newAlerts.push({
+          id: 2,
+          type: "info",
+          message: `${pendingOrders.length} ${t("pendingOrders")}`,
+          time: "1 hour ago",
+        });
+      }
+
+      // Daily sales achievement
+      const today = new Date().toISOString().split("T")[0];
+      const todayOrders = orders.filter((order) =>
+        (order.createdAt || order.date || "").startsWith(today)
+      );
+      const todaySales = todayOrders.reduce(
+        (sum, order) => sum + (order.totalAmount || order.total || 0),
+        0
+      );
+
+      if (todaySales > 1000) {
+        newAlerts.push({
+          id: 3,
+          type: "success",
+          message: `${t("dailySalesTargetAchieved")}: ${formatCurrencyEnglish(
+            todaySales
+          )}`,
+          time: "30 minutes ago",
+        });
+      }
+    }
+
+    setAlerts(newAlerts);
+  }, [orders, products, t]);
+
+  // Compute statistics from Redux data
+  const statsCards = React.useMemo(() => {
+    if (!Array.isArray(orders) || !Array.isArray(products)) {
+      return [
+        {
+          title: t("totalOrders"),
+          value: "0",
+          change: "0%",
+          changeType: "neutral",
+          icon: ShoppingCart,
+          color: "blue",
+        },
+        {
+          title: t("activeSellers"),
+          value: "0",
+          change: "0%",
+          changeType: "neutral",
+          icon: Users,
+          color: "green",
+        },
+        {
+          title: t("totalRevenue"),
+          value: "$0",
+          change: "0%",
+          changeType: "neutral",
+          icon: DollarSign,
+          color: "purple",
+        },
+        {
+          title: t("pendingOrders"),
+          value: "0",
+          change: "0%",
+          changeType: "neutral",
+          icon: Clock,
+          color: "orange",
+        },
+      ];
+    }
+
+    const totalOrders = orders.length;
+    const uniqueSellers = new Set(
+      orders.map((order) => order.seller?.name || order.sellerName || "Unknown")
+    ).size;
+    const totalRevenue = orders.reduce(
+      (sum, order) => sum + (order.totalAmount || order.total || 0),
+      0
+    );
+    const pendingOrders = orders.filter(
+      (order) => order.status === "pending"
+    ).length;
+
+    return [
       {
-        id: "ORD-001",
-        customer: "أحمد محمد",
-        seller: "محمد علي",
-        amount: 150.0,
-        status: "pending",
-        date: "2024-01-15",
+        title: t("totalOrders"),
+        value: formatNumberEnglish(totalOrders),
+        change: "+12%", // TODO: Calculate real change from previous period
+        changeType: "positive",
+        icon: ShoppingCart,
+        color: "blue",
       },
       {
-        id: "ORD-002",
-        customer: "فاطمة أحمد",
-        seller: "علي حسن",
-        amount: 89.5,
-        status: "completed",
-        date: "2024-01-14",
+        title: t("activeSellers"),
+        value: formatNumberEnglish(uniqueSellers),
+        change: "+3", // TODO: Calculate real change
+        changeType: "positive",
+        icon: Users,
+        color: "green",
       },
       {
-        id: "ORD-003",
-        customer: "خالد سعد",
-        seller: "سارة محمد",
-        amount: 220.75,
-        status: "processing",
-        date: "2024-01-13",
+        title: t("totalRevenue"),
+        value: formatCurrencyEnglish(totalRevenue),
+        change: "+8.5%", // TODO: Calculate real change
+        changeType: "positive",
+        icon: DollarSign,
+        color: "purple",
+      },
+      {
+        title: t("pendingOrders"),
+        value: formatNumberEnglish(pendingOrders),
+        change: pendingOrders > 10 ? "-5" : "+2", // Dynamic based on current state
+        changeType: pendingOrders > 10 ? "negative" : "positive",
+        icon: Clock,
+        color: "orange",
       },
     ];
-
-    const mockTopSellers = [
-      {
-        id: 1,
-        name: "محمد علي",
-        email: "mohamed.ali@company.com",
-        sales: 15420.5,
-        orders: 45,
-        rating: 4.8,
-      },
-      {
-        id: 2,
-        name: "علي حسن",
-        email: "ali.hassan@company.com",
-        sales: 12850.75,
-        orders: 38,
-        rating: 4.6,
-      },
-      {
-        id: 3,
-        name: "سارة محمد",
-        email: "sara.mohamed@company.com",
-        sales: 11200.25,
-        orders: 32,
-        rating: 4.7,
-      },
-    ];
-
-    const mockAlerts = [
-      {
-        id: 1,
-        type: "warning",
-        message: t("lowInventoryAlert") + " for Product XYZ",
-        time: "2 hours ago",
-      },
-      {
-        id: 2,
-        type: "info",
-        message: t("newSellerRegistration") + ": أحمد محمد",
-        time: "4 hours ago",
-      },
-      {
-        id: 3,
-        type: "success",
-        message: t("monthlySalesTargetAchieved"),
-        time: "1 day ago",
-      },
-    ];
-
-    setRecentOrders(mockRecentOrders);
-    setTopSellers(mockTopSellers);
-    setAlerts(mockAlerts);
-  }, [t]);
-
-  const statsCards = [
-    {
-      title: t("totalOrders"),
-      value: "1,234",
-      change: "+12%",
-      changeType: "positive",
-      icon: ShoppingCart,
-      color: "blue",
-    },
-    {
-      title: t("activeSellers"),
-      value: "45",
-      change: "+3",
-      changeType: "positive",
-      icon: Users,
-      color: "green",
-    },
-    {
-      title: t("totalRevenue"),
-      value: "$45,678",
-      change: "+8.5%",
-      changeType: "positive",
-      icon: DollarSign,
-      color: "purple",
-    },
-    {
-      title: t("pendingOrders"),
-      value: "23",
-      change: "-5",
-      changeType: "negative",
-      icon: Clock,
-      color: "orange",
-    },
-  ];
+  }, [orders, products, t]);
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -187,6 +299,15 @@ const ManagerHome = () => {
         return <AlertCircle className="w-4 h-4 text-gray-500" />;
     }
   };
+
+  // Show loading state
+  if (ordersLoading || productsLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

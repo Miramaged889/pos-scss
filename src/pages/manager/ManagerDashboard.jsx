@@ -25,15 +25,17 @@ import SupplierInvoicesManagement from "./components/SupplierInvoicesManagement"
 import SupplierReturnsManagement from "./components/SupplierReturnsManagement";
 import FinancialReceiptVoucher from "./components/FinancialReceiptVoucher";
 import VouchersPage from "./components/VouchersPage";
+import BranchesManagement from "./components/BranchesManagement";
 
 const ManagerDashboard = () => {
   const { t } = useTranslation();
+
 
   const sidebarItems = [
     {
       key: "home",
       title: t("home"),
-      href: "/manager",
+      href: "/manager/home",
       icon: Home,
     },
     {
@@ -41,6 +43,12 @@ const ManagerDashboard = () => {
       title: t("users"),
       href: "/manager/users",
       icon: Users,
+    },
+    {
+      key: "branches",
+      title: t("branches"),
+      href: "/manager/branches",
+      icon: Building,
     },
     {
       key: "orders",
@@ -75,7 +83,7 @@ const ManagerDashboard = () => {
     {
       key: "suppliers",
       title: t("suppliers"),
-      href: "/manager/suppliers",
+      href: "/manager/suppliers-management",
       icon: Building,
     },
     {
@@ -101,26 +109,25 @@ const ManagerDashboard = () => {
   return (
     <DashboardLayout sidebarItems={sidebarItems}>
       <Routes>
-        <Route path="/" element={<ManagerHome />} />
-        <Route path="/users" element={<UserManagement />} />
-        <Route path="/orders" element={<OrdersManagement />} />
-        <Route path="/invoices" element={<InvoicesManagement />} />
+        <Route index element={<ManagerHome />} />
+        <Route path="/home" element={<ManagerHome />} />
+        <Route path="users" element={<UserManagement />} />
+        <Route path="branches" element={<BranchesManagement />} />
+        <Route path="orders" element={<OrdersManagement />} />
+        <Route path="invoices" element={<InvoicesManagement />} />
+        <Route path="financial-receipt" element={<FinancialReceiptVoucher />} />
+        <Route path="vouchers" element={<VouchersPage />} />
+        <Route path="reports" element={<ManagerReports />} />
+        <Route path="suppliers-management" element={<SuppliersManagement />} />
         <Route
-          path="/financial-receipt"
-          element={<FinancialReceiptVoucher />}
-        />
-        <Route path="/vouchers" element={<VouchersPage />} />
-        <Route path="/reports" element={<ManagerReports />} />
-        <Route path="/suppliers" element={<SuppliersManagement />} />
-        <Route
-          path="/supplier-invoices"
+          path="supplier-invoices"
           element={<SupplierInvoicesManagement />}
         />
         <Route
-          path="/supplier-returns"
+          path="supplier-returns"
           element={<SupplierReturnsManagement />}
         />
-        <Route path="/settings" element={<ManagerSettings />} />
+        <Route path="settings" element={<ManagerSettings />} />
       </Routes>
     </DashboardLayout>
   );

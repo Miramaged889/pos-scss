@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useSelector, useDispatch } from "react-redux";
+import { useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
 import {
   User,
@@ -16,10 +16,8 @@ import {
 
 import FormField from "../FormField";
 import { isValidEmail, isValidPhone } from "../../../utils/validators";
-import {
-  createCustomer,
-  updateCustomer,
-} from "../../../store/slices/customerSlice";
+import { customerService } from "../../../services/customerService";
+import { toast } from "react-hot-toast";
 
 const CustomerForm = ({
   isOpen,
@@ -29,7 +27,6 @@ const CustomerForm = ({
   mode = "add", // "add" or "edit"
 }) => {
   const { t } = useTranslation();
-  const dispatch = useDispatch();
   const { isRTL } = useSelector((state) => state.language);
 
   const [formData, setFormData] = useState({
@@ -100,28 +97,32 @@ const CustomerForm = ({
     const newErrors = {};
 
     // Name validation
-    if (!formData.name.trim()) {
+    const nameString = formData.name.toString();
+    if (!nameString.trim()) {
       newErrors.name = t("customerNameRequired");
-    } else if (formData.name.trim().length < 2) {
+    } else if (nameString.trim().length < 2) {
       newErrors.name = t("nameMustBeAtLeast2Characters");
     }
 
     // Email validation
-    if (!formData.email.trim()) {
+    const emailString = formData.email.toString();
+    if (!emailString.trim()) {
       newErrors.email = t("emailRequired");
-    } else if (!isValidEmail(formData.email)) {
+    } else if (!isValidEmail(emailString)) {
       newErrors.email = t("invalidEmailFormat");
     }
 
     // Phone validation
-    if (!formData.phone.trim()) {
+    const phoneString = formData.phone.toString();
+    if (!phoneString.trim()) {
       newErrors.phone = t("phoneNumberRequired");
-    } else if (!isValidPhone(formData.phone)) {
+    } else if (!isValidPhone(phoneString)) {
       newErrors.phone = t("invalidPhoneFormat");
     }
 
     // Address validation
-    if (!formData.address.trim()) {
+    const addressString = formData.address.toString();
+    if (!addressString.trim()) {
       newErrors.address = t("addressRequired");
     }
 
@@ -143,44 +144,51 @@ const CustomerForm = ({
 
       if (mode === "edit" && customer) {
         // Update existing customer via API
-        result = await dispatch(
-          updateCustomer({ id: customer.id, updates: formData })
-        );
+        result = await customerService.updateCustomer(customer.id, formData);
       } else {
         // Create new customer via API
-        result = await dispatch(createCustomer(formData));
+        result = await customerService.createCustomer(formData);
       }
 
-      if (result.type.endsWith("/fulfilled")) {
-        // Call the parent onSubmit with the saved customer data
-        if (onSubmit) {
-          await onSubmit(result.payload);
-        }
+      // Transform API response to frontend format
+      const transformedCustomer =
+        customerService.transformCustomerFromAPI(result);
 
-        onClose();
-
-        // Reset form only if adding new customer
-        if (mode === "add") {
-          setFormData({
-            name: "",
-            email: "",
-            phone: "",
-            address: "",
-            company: "",
-            notes: "",
-            vip: false,
-            status: "active",
-            dateOfBirth: "",
-            preferredContactMethod: "phone",
-          });
-        }
-        setErrors({});
-      } else {
-        setErrors({ submit: result.payload || t("errorSavingCustomer") });
+      // Call the parent onSubmit with the saved customer data
+      if (onSubmit) {
+        await onSubmit(transformedCustomer);
       }
+
+      // Show success message
+      toast.success(
+        mode === "add"
+          ? t("customerCreatedSuccessfully")
+          : t("customerUpdatedSuccessfully")
+      );
+
+      onClose();
+
+      // Reset form only if adding new customer
+      if (mode === "add") {
+        setFormData({
+          name: "",
+          email: "",
+          phone: "",
+          address: "",
+          company: "",
+          notes: "",
+          vip: false,
+          status: "active",
+          dateOfBirth: "",
+          preferredContactMethod: "phone",
+        });
+      }
+      setErrors({});
     } catch (error) {
       console.error("Error submitting customer:", error);
-      setErrors({ submit: t("errorSavingCustomer") });
+      const errorMessage = error.message || t("errorSavingCustomer");
+      setErrors({ submit: errorMessage });
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }

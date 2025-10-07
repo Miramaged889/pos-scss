@@ -1,30 +1,36 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { ChefHat } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 import OrderCard from "./OrderCard";
 import StatusUpdateModal from "./StatusUpdateModal";
+import {
+  fetchOrders,
+  updateOrderStatus,
+} from "../../../store/slices/ordersSlice";
 
 const ActiveOrders = ({ isHome = false }) => {
   const { t } = useTranslation();
   const { theme } = useSelector((state) => state.language);
-  const reduxOrders = useSelector((state) => state.orders.orders);
-  const [orders, setOrders] = useState([]);
+  const dispatch = useDispatch();
+  const {
+    orders: reduxOrders,
+    loading,
+    error,
+  } = useSelector((state) => state.orders);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [statusUpdateModal, setStatusUpdateModal] = useState(false);
   const [notes, setNotes] = useState("");
 
-  // Load orders from Redux
+  // Load orders from API
   useEffect(() => {
-    if (reduxOrders && reduxOrders.length > 0) {
-      setOrders(reduxOrders);
-    }
-  }, [reduxOrders]);
+    dispatch(fetchOrders());
+  }, [dispatch]);
 
   // Filter only uncompleted orders and sort by creation time (newest first)
-  const activeOrders = orders
+  const activeOrders = (reduxOrders || [])
     .filter((order) => order.status !== "completed")
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
@@ -35,50 +41,54 @@ const ActiveOrders = ({ isHome = false }) => {
     setStatusUpdateModal(true);
   };
 
-  const confirmStatusUpdate = () => {
+  const confirmStatusUpdate = async () => {
     if (selectedOrder) {
-      const updatedOrders = [...orders];
-      const orderIndex = updatedOrders.findIndex((o) => o.id === selectedOrder);
-
-      if (orderIndex !== -1) {
-        const currentStatus = updatedOrders[orderIndex].status;
-        const nextStatus = getNextStatus(currentStatus);
-
-        // Preparation time tracking will be handled by the backend API
-
-        // Update order status
-        updatedOrders[orderIndex] = {
-          ...updatedOrders[orderIndex],
-          status: nextStatus,
-          notes: notes,
-          lastUpdated: new Date().toISOString(),
-          ...(nextStatus === "completed" && {
-            completedAt: new Date().toISOString(),
-          }),
-        };
-
-        setOrders(updatedOrders);
-
-        // Show appropriate status message
-        let statusMessage = "";
-        switch (nextStatus) {
-          case "preparing":
-            statusMessage = t("orderPreparationStarted");
-            break;
-          case "ready":
-            statusMessage = t("orderReadyForPickup");
-            break;
-          case "completed":
-            statusMessage = t("orderCompleted");
-            break;
-          default:
-            statusMessage = t("orderUpdated");
+      try {
+        const order = reduxOrders.find((o) => o.id === selectedOrder);
+        if (!order) {
+          toast.error(t("orderNotFound"));
+          return;
         }
 
-        toast.success(statusMessage);
-        setStatusUpdateModal(false);
-        setSelectedOrder(null);
-        setNotes("");
+        const currentStatus = order.status;
+        const nextStatus = getNextStatus(currentStatus);
+
+        // Update order status via API
+        const result = await dispatch(
+          updateOrderStatus({
+            id: selectedOrder,
+            status: nextStatus,
+            notes: notes,
+          })
+        );
+
+        if (result.type.endsWith("/fulfilled")) {
+          // Show appropriate status message
+          let statusMessage = "";
+          switch (nextStatus) {
+            case "preparing":
+              statusMessage = t("orderPreparationStarted");
+              break;
+            case "ready":
+              statusMessage = t("orderReadyForPickup");
+              break;
+            case "completed":
+              statusMessage = t("orderCompleted");
+              break;
+            default:
+              statusMessage = t("orderUpdated");
+          }
+
+          toast.success(statusMessage);
+          setStatusUpdateModal(false);
+          setSelectedOrder(null);
+          setNotes("");
+        } else {
+          toast.error(result.payload || t("errorUpdatingOrder"));
+        }
+      } catch (error) {
+        console.error("Error updating order status:", error);
+        toast.error(t("errorUpdatingOrder"));
       }
     }
   };
@@ -105,6 +115,44 @@ const ActiveOrders = ({ isHome = false }) => {
     if (hoursDiff > 0.5) return "medium";
     return "normal";
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className={`space-y-6 ${theme === "dark" ? "dark" : ""}`}>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-400">
+              {t("loadingOrders")}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className={`space-y-6 ${theme === "dark" ? "dark" : ""}`}>
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="text-red-500 mb-4">
+              <ChefHat className="w-12 h-12 mx-auto" />
+            </div>
+            <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+            <button
+              onClick={() => dispatch(fetchOrders())}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              {t("retry")}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`space-y-6 ${theme === "dark" ? "dark" : ""}`}>
@@ -158,7 +206,7 @@ const ActiveOrders = ({ isHome = false }) => {
         notes={notes}
         setNotes={setNotes}
         selectedOrder={selectedOrder}
-        orders={orders}
+        orders={reduxOrders}
         theme={theme}
       />
     </div>

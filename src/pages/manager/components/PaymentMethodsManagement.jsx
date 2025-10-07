@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { useSelector, useDispatch } from "react-redux";
 import {
   Search,
   Filter,
@@ -18,12 +19,24 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import {
+  fetchPaymentMethods,
+  createPaymentMethod,
+  updatePaymentMethod,
+  deletePaymentMethod,
+  clearManagerError,
+} from "../../../store/slices/managerSlice";
 
 const PaymentMethodsManagement = () => {
   const { t } = useTranslation();
-  const [paymentMethods, setPaymentMethods] = useState([]);
+  const dispatch = useDispatch();
+
+  // Redux state
+  const { paymentMethods, loading, error } = useSelector(
+    (state) => state.manager
+  );
+
   const [filteredPaymentMethods, setFilteredPaymentMethods] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showFilters, setShowFilters] = useState(false);
@@ -48,118 +61,29 @@ const PaymentMethodsManagement = () => {
   const [showStatus, setShowStatus] = useState(false);
 
   useEffect(() => {
-    loadPaymentMethods();
-  }, []);
+    dispatch(fetchPaymentMethods());
+  }, [dispatch]);
+
+  // Clear error when component unmounts
+  useEffect(() => {
+    return () => {
+      dispatch(clearManagerError());
+    };
+  }, [dispatch]);
+
+  // Show error toast when there's an error
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+    }
+  }, [error]);
 
   useEffect(() => {
     filterPaymentMethods();
   }, [paymentMethods, searchTerm, statusFilter, filterPaymentMethods]);
 
-  const loadPaymentMethods = () => {
-    setLoading(true);
-    // Mock data
-    const mockPaymentMethods = [
-      {
-        id: 1,
-        name: "Credit Card",
-        type: "card",
-        status: "active",
-        settings: {
-          requireCVV: true,
-          requireBillingAddress: true,
-          allowPartialPayments: false,
-          autoCapture: true,
-        },
-        createdAt: "2024-01-01",
-        totalTransactions: 1250,
-        totalAmount: 45678.5,
-      },
-      {
-        id: 2,
-        name: "Cash on Delivery",
-        type: "cash",
-        status: "active",
-        settings: {
-          requireCVV: false,
-          requireBillingAddress: true,
-          allowPartialPayments: true,
-          autoCapture: false,
-        },
-        createdAt: "2024-01-01",
-        totalTransactions: 890,
-        totalAmount: 23450.75,
-      },
-      {
-        id: 3,
-        name: "Bank Transfer",
-        type: "bank",
-        status: "active",
-        settings: {
-          requireCVV: false,
-          requireBillingAddress: true,
-          allowPartialPayments: true,
-          autoCapture: false,
-        },
-        createdAt: "2024-01-05",
-        totalTransactions: 320,
-        totalAmount: 15678.25,
-      },
-      {
-        id: 4,
-        name: "Digital Wallet",
-        type: "digital",
-        status: "inactive",
-        settings: {
-          requireCVV: false,
-          requireBillingAddress: false,
-          allowPartialPayments: false,
-          autoCapture: true,
-        },
-        createdAt: "2024-01-10",
-        totalTransactions: 150,
-        totalAmount: 5678.9,
-      },
-      {
-        id: 5,
-        name: "PayPal",
-        type: "digital",
-        status: "active",
-        settings: {
-          requireCVV: false,
-          requireBillingAddress: false,
-          allowPartialPayments: true,
-          autoCapture: true,
-        },
-        createdAt: "2024-01-15",
-        totalTransactions: 450,
-        totalAmount: 18900.3,
-      },
-      {
-        id: 6,
-        name: "Stripe",
-        type: "card",
-        status: "active",
-        settings: {
-          requireCVV: true,
-          requireBillingAddress: true,
-          allowPartialPayments: false,
-          autoCapture: true,
-        },
-        createdAt: "2024-01-20",
-        totalTransactions: 780,
-        totalAmount: 32450.8,
-      },
-    ];
-
-    setTimeout(() => {
-      setPaymentMethods(mockPaymentMethods);
-      setFilteredPaymentMethods(mockPaymentMethods);
-      setLoading(false);
-    }, 1000);
-  };
-
   const filterPaymentMethods = useCallback(() => {
-    let filtered = [...paymentMethods];
+    let filtered = [...(paymentMethods || [])];
 
     // Search filter
     if (searchTerm) {
@@ -206,56 +130,50 @@ const PaymentMethodsManagement = () => {
     setShowEditModal(true);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (showCreateModal) {
-      // Create new payment method
-      const newMethod = {
-        id: Date.now(),
-        ...formData,
-        createdAt: new Date().toISOString().split("T")[0],
-        totalTransactions: 0,
-        totalAmount: 0,
-      };
+    try {
+      if (showCreateModal) {
+        await dispatch(createPaymentMethod(formData)).unwrap();
+        toast.success(t("paymentMethodCreated"));
+      } else {
+        await dispatch(
+          updatePaymentMethod({
+            id: selectedMethod.id,
+            methodData: formData,
+          })
+        ).unwrap();
+        toast.success(t("paymentMethodUpdated"));
+      }
 
-      setPaymentMethods([...paymentMethods, newMethod]);
-      toast.success(t("paymentMethodCreated"));
-    } else {
-      // Update existing payment method
-      const updatedMethods = paymentMethods.map((method) =>
-        method.id === selectedMethod.id
-          ? {
-              ...method,
-              ...formData,
-            }
-          : method
-      );
-      setPaymentMethods(updatedMethods);
-      toast.success(t("paymentMethodUpdated"));
+      setShowCreateModal(false);
+      setShowEditModal(false);
+      setFormData({
+        name: "",
+        type: "card",
+        status: "",
+        settings: {
+          requireCVV: true,
+          requireBillingAddress: true,
+          allowPartialPayments: false,
+          autoCapture: true,
+        },
+      });
+      setShowStatus(false);
+    } catch (error) {
+      toast.error(error || t("operationFailed"));
     }
-
-    setShowCreateModal(false);
-    setShowEditModal(false);
-    setFormData({
-      name: "",
-      type: "card",
-      status: "",
-      settings: {
-        requireCVV: true,
-        requireBillingAddress: true,
-        allowPartialPayments: false,
-        autoCapture: true,
-      },
-    });
-    setShowStatus(false);
   };
 
-  const handleDeletePaymentMethod = (method) => {
+  const handleDeletePaymentMethod = async (method) => {
     if (window.confirm(t("confirmDeletePaymentMethod"))) {
-      const updatedMethods = paymentMethods.filter((m) => m.id !== method.id);
-      setPaymentMethods(updatedMethods);
-      toast.success(t("paymentMethodDeleted"));
+      try {
+        await dispatch(deletePaymentMethod(method.id)).unwrap();
+        toast.success(t("paymentMethodDeleted"));
+      } catch (error) {
+        toast.error(error || t("deleteFailed"));
+      }
     }
   };
 
@@ -406,7 +324,7 @@ const PaymentMethodsManagement = () => {
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-600 dark:text-gray-400">
           {t("showing")} {filteredPaymentMethods.length} {t("of")}{" "}
-          {paymentMethods.length} {t("paymentMethods")}
+          {(paymentMethods || []).length} {t("paymentMethods")}
         </p>
       </div>
 

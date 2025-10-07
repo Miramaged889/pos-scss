@@ -13,17 +13,46 @@ export const loginUser = createAsyncThunk(
   "auth/loginUser",
   async (credentials, { rejectWithValue }) => {
     try {
+      // Clear any existing invalid token before login
+      localStorage.removeItem("auth_token");
       const response = await apiService.post(
         API_ENDPOINTS.AUTH.LOGIN,
         credentials
       );
-      const { user, token, role } = response.data || response;
 
-      // Store token in localStorage
-      localStorage.setItem("auth_token", token);
+      // Handle the actual backend response structure
+      // Backend returns: { role, token: { access, refresh }, msg }
+      const { role, token } = response.data || response;
+
+      // Extract access token from token object
+      const accessToken = token?.access || token;
+
+      // Store access token in localStorage
+      localStorage.setItem("auth_token", accessToken);
+
+      // Store refresh token separately (optional)
+      if (token?.refresh) {
+        localStorage.setItem("refresh_token", token.refresh);
+      }
+
+      // Create user object from credentials and role
+      // Backend only returns role and token, not full user details
+      const user = {
+        id: Date.now(), // Temporary ID
+        email: credentials.email,
+        name: credentials.email.split("@")[0], // Extract name from email
+        role: role,
+      };
 
       return { user, role };
     } catch (error) {
+      // Handle CORS errors more gracefully
+      if (error.message.includes("CORS Error")) {
+        return rejectWithValue(
+          `CORS Error: Backend not accessible. Please check if the server is running and CORS is configured to allow ${window.location.origin}`
+        );
+      }
+
       return rejectWithValue(error.message);
     }
   }
@@ -35,10 +64,12 @@ export const logoutUser = createAsyncThunk(
     try {
       await apiService.post(API_ENDPOINTS.AUTH.LOGOUT);
       localStorage.removeItem("auth_token");
+      localStorage.removeItem("refresh_token");
       return true;
     } catch (error) {
-      // Even if API call fails, clear local token
+      // Even if API call fails, clear local tokens
       localStorage.removeItem("auth_token");
+      localStorage.removeItem("refresh_token");
       return rejectWithValue(error.message);
     }
   }
@@ -48,13 +79,26 @@ export const refreshToken = createAsyncThunk(
   "auth/refreshToken",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await apiService.post(API_ENDPOINTS.AUTH.REFRESH);
-      const { token } = response.data || response;
+      const refreshTokenValue = localStorage.getItem("refresh_token");
 
-      localStorage.setItem("auth_token", token);
-      return token;
+      const response = await apiService.post(API_ENDPOINTS.AUTH.REFRESH, {
+        refresh: refreshTokenValue,
+      });
+
+      const { token } = response.data || response;
+      const accessToken = token?.access || token;
+
+      localStorage.setItem("auth_token", accessToken);
+
+      // Update refresh token if provided
+      if (token?.refresh) {
+        localStorage.setItem("refresh_token", token.refresh);
+      }
+
+      return accessToken;
     } catch (error) {
       localStorage.removeItem("auth_token");
+      localStorage.removeItem("refresh_token");
       return rejectWithValue(error.message);
     }
   }

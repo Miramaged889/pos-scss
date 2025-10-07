@@ -1,6 +1,10 @@
-import React, { useState } from "react";
-import { useSelector } from "react-redux";
+import React, { useState, useEffect } from "react";
+import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
+import {
+  fetchFinancialReports,
+  clearManagerError,
+} from "../../../store/slices/managerSlice";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -31,6 +35,7 @@ import {
   ChefHat,
   Truck,
 } from "lucide-react";
+import { toast } from "react-hot-toast";
 
 import StatsCard from "../../../components/Common/StatsCard";
 import { formatCurrencyEnglish, formatNumberEnglish } from "../../../utils";
@@ -52,177 +57,57 @@ ChartJS.register(
 const ManagerReports = () => {
   const { t } = useTranslation();
   const { isRTL, theme } = useSelector((state) => state.language);
+  const dispatch = useDispatch();
+  const { reports, loading, error } = useSelector((state) => state.manager);
+
   const [selectedReport, setSelectedReport] = useState("sales");
   const [dateRange, setDateRange] = useState("month");
   const [viewMode, setViewMode] = useState("charts");
 
-  // Mock data for different reports
-  const reportData = {
-    sales: {
-      totalRevenue: 329000,
-      totalOrders: 1125,
-      avgOrderValue: 292,
-      activeSellers: 45,
-      growth: 12.5,
-      timeData: [
-        { month: "Jan", revenue: 45000, orders: 150, growth: 12 },
-        { month: "Feb", revenue: 52000, orders: 180, growth: 15 },
-        { month: "Mar", revenue: 48000, orders: 165, growth: -8 },
-        { month: "Apr", revenue: 61000, orders: 210, growth: 27 },
-        { month: "May", revenue: 55000, orders: 190, growth: -10 },
-        { month: "Jun", revenue: 68000, orders: 230, growth: 24 },
-      ],
-      topSellers: [
-        { name: "محمد علي", revenue: 15420.5, orders: 45, growth: 12 },
-        { name: "علي حسن", revenue: 12850.75, orders: 38, growth: 8 },
-        { name: "سارة محمد", revenue: 11200.25, orders: 32, growth: 15 },
-        { name: "أحمد خالد", revenue: 8500.0, orders: 25, growth: -5 },
-      ],
-    },
-    orders: {
-      totalOrders: 1125,
-      completed: 850,
-      pending: 120,
-      processing: 80,
-      cancelled: 70,
-      timeData: [
-        {
-          month: "Jan",
-          completed: 150,
-          pending: 20,
-          processing: 15,
-          cancelled: 10,
-        },
-        {
-          month: "Feb",
-          completed: 180,
-          pending: 25,
-          processing: 20,
-          cancelled: 12,
-        },
-        {
-          month: "Mar",
-          completed: 165,
-          pending: 22,
-          processing: 18,
-          cancelled: 8,
-        },
-        {
-          month: "Apr",
-          completed: 210,
-          pending: 30,
-          processing: 25,
-          cancelled: 15,
-        },
-        {
-          month: "May",
-          completed: 190,
-          pending: 28,
-          processing: 22,
-          cancelled: 12,
-        },
-        {
-          month: "Jun",
-          completed: 230,
-          pending: 35,
-          processing: 30,
-          cancelled: 18,
-        },
-      ],
-      orderStatus: [
-        { status: "completed", count: 850, percentage: 75, color: "#10B981" },
-        { status: "pending", count: 120, percentage: 11, color: "#F59E0B" },
-        { status: "processing", count: 80, percentage: 7, color: "#3B82F6" },
-        { status: "cancelled", count: 70, percentage: 7, color: "#EF4444" },
-      ],
-    },
-    sellers: {
-      totalSellers: 45,
-      activeSellers: 38,
-      newSellers: 7,
-      avgPerformance: 85,
-      timeData: [
-        { month: "Jan", active: 35, new: 5, performance: 82 },
-        { month: "Feb", active: 37, new: 3, performance: 84 },
-        { month: "Mar", active: 36, new: 4, performance: 83 },
-        { month: "Apr", active: 38, new: 6, performance: 85 },
-        { month: "May", active: 39, new: 2, performance: 86 },
-        { month: "Jun", active: 38, new: 7, performance: 85 },
-      ],
-      sellerPerformance: [
-        {
-          name: "محمد علي",
-          sales: 15420.5,
-          orders: 45,
-          rating: 4.8,
-          growth: 12,
-        },
-        {
-          name: "علي حسن",
-          sales: 12850.75,
-          orders: 38,
-          rating: 4.6,
-          growth: 8,
-        },
-        {
-          name: "سارة محمد",
-          sales: 11200.25,
-          orders: 32,
-          rating: 4.7,
-          growth: 15,
-        },
-        {
-          name: "أحمد خالد",
-          sales: 8500.0,
-          orders: 25,
-          rating: 4.2,
-          growth: -5,
-        },
-      ],
-    },
-    kitchen: {
-      totalOrders: 850,
-      completedOrders: 720,
-      avgPrepTime: 15,
-      efficiency: 92,
-      timeData: [
-        { month: "Jan", completed: 120, avgTime: 16, efficiency: 90 },
-        { month: "Feb", completed: 145, avgTime: 15, efficiency: 92 },
-        { month: "Mar", completed: 135, avgTime: 17, efficiency: 88 },
-        { month: "Apr", completed: 160, avgTime: 14, efficiency: 94 },
-        { month: "May", completed: 150, avgTime: 15, efficiency: 91 },
-        { month: "Jun", completed: 175, avgTime: 13, efficiency: 95 },
-      ],
-      kitchenPerformance: [
-        { name: "سارة محمد", orders: 150, avgTime: 12, rating: 4.8 },
-        { name: "علي حسن", orders: 125, avgTime: 14, rating: 4.6 },
-        { name: "محمد علي", orders: 110, avgTime: 16, rating: 4.5 },
-        { name: "أحمد خالد", orders: 95, avgTime: 18, rating: 4.3 },
-      ],
-    },
-    delivery: {
-      totalDeliveries: 720,
-      completedDeliveries: 680,
-      avgDeliveryTime: 25,
-      satisfaction: 94,
-      timeData: [
-        { month: "Jan", completed: 110, avgTime: 28, satisfaction: 92 },
-        { month: "Feb", completed: 125, avgTime: 26, satisfaction: 93 },
-        { month: "Mar", completed: 115, avgTime: 27, satisfaction: 91 },
-        { month: "Apr", completed: 130, avgTime: 24, satisfaction: 95 },
-        { month: "May", completed: 120, avgTime: 25, satisfaction: 94 },
-        { month: "Jun", completed: 140, avgTime: 23, satisfaction: 96 },
-      ],
-      deliveryPerformance: [
-        { name: "أحمد خالد", deliveries: 85, avgTime: 22, rating: 4.8 },
-        { name: "علي حسن", deliveries: 78, avgTime: 24, rating: 4.7 },
-        { name: "محمد علي", deliveries: 72, avgTime: 26, rating: 4.6 },
-        { name: "سارة محمد", deliveries: 65, avgTime: 28, rating: 4.5 },
-      ],
-    },
-  };
+  // Load reports data on component mount
+  useEffect(() => {
+    dispatch(fetchFinancialReports({ reportType: selectedReport, dateRange }));
+  }, [dispatch, selectedReport, dateRange]);
 
-  const currentData = reportData[selectedReport];
+  // Clear error when component unmounts
+  useEffect(() => {
+    return () => {
+      dispatch(clearManagerError());
+    };
+  }, [dispatch]);
+
+  // Show error toast when there's an error
+  useEffect(() => {
+    if (error) {
+      console.error("Error:", error);
+      toast.error(error);
+    }
+  }, [error]);
+
+  // Get current report data from Redux store
+  const currentData = reports[selectedReport] || {
+    // Default fallback data structure
+    totalRevenue: 0,
+    totalOrders: 0,
+    avgOrderValue: 0,
+    activeSellers: 0,
+    growth: 0,
+    timeData: [],
+    topSellers: [],
+    totalDeliveries: 0,
+    completedDeliveries: 0,
+    avgDeliveryTime: 0,
+    satisfaction: 0,
+    totalSellers: 0,
+    completed: 0,
+    pending: 0,
+    processing: 0,
+    cancelled: 0,
+    orderStatus: [],
+    sellerPerformance: [],
+    kitchenPerformance: [],
+    deliveryPerformance: [],
+  };
 
   // Chart configuration
   const isDark = theme === "dark";
@@ -613,25 +498,32 @@ const ManagerReports = () => {
     }
   };
 
-  const handleExportReport = () => {
-    const reportData = {
-      reportType: selectedReport,
-      dateRange,
-      data: currentData,
-      timestamp: new Date().toISOString(),
-    };
+  const handleExportReport = async () => {
+    try {
+      const reportData = {
+        reportType: selectedReport,
+        dateRange,
+        data: currentData,
+        timestamp: new Date().toISOString(),
+      };
 
-    const dataStr = JSON.stringify(reportData, null, 2);
-    const dataUri =
-      "data:application/json;charset=utf-8," + encodeURIComponent(dataStr);
-    const exportFileDefaultName = `${selectedReport}-report-${
-      new Date().toISOString().split("T")[0]
-    }.json`;
+      const dataStr = JSON.stringify(reportData, null, 2);
+      const dataUri =
+        "data:application/json;charset=utf-8," + encodeURIComponent(dataStr);
+      const exportFileDefaultName = `${selectedReport}-report-${
+        new Date().toISOString().split("T")[0]
+      }.json`;
 
-    const linkElement = document.createElement("a");
-    linkElement.setAttribute("href", dataUri);
-    linkElement.setAttribute("download", exportFileDefaultName);
-    linkElement.click();
+      const linkElement = document.createElement("a");
+      linkElement.setAttribute("href", dataUri);
+      linkElement.setAttribute("download", exportFileDefaultName);
+      linkElement.click();
+
+      toast.success(t("reportExportedSuccessfully"));
+    } catch (error) {
+      console.error("Error exporting report:", error);
+      toast.error(t("exportFailed"));
+    }
   };
 
   const chartData = getChartData();
@@ -743,20 +635,37 @@ const ManagerReports = () => {
                 </h3>
               </div>
               <div className="h-80">
-                {selectedReport === "sales" && (
-                  <Line data={chartData.revenue} options={chartOptions} />
-                )}
-                {selectedReport === "orders" && (
-                  <Bar data={chartData.status} options={chartOptions} />
-                )}
-                {selectedReport === "sellers" && (
-                  <Line data={chartData.performance} options={chartOptions} />
-                )}
-                {selectedReport === "kitchen" && (
-                  <Line data={chartData.efficiency} options={chartOptions} />
-                )}
-                {selectedReport === "delivery" && (
-                  <Line data={chartData.delivery} options={chartOptions} />
+                {loading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <p className="ml-2 text-gray-600 dark:text-gray-400">
+                      {t("loading")}...
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {selectedReport === "sales" && (
+                      <Line data={chartData.revenue} options={chartOptions} />
+                    )}
+                    {selectedReport === "orders" && (
+                      <Bar data={chartData.status} options={chartOptions} />
+                    )}
+                    {selectedReport === "sellers" && (
+                      <Line
+                        data={chartData.performance}
+                        options={chartOptions}
+                      />
+                    )}
+                    {selectedReport === "kitchen" && (
+                      <Line
+                        data={chartData.efficiency}
+                        options={chartOptions}
+                      />
+                    )}
+                    {selectedReport === "delivery" && (
+                      <Line data={chartData.delivery} options={chartOptions} />
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -782,20 +691,34 @@ const ManagerReports = () => {
                 </h3>
               </div>
               <div className="h-80">
-                {selectedReport === "sales" && (
-                  <Bar data={chartData.orders} options={chartOptions} />
-                )}
-                {selectedReport === "orders" && (
-                  <Line data={chartData.status} options={chartOptions} />
-                )}
-                {selectedReport === "sellers" && (
-                  <Bar data={chartData.performance} options={chartOptions} />
-                )}
-                {selectedReport === "kitchen" && (
-                  <Bar data={chartData.efficiency} options={chartOptions} />
-                )}
-                {selectedReport === "delivery" && (
-                  <Bar data={chartData.delivery} options={chartOptions} />
+                {loading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                    <p className="ml-2 text-gray-600 dark:text-gray-400">
+                      {t("loading")}...
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {selectedReport === "sales" && (
+                      <Bar data={chartData.orders} options={chartOptions} />
+                    )}
+                    {selectedReport === "orders" && (
+                      <Line data={chartData.status} options={chartOptions} />
+                    )}
+                    {selectedReport === "sellers" && (
+                      <Bar
+                        data={chartData.performance}
+                        options={chartOptions}
+                      />
+                    )}
+                    {selectedReport === "kitchen" && (
+                      <Bar data={chartData.efficiency} options={chartOptions} />
+                    )}
+                    {selectedReport === "delivery" && (
+                      <Bar data={chartData.delivery} options={chartOptions} />
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -829,80 +752,160 @@ const ManagerReports = () => {
                   <tr>
                     {selectedReport === "sales" && (
                       <>
-                        <th className={`px-6 py-3 ${isRTL ? 'text-right' : 'text-left'} text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
+                        <th
+                          className={`px-6 py-3 ${
+                            isRTL ? "text-right" : "text-left"
+                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
+                        >
                           {t("seller")}
                         </th>
-                        <th className={`px-6 py-3 ${isRTL ? 'text-right' : 'text-left'} text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
+                        <th
+                          className={`px-6 py-3 ${
+                            isRTL ? "text-right" : "text-left"
+                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
+                        >
                           {t("revenue")}
                         </th>
-                        <th className={`px-6 py-3 ${isRTL ? 'text-right' : 'text-left'} text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
+                        <th
+                          className={`px-6 py-3 ${
+                            isRTL ? "text-right" : "text-left"
+                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
+                        >
                           {t("orders")}
                         </th>
-                        <th className={`px-6 py-3 ${isRTL ? 'text-right' : 'text-left'} text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
+                        <th
+                          className={`px-6 py-3 ${
+                            isRTL ? "text-right" : "text-left"
+                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
+                        >
                           {t("growth")}
                         </th>
                       </>
                     )}
                     {selectedReport === "orders" && (
                       <>
-                        <th className={`px-6 py-3 ${isRTL ? 'text-right' : 'text-left'} text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
+                        <th
+                          className={`px-6 py-3 ${
+                            isRTL ? "text-right" : "text-left"
+                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
+                        >
                           {t("status")}
                         </th>
-                        <th className={`px-6 py-3 ${isRTL ? 'text-right' : 'text-left'} text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
+                        <th
+                          className={`px-6 py-3 ${
+                            isRTL ? "text-right" : "text-left"
+                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
+                        >
                           {t("count")}
                         </th>
-                        <th className={`px-6 py-3 ${isRTL ? 'text-right' : 'text-left'} text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
+                        <th
+                          className={`px-6 py-3 ${
+                            isRTL ? "text-right" : "text-left"
+                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
+                        >
                           {t("percentage")}
                         </th>
                       </>
                     )}
                     {selectedReport === "sellers" && (
                       <>
-                        <th className={`px-6 py-3 ${isRTL ? 'text-right' : 'text-left'} text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
+                        <th
+                          className={`px-6 py-3 ${
+                            isRTL ? "text-right" : "text-left"
+                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
+                        >
                           {t("seller")}
                         </th>
-                        <th className={`px-6 py-3 ${isRTL ? 'text-right' : 'text-left'} text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
+                        <th
+                          className={`px-6 py-3 ${
+                            isRTL ? "text-right" : "text-left"
+                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
+                        >
                           {t("sales")}
                         </th>
-                        <th className={`px-6 py-3 ${isRTL ? 'text-right' : 'text-left'} text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
+                        <th
+                          className={`px-6 py-3 ${
+                            isRTL ? "text-right" : "text-left"
+                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
+                        >
                           {t("orders")}
                         </th>
-                        <th className={`px-6 py-3 ${isRTL ? 'text-right' : 'text-left'} text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
+                        <th
+                          className={`px-6 py-3 ${
+                            isRTL ? "text-right" : "text-left"
+                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
+                        >
                           {t("rating")}
                         </th>
-                        <th className={`px-6 py-3 ${isRTL ? 'text-right' : 'text-left'} text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
+                        <th
+                          className={`px-6 py-3 ${
+                            isRTL ? "text-right" : "text-left"
+                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
+                        >
                           {t("growth")}
                         </th>
                       </>
                     )}
                     {selectedReport === "kitchen" && (
                       <>
-                        <th className={`px-6 py-3 ${isRTL ? 'text-right' : 'text-left'} text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
+                        <th
+                          className={`px-6 py-3 ${
+                            isRTL ? "text-right" : "text-left"
+                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
+                        >
                           {t("staff")}
                         </th>
-                        <th className={`px-6 py-3 ${isRTL ? 'text-right' : 'text-left'} text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
+                        <th
+                          className={`px-6 py-3 ${
+                            isRTL ? "text-right" : "text-left"
+                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
+                        >
                           {t("orders")}
                         </th>
-                        <th className={`px-6 py-3 ${isRTL ? 'text-right' : 'text-left'} text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
+                        <th
+                          className={`px-6 py-3 ${
+                            isRTL ? "text-right" : "text-left"
+                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
+                        >
                           {t("avgTime")}
                         </th>
-                        <th className={`px-6 py-3 ${isRTL ? 'text-right' : 'text-left'} text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
+                        <th
+                          className={`px-6 py-3 ${
+                            isRTL ? "text-right" : "text-left"
+                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
+                        >
                           {t("rating")}
                         </th>
                       </>
                     )}
                     {selectedReport === "delivery" && (
                       <>
-                        <th className={`px-6 py-3 ${isRTL ? 'text-right' : 'text-left'} text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
+                        <th
+                          className={`px-6 py-3 ${
+                            isRTL ? "text-right" : "text-left"
+                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
+                        >
                           {t("driver")}
                         </th>
-                        <th className={`px-6 py-3 ${isRTL ? 'text-right' : 'text-left'} text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
+                        <th
+                          className={`px-6 py-3 ${
+                            isRTL ? "text-right" : "text-left"
+                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
+                        >
                           {t("deliveries")}
                         </th>
-                        <th className={`px-6 py-3 ${isRTL ? 'text-right' : 'text-left'} text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
+                        <th
+                          className={`px-6 py-3 ${
+                            isRTL ? "text-right" : "text-left"
+                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
+                        >
                           {t("avgTime")}
                         </th>
-                        <th className={`px-6 py-3 ${isRTL ? 'text-right' : 'text-left'} text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}>
+                        <th
+                          className={`px-6 py-3 ${
+                            isRTL ? "text-right" : "text-left"
+                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
+                        >
                           {t("rating")}
                         </th>
                       </>

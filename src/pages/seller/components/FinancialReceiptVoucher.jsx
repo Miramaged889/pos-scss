@@ -1,6 +1,6 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import {
   Receipt,
   DollarSign,
@@ -19,10 +19,30 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { fetchCustomers } from "../../../store/slices/customerSlice";
+import {
+  fetchReceipts,
+  createReceipt,
+  updateReceipt,
+  deleteReceipt,
+} from "../../../store/slices/receiptVoucherSlice";
 
 const FinancialReceiptVoucher = () => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
+  const dispatch = useDispatch();
+  const { customers, loading: customersLoading } = useSelector(
+    (state) => state.customers
+  );
+  const { receipts, loading, error } = useSelector(
+    (state) => state.receiptVouchers
+  );
+
+  // Load customers and receipts
+  useEffect(() => {
+    dispatch(fetchCustomers());
+    dispatch(fetchReceipts());
+  }, [dispatch]);
 
   // Form state
   const [receiptType, setReceiptType] = useState("customer"); // "customer" or "other"
@@ -42,11 +62,8 @@ const FinancialReceiptVoucher = () => {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Customers will be loaded from API
-  const [customers] = useState([]);
-
-  // Receipts will be loaded from API
-  const [receipts, setReceipts] = useState([]);
+  // State for form submission
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // File upload handlers
   const handleFileSelect = (files) => {
@@ -162,10 +179,21 @@ const FinancialReceiptVoucher = () => {
     setIsEditModalOpen(true);
   };
 
-  const handleDeleteReceipt = (receiptId) => {
+  const handleDeleteReceipt = async (receiptId) => {
     if (window.confirm(t("financialReceipt.confirmDelete"))) {
-      setReceipts((prev) => prev.filter((r) => r.id !== receiptId));
-      toast.success(t("financialReceipt.success.receiptDeleted"));
+      try {
+        const result = await dispatch(deleteReceipt(receiptId));
+        if (result.type.endsWith("/fulfilled")) {
+          toast.success(t("financialReceipt.success.receiptDeleted"));
+        } else {
+          toast.error(
+            result.payload || t("financialReceipt.errors.deleteFailed")
+          );
+        }
+      } catch (error) {
+        console.error("Error deleting receipt:", error);
+        toast.error(t("financialReceipt.errors.deleteFailed"));
+      }
     }
   };
 
@@ -255,7 +283,7 @@ const FinancialReceiptVoucher = () => {
             
             <div class="form-row">
               <label>استلمنا من السيد / السادة:</label>
-              <input type="text" value="${receipt.customerName}" readonly>
+              <input type="text" value="${receipt.received_from || receipt.customerName || ''}" readonly>
             </div>
             
             <div class="form-row">
@@ -311,22 +339,33 @@ const FinancialReceiptVoucher = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    let payerName = "";
+    if (isSubmitting) {
+      return;
+    }
+
+    let receivedFrom = "";
     if (receiptType === "customer") {
       if (!selectedCustomerId) {
-        toast.error("يرجى اختيار العميل");
+        toast.error(t("financialReceipt.errors.selectCustomer"));
         return;
       }
       const selectedCustomer = customers.find(
         (c) => c.id === parseInt(selectedCustomerId)
       );
-      payerName = selectedCustomer?.name || "";
+      receivedFrom =
+        selectedCustomer?.name || selectedCustomer?.customer_name || "";
     } else {
-      payerName = otherName;
+      receivedFrom = otherName;
     }
 
-    if (!payerName) {
-      toast.error("يرجى إدخال اسم المستلم");
+    console.log("🔍 Form validation:");
+    console.log("  receivedFrom:", receivedFrom);
+    console.log("  amount:", amount);
+    console.log("  receiver:", receiver);
+    console.log("  bankName:", bankName);
+
+    if (!receivedFrom || receivedFrom.trim() === "") {
+      toast.error(t("financialReceipt.errors.enterReceivedFrom"));
       return;
     }
 
@@ -335,47 +374,71 @@ const FinancialReceiptVoucher = () => {
       return;
     }
 
-    if (!purpose) {
-      toast.error(t("financialReceipt.errors.enterPurpose"));
-      return;
-    }
-
-    if (!receiver) {
+    if (!receiver || receiver.trim() === "") {
       toast.error(t("financialReceipt.errors.enterReceiver"));
       return;
     }
 
-    const newReceipt = {
-      receiptNumber:
-        manualReceiptNumber?.trim() ||
-        String(receipts.length + 1).padStart(4, "0"),
-      customerName: payerName,
-      amount: parseFloat(amount),
-      date: receiptDate,
-      bankName,
-      purpose,
-      receiver,
-      paymentMethod,
-      referenceNumber,
-      images: uploadedImages,
-    };
+    if (!bankName || bankName.trim() === "") {
+      toast.error(t("financialReceipt.errors.enterBank"));
+      return;
+    }
 
-    setReceipts((prev) => [newReceipt, ...prev]);
+    setIsSubmitting(true);
 
-    // Reset form
-    setSelectedCustomerId("");
-    setOtherName("");
-    setAmount("");
-    setBankName("");
-    setPurpose("");
-    setReceiver("");
-    setReceiptDate(new Date().toISOString().split("T")[0]);
-    setPaymentMethod("cash");
-    setReferenceNumber("");
-    setUploadedImages([]);
-    setManualReceiptNumber("");
+    try {
+      const receiptData = {
+        receiptType,
+        receivedFrom: receivedFrom.trim(),
+        receiptNumber: manualReceiptNumber?.trim() || null,
+        amount: parseFloat(amount),
+        paymentMethod,
+        referenceNumber: referenceNumber?.trim() || "",
+        bankName: bankName.trim(),
+        purpose: purpose?.trim() || "",
+        receiver: receiver.trim(),
+        date: receiptDate,
+        attachments:
+          uploadedImages.length > 0
+            ? [
+                {
+                  file: uploadedImages[0].file,
+                  url: uploadedImages[0].preview,
+                },
+              ]
+            : [],
+      };
 
-    toast.success(t("financialReceipt.success.receiptCreated"));
+      console.log("📝 Receipt data being sent:", receiptData);
+
+      const result = await dispatch(createReceipt(receiptData));
+
+      if (result.type.endsWith("/fulfilled")) {
+        // Reset form
+        setSelectedCustomerId("");
+        setOtherName("");
+        setAmount("");
+        setBankName("");
+        setPurpose("");
+        setReceiver("");
+        setReceiptDate(new Date().toISOString().split("T")[0]);
+        setPaymentMethod("cash");
+        setReferenceNumber("");
+        setUploadedImages([]);
+        setManualReceiptNumber("");
+
+        toast.success(t("financialReceipt.success.receiptCreated"));
+      } else {
+        toast.error(
+          result.payload || t("financialReceipt.errors.createFailed")
+        );
+      }
+    } catch (error) {
+      console.error("Error creating receipt:", error);
+      toast.error(t("financialReceipt.errors.createFailed"));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const getPaymentMethodDisplay = () => {
@@ -407,6 +470,45 @@ const FinancialReceiptVoucher = () => {
         return t("financialReceipt.cash");
     }
   };
+
+  // Helper function to get the received_from value consistently
+  const getReceivedFromValue = (receipt) => {
+    return receipt.received_from || receipt.customerName || receipt.receivedFrom || '';
+  };
+
+  // Show loading state
+  if (loading && !error) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">
+            {t("financialReceipt.loadingReceipts")}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-500 mb-4">
+            <AlertCircle className="w-12 h-12 mx-auto" />
+          </div>
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+          <button
+            onClick={() => dispatch(fetchReceipts())}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            {t("retry")}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -490,13 +592,13 @@ const FinancialReceiptVoucher = () => {
                           className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
                           <option value="">
-                            {t("financialReceipt.selectCustomer")}
+                            {customersLoading
+                              ? t("loading")
+                              : t("financialReceipt.selectCustomer")}
                           </option>
                           {customers.map((customer) => (
                             <option key={customer.id} value={customer.id}>
-                              {customer.name} -{" "}
-                              {t("financialReceipt.outstandingCredit")}:{" "}
-                              {customer.outstandingCredit} {t("currency")}
+                              {customer.name || customer.customer_name}
                             </option>
                           ))}
                         </select>
@@ -741,10 +843,20 @@ const FinancialReceiptVoucher = () => {
                   <div className="flex items-center justify-end space-x-3 rtl:space-x-reverse">
                     <button
                       type="submit"
-                      className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      disabled={isSubmitting}
+                      className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <Receipt className="w-4 h-4 ml-2 rtl:ml-0 rtl:mr-2" />
-                      {t("financialReceipt.createReceipt")}
+                      {isSubmitting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2 rtl:ml-2 rtl:mr-0"></div>
+                          {t("processing")}
+                        </>
+                      ) : (
+                        <>
+                          <Receipt className="w-4 h-4 ml-2 rtl:ml-0 rtl:mr-2" />
+                          {t("financialReceipt.createReceipt")}
+                        </>
+                      )}
                     </button>
                   </div>
                 </form>
@@ -766,6 +878,12 @@ const FinancialReceiptVoucher = () => {
                         manualReceiptNumber?.trim() ||
                         String(receipts.length + 1).padStart(4, "0"),
                       customerName:
+                        receiptType === "customer"
+                          ? customers.find(
+                              (c) => c.id === parseInt(selectedCustomerId)
+                            )?.name || ""
+                          : otherName,
+                      received_from:
                         receiptType === "customer"
                           ? customers.find(
                               (c) => c.id === parseInt(selectedCustomerId)
@@ -805,10 +923,20 @@ const FinancialReceiptVoucher = () => {
 
                 <div className="space-y-3 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-400">
+                    <span className="text-gray-600 dark:text-gray-300">
+                      {t("financialReceipt.recipientType")}:
+                    </span>
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {receiptType === "customer"
+                        ? t("financialReceipt.customer")
+                        : t("financialReceipt.other")}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-300">
                       {t("financialReceipt.weReceivedFrom")}:
                     </span>
-                    <span className="font-medium">
+                    <span className="font-medium text-gray-900 dark:text-white">
                       {receiptType === "customer"
                         ? customers.find(
                             (c) => c.id === parseInt(selectedCustomerId)
@@ -817,7 +945,7 @@ const FinancialReceiptVoucher = () => {
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-400">
+                    <span className="text-gray-600 dark:text-gray-300">
                       {t("amount")}:
                     </span>
                     <span className="font-bold text-green-600 dark:text-green-400">
@@ -825,43 +953,74 @@ const FinancialReceiptVoucher = () => {
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-400">
+                    <span className="text-gray-600 dark:text-gray-300">
                       {t("financialReceipt.paymentMethod")}:
                     </span>
-                    <span className="font-medium">
+                    <span className="font-medium text-gray-900 dark:text-white">
                       {getPaymentMethodDisplay()}
                     </span>
                   </div>
+                  {(paymentMethod === "check" ||
+                    paymentMethod === "bank_transfer" ||
+                    paymentMethod === "card") &&
+                    referenceNumber && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-600 dark:text-gray-300">
+                          {t("financialReceipt.referenceNumber")}:
+                        </span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {referenceNumber}
+                        </span>
+                      </div>
+                    )}
                   {bankName && (
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">
+                      <span className="text-gray-600 dark:text-gray-300">
                         {t("financialReceipt.bank")}:
                       </span>
-                      <span className="font-medium">{bankName}</span>
+                      <span className="font-medium text-gray-900 dark:text-white">
+                        {bankName}
+                      </span>
                     </div>
                   )}
                   {purpose && (
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">
+                      <span className="text-gray-600 dark:text-gray-300">
                         {t("financialReceipt.purpose")}:
                       </span>
-                      <span className="font-medium">{purpose}</span>
+                      <span className="font-medium text-gray-900 dark:text-white">
+                        {purpose}
+                      </span>
                     </div>
                   )}
                   {receiver && (
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">
+                      <span className="text-gray-600 dark:text-gray-300">
                         {t("financialReceipt.receiver")}:
                       </span>
-                      <span className="font-medium">{receiver}</span>
+                      <span className="font-medium text-gray-900 dark:text-white">
+                        {receiver}
+                      </span>
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-400">
+                    <span className="text-gray-600 dark:text-gray-300">
                       {t("financialReceipt.date")}:
                     </span>
-                    <span className="font-medium">{receiptDate}</span>
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {receiptDate}
+                    </span>
                   </div>
+                  {uploadedImages.length > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-300">
+                        {t("financialReceipt.uploadAttachments")}:
+                      </span>
+                      <span className="font-medium text-gray-900 dark:text-white">
+                        {uploadedImages.length} {t("files")}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
@@ -898,7 +1057,7 @@ const FinancialReceiptVoucher = () => {
                       ],
                       ...receipts.map((r) => [
                         r.receiptNumber,
-                        r.customerName,
+                        getReceivedFromValue(r),
                         r.amount,
                         r.date,
                         getPaymentMethodDisplayForReceipt(r.paymentMethod),
@@ -961,7 +1120,7 @@ const FinancialReceiptVoucher = () => {
                         isRTL ? "text-right" : "text-left"
                       }`}
                     >
-                      {t("receiver")}
+                      {t("financialReceipt.weReceivedFrom")}
                     </th>
                     <th
                       className={`py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400 ${
@@ -969,6 +1128,13 @@ const FinancialReceiptVoucher = () => {
                       }`}
                     >
                       {t("amount")}
+                    </th>
+                    <th
+                      className={`py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400 ${
+                        isRTL ? "text-right" : "text-left"
+                      }`}
+                    >
+                      {t("financialReceipt.receiver")}
                     </th>
                     <th
                       className={`py-3 px-4 text-sm font-medium text-gray-600 dark:text-gray-400 ${
@@ -1003,10 +1169,13 @@ const FinancialReceiptVoucher = () => {
                         {receipt.receiptNumber}
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
-                        {receipt.customerName}
+                        {getReceivedFromValue(receipt)}
                       </td>
                       <td className="py-3 px-4 text-sm font-semibold text-green-600 dark:text-green-400">
                         {receipt.amount} ريال
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
+                        {receipt.receiver}
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
                         {receipt.date}
@@ -1097,7 +1266,7 @@ const FinancialReceiptVoucher = () => {
                     {t("financialReceipt.weReceivedFrom")}:
                   </label>
                   <p className="text-sm text-gray-900 dark:text-white">
-                    {selectedReceipt.customerName}
+                    {getReceivedFromValue(selectedReceipt)}
                   </p>
                 </div>
                 <div>
@@ -1196,17 +1365,45 @@ const FinancialReceiptVoucher = () => {
             </div>
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                // Update the receipt
-                setReceipts((prev) =>
-                  prev.map((r) =>
-                    r.id === editingReceipt.id ? { ...r, ...editingReceipt } : r
-                  )
-                );
-                setIsEditModalOpen(false);
-                setEditingReceipt(null);
-                toast.success(t("financialReceipt.success.receiptUpdated"));
+                if (isSubmitting) return;
+
+                setIsSubmitting(true);
+                try {
+                  const result = await dispatch(
+                    updateReceipt({
+                      id: editingReceipt.id,
+                      updates: {
+                        receiptType: editingReceipt.receiptType,
+                        receivedFrom: getReceivedFromValue(editingReceipt),
+                        amount: parseFloat(editingReceipt.amount),
+                        paymentMethod: editingReceipt.paymentMethod,
+                        referenceNumber: editingReceipt.referenceNumber,
+                        bankName: editingReceipt.bankName,
+                        purpose: editingReceipt.purpose,
+                        receiver: editingReceipt.receiver,
+                        date: editingReceipt.date,
+                      },
+                    })
+                  );
+
+                  if (result.type.endsWith("/fulfilled")) {
+                    setIsEditModalOpen(false);
+                    setEditingReceipt(null);
+                    toast.success(t("financialReceipt.success.receiptUpdated"));
+                  } else {
+                    toast.error(
+                      result.payload ||
+                        t("financialReceipt.errors.updateFailed")
+                    );
+                  }
+                } catch (error) {
+                  console.error("Error updating receipt:", error);
+                  toast.error(t("financialReceipt.errors.updateFailed"));
+                } finally {
+                  setIsSubmitting(false);
+                }
               }}
               className="space-y-4"
             >
@@ -1217,11 +1414,13 @@ const FinancialReceiptVoucher = () => {
                   </label>
                   <input
                     type="text"
-                    value={editingReceipt.customerName}
+                    value={getReceivedFromValue(editingReceipt)}
                     onChange={(e) =>
                       setEditingReceipt((prev) => ({
                         ...prev,
+                        received_from: e.target.value,
                         customerName: e.target.value,
+                        receivedFrom: e.target.value,
                       }))
                     }
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"

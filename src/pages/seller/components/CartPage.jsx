@@ -72,7 +72,7 @@ const CartPage = () => {
 
     const orderData = {
       products: Object.entries(cartItems).map(([id, item]) => ({
-        productId: parseInt(id),
+        id: parseInt(id), // Changed from productId to id to match orderService expectations
         name: item.name,
         nameEn: item.nameEn,
         quantity: item.quantity,
@@ -119,11 +119,7 @@ const CartPage = () => {
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
-        <div
-          className={`flex items-center gap-4 ${
-            isRTL ? "flex-row" : ""
-          }`}
-        >
+        <div className={`flex items-center gap-4 ${isRTL ? "flex-row" : ""}`}>
           <button
             onClick={handleBackToProducts}
             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -153,9 +149,7 @@ const CartPage = () => {
               className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4"
             >
               <div
-                className={`flex items-center gap-4 ${
-                  isRTL ? "flex-row" : ""
-                }`}
+                className={`flex items-center gap-4 ${isRTL ? "flex-row" : ""}`}
               >
                 {/* Product Image */}
                 <div className="flex-shrink-0">

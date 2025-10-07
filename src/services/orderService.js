@@ -4,41 +4,122 @@
 
 import { apiService, API_ENDPOINTS, replaceUrlParams } from "./api";
 
+// Helper function to map database schema to frontend format
+const mapDbToFrontend = (dbOrder) => {
+  return {
+    id: dbOrder.id,
+    customer: dbOrder.customer_name || `Customer #${dbOrder.customer}`,
+    customerId: dbOrder.customer,
+    phone: dbOrder.customer_phone || "",
+    sellerId: dbOrder.seller,
+    status: dbOrder.status || "pending",
+    paymentMethod: dbOrder.payment_type || "cash",
+    deliveryType: dbOrder.delivery_type || "pickup",
+    deliveryAddress: dbOrder.delivery_address || "",
+    createdAt: dbOrder.date || dbOrder.created_at,
+    items: dbOrder.items?.length || 0,
+    products:
+      dbOrder.items?.map((item) => ({
+        id: item.product_id,
+        name: item.product_name || item.product?.arabic_name || "",
+        nameEn: item.product?.english_name || "",
+        quantity: item.quantity,
+        price: parseFloat(item.product?.price || item.price || 0),
+      })) || [],
+    total:
+      dbOrder.items?.reduce(
+        (sum, item) =>
+          sum +
+          item.quantity * parseFloat(item.product?.price || item.price || 0),
+        0
+      ) || 0,
+    kitchenNotes: dbOrder.kitchen_notes || "",
+    generalNotes: dbOrder.notes || "",
+    priority: dbOrder.priority || "normal",
+  };
+};
+
+// Helper function to map frontend format to database schema
+const mapFrontendToDb = (frontendOrder, sellerId) => {
+  return {
+    customer: frontendOrder.customerId || frontendOrder.customer,
+    seller: sellerId,
+    status: frontendOrder.status || "pending",
+    payment_type: frontendOrder.paymentMethod || "cash",
+    delivery_type: frontendOrder.deliveryType || "pickup",
+    delivery_address: frontendOrder.deliveryAddress || "",
+    items:
+      frontendOrder.products?.map((product) => ({
+        product_id: product.id,
+        quantity: product.quantity,
+      })) ||
+      frontendOrder.items ||
+      [],
+    kitchen_notes: frontendOrder.kitchenNotes || "",
+    notes: frontendOrder.generalNotes || frontendOrder.notes || "",
+    priority: frontendOrder.priority || "normal",
+  };
+};
+
 export const orderService = {
   // Get all orders
   getOrders: async (params = {}) => {
-    return await apiService.get(API_ENDPOINTS.ORDERS.LIST, params);
+    const response = await apiService.get(API_ENDPOINTS.ORDERS.LIST, params);
+    const orders = Array.isArray(response)
+      ? response
+      : response.results || response.data || [];
+    return orders.map(mapDbToFrontend);
   },
 
   // Get order by ID
   getOrder: async (id) => {
     const endpoint = replaceUrlParams(API_ENDPOINTS.ORDERS.GET, { id });
-    return await apiService.get(endpoint);
+    const response = await apiService.get(endpoint);
+    return mapDbToFrontend(response);
   },
 
   // Create new order
-  createOrder: async (orderData) => {
-    return await apiService.post(API_ENDPOINTS.ORDERS.CREATE, orderData);
+  createOrder: async (orderData, sellerId) => {
+    const dbData = mapFrontendToDb(orderData, sellerId);
+
+    // Validate that items have product_id
+    if (!dbData.items || dbData.items.length === 0) {
+      throw new Error("Order must contain at least one item");
+    }
+
+    const invalidItems = dbData.items.filter(
+      (item) => !item.product_id || !item.quantity
+    );
+    if (invalidItems.length > 0) {
+      console.error("Invalid items found:", invalidItems);
+      throw new Error("All items must have a valid product ID and quantity");
+    }
+
+    console.log("Creating order with data:", JSON.stringify(dbData, null, 2));
+    const response = await apiService.post(API_ENDPOINTS.ORDERS.CREATE, dbData);
+    return mapDbToFrontend(response);
   },
 
   // Update order
-  updateOrder: async (id, orderData) => {
+  updateOrder: async (id, orderData, sellerId) => {
     const endpoint = replaceUrlParams(API_ENDPOINTS.ORDERS.UPDATE, { id });
-    return await apiService.put(endpoint, orderData);
+    const dbData = mapFrontendToDb(orderData, sellerId);
+    const response = await apiService.patch(endpoint, dbData);
+    return mapDbToFrontend(response);
   },
 
   // Update order status
   updateOrderStatus: async (id, status) => {
-    const endpoint = replaceUrlParams(API_ENDPOINTS.ORDERS.UPDATE_STATUS, {
-      id,
-    });
-    return await apiService.patch(endpoint, { status });
+    const endpoint = replaceUrlParams(API_ENDPOINTS.ORDERS.UPDATE, { id });
+    const response = await apiService.patch(endpoint, { status });
+    return mapDbToFrontend(response);
   },
 
   // Delete order
   deleteOrder: async (id) => {
     const endpoint = replaceUrlParams(API_ENDPOINTS.ORDERS.DELETE, { id });
-    return await apiService.delete(endpoint);
+    await apiService.delete(endpoint);
+    return id;
   },
 };
 

@@ -29,6 +29,7 @@ import {
   formatCurrencyEnglish,
   formatDateTimeEnglish,
 } from "../../../utils";
+import { supplierService } from "../../../services/supplierService";
 const SupplierPurchase = () => {
   const { t, i18n } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
@@ -48,14 +49,33 @@ const SupplierPurchase = () => {
   const [error, setError] = useState(null);
   const [viewData, setViewData] = useState(null);
   const [isViewOpen, setIsViewOpen] = useState(false);
+  const [suppliersMap, setSuppliersMap] = useState({});
+
+  // Load suppliers and create a mapping of ID to name
+  const loadSuppliers = async () => {
+    try {
+      const response = await supplierService.getSuppliers();
+      const suppliersList = response.results || response || [];
+
+      // Create a map of supplier ID to supplier name for quick lookup
+      const suppliersMapping = {};
+      suppliersList.forEach((supplier) => {
+        suppliersMapping[supplier.id] = supplier.supplier_name || supplier.name;
+      });
+      setSuppliersMap(suppliersMapping);
+    } catch (error) {
+      console.error("Error loading suppliers:", error);
+      setSuppliersMap({});
+    }
+  };
 
   const loadPurchaseOrders = async () => {
     setLoading(true);
     setError(null);
     try {
-      // For now, we'll use an empty array since we don't have a specific purchase order service
-      // In a real implementation, you would have a purchaseOrderService
-      setPurchaseOrders([]);
+      const response = await supplierService.getPurchaseOrders();
+      const orders = response.results || response || [];
+      setPurchaseOrders(orders);
     } catch (error) {
       console.error("Error loading purchase orders:", error);
       setError(t("errorLoadingPurchaseOrders"));
@@ -65,30 +85,49 @@ const SupplierPurchase = () => {
     }
   };
 
-  // Load purchase orders from API
+  // Load suppliers and purchase orders from API
   useEffect(() => {
-    loadPurchaseOrders();
+    const loadData = async () => {
+      await loadSuppliers();
+      await loadPurchaseOrders();
+    };
+    loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Calculate stats
   const totalOrders = purchaseOrders.length;
   const pendingOrders = purchaseOrders.filter(
-    (po) => po.status === "pending"
+    (po) => po.status === "Pending"
   ).length;
 
   const deliveredOrders = purchaseOrders.filter(
-    (po) => po.status === "delivered"
+    (po) => po.status === "Delivered"
   ).length;
+
+  // Calculate total amount from items
+  const calculateOrderTotal = (order) => {
+    if (!order.items || !Array.isArray(order.items)) return 0;
+    return order.items.reduce(
+      (sum, item) => sum + (item.quantity || 0) * (item.unit_price || 0),
+      0
+    );
+  };
+
   const totalSpent = purchaseOrders
-    .filter((po) => po.status === "delivered")
-    .reduce((sum, po) => sum + (po.totalAmount || 0), 0);
+    .filter((po) => po.status === "Delivered")
+    .reduce((sum, po) => sum + calculateOrderTotal(po), 0);
+
+  // Helper function to get supplier name by ID
+  const getSupplierName = (supplierId) => {
+    return suppliersMap[supplierId] || "N/A";
+  };
 
   // Filter purchase orders
   const filteredOrders = purchaseOrders.filter((order) => {
+    const supplierName = getSupplierName(order.supplier);
     const matchesSearch =
-      (order.supplier || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (order.poNumber || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      supplierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (order.id || "")
         .toString()
         .toLowerCase()
@@ -142,15 +181,15 @@ const SupplierPurchase = () => {
 
   const handleDeleteOrder = async (orderId) => {
     const order = purchaseOrders.find((po) => po.id === orderId);
-    const confirmMessage = `${t("confirmDeletePurchaseOrder")}\n\n${t(
-      "poNumber"
-    )}: ${order?.poNumber || order?.id}\n${t("supplier")}: ${order?.supplier}`;
+    const supplierName = getSupplierName(order?.supplier);
+    const confirmMessage = `${t("confirmDeletePurchaseOrder")}\n\n${t("id")}: ${
+      order?.id
+    }\n${t("supplier")}: ${supplierName}`;
 
     if (window.confirm(confirmMessage)) {
       try {
-        // For now, just remove from local state since we don't have a purchase order service
+        await supplierService.deletePurchaseOrder(orderId);
         setPurchaseOrders((prev) => prev.filter((po) => po.id !== orderId));
-        // Show success message
         alert(t("purchaseOrderDeleted"));
       } catch (error) {
         console.error("Error deleting purchase order:", error);
@@ -159,22 +198,24 @@ const SupplierPurchase = () => {
     }
   };
 
-  const handleFormSubmit = async (formData) => {
+  const handleFormSubmit = async (formData, editId = null) => {
     try {
-      if (editData) {
-        // For now, just update local state since we don't have a purchase order service
-        setPurchaseOrders((prev) =>
-          prev.map((po) =>
-            po.id === editData.id ? { ...po, ...formData } : po
-          )
-        );
+
+
+      if (editId) {
+        // Update existing purchase order
+        await supplierService.updatePurchaseOrder(editId, formData);
       } else {
-        // For now, just add to local state since we don't have a purchase order service
-        const newOrder = { ...formData, id: Date.now().toString() };
-        setPurchaseOrders((prev) => [...prev, newOrder]);
+        // Create new purchase order
+        console.log("➕ Creating new purchase order");
+        await supplierService.createPurchaseOrder(formData);
       }
+
       setIsFormOpen(false);
       setEditData(null);
+
+      // Reload to get fresh data from API
+      await loadPurchaseOrders();
     } catch (error) {
       console.error("Error saving purchase order:", error);
       setError(t("errorSavingPurchaseOrder"));
@@ -183,13 +224,13 @@ const SupplierPurchase = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case "delivered":
+      case "Delivered":
         return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
-      case "confirmed":
+      case "Confirmed":
         return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
-      case "pending":
+      case "Pending":
         return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
-      case "cancelled":
+      case "Cancelled":
         return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
       default:
         return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
@@ -198,11 +239,11 @@ const SupplierPurchase = () => {
 
   const orderColumns = [
     {
-      header: t("poNumber"),
-      accessor: "poNumber",
+      header: t("id"),
+      accessor: "id",
       render: (order) => (
         <div className="font-medium text-blue-600 dark:text-blue-400">
-          {order.poNumber || order.id}
+          #{order.id}
         </div>
       ),
     },
@@ -215,7 +256,7 @@ const SupplierPurchase = () => {
             <Building className="w-4 h-4 text-gray-500 dark:text-gray-400" />
           </div>
           <span className="font-medium text-gray-900 dark:text-white">
-            {order.supplier}
+            {getSupplierName(order.supplier)}
           </span>
         </div>
       ),
@@ -230,7 +271,7 @@ const SupplierPurchase = () => {
               key={index}
               className="text-sm text-gray-600 dark:text-gray-400"
             >
-              {item.name} × {item.quantity}
+              {item.item_name} × {item.quantity}
             </div>
           ))}
           {(order.items || []).length > 2 && (
@@ -251,7 +292,7 @@ const SupplierPurchase = () => {
       accessor: "totalAmount",
       render: (order) => (
         <div className="font-semibold text-gray-900 dark:text-white">
-          {formatCurrencySmart(order.totalAmount || 0)}
+          {formatCurrencySmart(calculateOrderTotal(order))}
         </div>
       ),
     },
@@ -264,26 +305,17 @@ const SupplierPurchase = () => {
             order.status
           )}`}
         >
-          {t(order.status || "pending")}
+          {order.status || "Pending"}
         </span>
       ),
     },
     {
-      header: t("orderDate"),
-      accessor: "orderDate",
-      render: (order) => (
-        <div className="text-sm text-gray-600 dark:text-gray-400">
-          {order.orderDate ? formatDateTimeEnglish(order.orderDate) : "-"}
-        </div>
-      ),
-    },
-    {
       header: t("expectedDelivery"),
-      accessor: "expectedDelivery",
+      accessor: "expected_delivery",
       render: (order) => (
         <div className="text-sm text-gray-600 dark:text-gray-400">
-          {order.expectedDelivery
-            ? formatDateTimeEnglish(order.expectedDelivery)
+          {order.expected_delivery
+            ? formatDateTimeEnglish(order.expected_delivery)
             : "-"}
         </div>
       ),
@@ -387,10 +419,10 @@ const SupplierPurchase = () => {
               className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="all">{t("allOrders")}</option>
-              <option value="pending">{t("pending")}</option>
-              <option value="confirmed">{t("confirmed")}</option>
-              <option value="delivered">{t("delivered")}</option>
-              <option value="cancelled">{t("cancelled")}</option>
+              <option value="Pending">{t("pending")}</option>
+              <option value="Confirmed">{t("confirmed")}</option>
+              <option value="Delivered">{t("delivered")}</option>
+              <option value="Cancelled">{t("cancelled")}</option>
             </select>
           </div>
         </div>
@@ -475,7 +507,7 @@ const SupplierPurchase = () => {
                     {t("viewPurchaseOrder")}
                   </h2>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {viewData.poNumber || viewData.id}
+                    #{viewData.id}
                   </p>
                 </div>
               </div>
@@ -498,7 +530,7 @@ const SupplierPurchase = () => {
                   <div className="flex items-center gap-2">
                     <Building className="w-4 h-4 text-gray-500" />
                     <span className="text-gray-900 dark:text-white">
-                      {viewData.supplier}
+                      {getSupplierName(viewData.supplier)}
                     </span>
                   </div>
                 </div>
@@ -512,19 +544,19 @@ const SupplierPurchase = () => {
                         viewData.status
                       )}`}
                     >
-                      {t(viewData.status || "pending")}
+                      {viewData.status || "Pending"}
                     </span>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {t("orderDate")}
+                    {t("createdAt")}
                   </label>
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-gray-500" />
                     <span className="text-gray-900 dark:text-white">
-                      {viewData.orderDate
-                        ? formatDateTimeEnglish(viewData.orderDate)
+                      {viewData.created_at
+                        ? formatDateTimeEnglish(viewData.created_at)
                         : "-"}
                     </span>
                   </div>
@@ -536,8 +568,8 @@ const SupplierPurchase = () => {
                   <div className="flex items-center gap-2">
                     <Truck className="w-4 h-4 text-gray-500" />
                     <span className="text-gray-900 dark:text-white">
-                      {viewData.expectedDelivery
-                        ? formatDateTimeEnglish(viewData.expectedDelivery)
+                      {viewData.expected_delivery
+                        ? formatDateTimeEnglish(viewData.expected_delivery)
                         : "-"}
                     </span>
                   </div>
@@ -562,7 +594,7 @@ const SupplierPurchase = () => {
                               {t("itemName")}
                             </label>
                             <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {item.name}
+                              {item.item_name}
                             </p>
                           </div>
                           <div>
@@ -578,7 +610,7 @@ const SupplierPurchase = () => {
                               {t("unitPrice")}
                             </label>
                             <p className="text-sm text-gray-900 dark:text-white">
-                              {formatCurrencySmart(item.price)}
+                              {formatCurrencySmart(item.unit_price)}
                             </p>
                           </div>
                           <div>
@@ -587,7 +619,7 @@ const SupplierPurchase = () => {
                             </label>
                             <p className="text-sm font-semibold text-gray-900 dark:text-white">
                               {formatCurrencySmart(
-                                (item.quantity || 0) * (item.price || 0)
+                                (item.quantity || 0) * (item.unit_price || 0)
                               )}
                             </p>
                           </div>
@@ -634,7 +666,7 @@ const SupplierPurchase = () => {
                     </span>
                   </div>
                   <span className="text-2xl font-bold text-blue-800 dark:text-blue-300">
-                    {formatCurrencySmart(viewData.totalAmount || 0)}
+                    {formatCurrencySmart(calculateOrderTotal(viewData))}
                   </span>
                 </div>
               </div>

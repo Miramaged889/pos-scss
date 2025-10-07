@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import {
   CreditCard,
@@ -17,7 +17,10 @@ import {
   Calendar,
   User,
   Hash,
+  Edit,
+  Trash2,
 } from "lucide-react";
+import { toast } from "react-hot-toast";
 
 import DataTable from "../../../components/Common/DataTable";
 import StatsCard from "../../../components/Common/StatsCard";
@@ -26,66 +29,54 @@ import {
   formatCurrencyEnglish,
   formatDateTimeEnglish,
 } from "../../../utils/formatters";
-// Removed localStorage imports - using Redux instead
 import { CustomerInvoiceForm } from "../../../components/Forms/SellerForms";
+import {
+  fetchCustomerInvoices,
+  updateCustomerInvoice,
+  deleteCustomerInvoice,
+} from "../../../store/slices/customerInvoiceSlice";
 
 const PaymentManagement = () => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
+  const { customerInvoices, loading, error } = useSelector(
+    (state) => state.customerInvoices
+  );
+  const dispatch = useDispatch();
+
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState(null);
-  const [payments, setPayments] = useState([]);
   const [dateRange, setDateRange] = useState("all"); // all | today | week | month | custom
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [isCustomerInvoiceOpen, setIsCustomerInvoiceOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState(null);
 
+  // Fetch customer invoices on component mount
   useEffect(() => {
-    const loadPayments = () => {
-      try {
-        // For now, use empty payments array - will be replaced with API calls
-        const allPayments = [];
+    dispatch(fetchCustomerInvoices());
+  }, [dispatch]);
 
-        // Enhance payments with order details
-        const enhancedPayments = allPayments.map((payment) => {
-          const relatedOrder = null; // Will be fetched from Redux
-          let fees = 0;
-          if (payment.method === "card") {
-            fees = payment.amount * 0.03;
-          } else if (payment.method === "kent") {
-            fees = payment.amount * 0.025;
-          }
-          return {
-            ...payment,
-            customer:
-              relatedOrder?.customer ||
-              payment.customer ||
-              t("unknownCustomer"),
-            customerPhone: relatedOrder?.phone || payment.customerPhone || "",
-            fees: payment.fees || fees,
-            description: relatedOrder
-              ? `${
-                  relatedOrder.products?.map((p) => p.name).join(", ") ||
-                  t("products")
-                } (${relatedOrder.items || 0} ${t("items")})`
-              : payment.description || t("paymentTransaction"),
-            assignedDriver: relatedOrder?.assignedDriver || null,
-          };
-        });
-
-        setPayments(enhancedPayments);
-      } catch (error) {
-        console.error("Error loading payments:", error);
-        setPayments([]);
-      }
-    };
-
-    loadPayments();
-    const interval = setInterval(loadPayments, 30000); // Refresh every 30 seconds
-    return () => clearInterval(interval);
-  }, [t]);
+  // Convert customer invoices to payment format for display
+  const payments = customerInvoices.map((invoice) => ({
+    id: invoice.id,
+    transactionId: `INV-${invoice.id}`,
+    orderId: invoice.orderId || `ORD-${invoice.id}`,
+    customer: invoice.customerName,
+    customerPhone: invoice.customerPhone,
+    amount: invoice.total || invoice.subTotal,
+    method: "invoice", // Customer invoices are treated as invoice payments
+    fees: 0, // No fees for customer invoices
+    status: invoice.status,
+    paymentDate: invoice.createdAt,
+    issueDate: invoice.issueDate,
+    dueDate: invoice.dueDate,
+    description: invoice.notes || t("customerInvoice"),
+    items: invoice.items || [],
+  }));
 
   const totalTransactions = payments.length;
   const completedPayments = payments.filter((p) => p.status === "completed");
@@ -155,14 +146,66 @@ const PaymentManagement = () => {
     },
   ];
 
-  const handleSubmitCustomerInvoice = async (invoice) => {
+  const handleSubmitCustomerInvoice = (invoice) => {
+    // Form already dispatches the action, just close the modal
+    console.log("Customer invoice created successfully:", invoice);
+    setIsCustomerInvoiceOpen(false);
+  };
+
+  const handleEditInvoice = (payment) => {
+    // Find the original invoice data
+    const originalInvoice = customerInvoices.find(
+      (inv) => inv.id === payment.id
+    );
+    if (originalInvoice) {
+      setEditingInvoice(originalInvoice);
+      setEditModalOpen(true);
+    }
+  };
+
+  const handleDeleteInvoice = async (payment) => {
+    if (
+      window.confirm(
+        `${t("deleteInvoiceConfirmation")} ${payment.transactionId}?`
+      )
+    ) {
+      try {
+        const result = await dispatch(deleteCustomerInvoice(payment.id));
+        if (result.type.endsWith("/fulfilled")) {
+          toast.success(`${t("invoiceDeleted")} ${payment.transactionId}`);
+        } else {
+          toast.error(`${t("errorDeletingInvoice")}: ${result.payload}`);
+        }
+      } catch (error) {
+        console.error("Error deleting invoice:", error);
+        toast.error(`${t("errorDeletingInvoice")}: ${error.message}`);
+      }
+    }
+  };
+
+  const handleEditModalClose = () => {
+    setEditModalOpen(false);
+    setEditingInvoice(null);
+  };
+
+  const handleEditSubmit = async (updatedInvoice) => {
     try {
-      // Customer invoices will be handled by the backend API
-      console.log("Customer invoice submitted:", invoice);
-    } catch (e) {
-      console.error("Error saving customer invoice", e);
-    } finally {
-      setIsCustomerInvoiceOpen(false);
+      const result = await dispatch(
+        updateCustomerInvoice({
+          id: editingInvoice.id,
+          updates: updatedInvoice,
+        })
+      );
+
+      if (result.type.endsWith("/fulfilled")) {
+        handleEditModalClose();
+        toast.success(`${t("invoiceUpdated")} INV-${editingInvoice.id}`);
+      } else {
+        toast.error(`${t("errorUpdatingInvoice")}: ${result.payload}`);
+      }
+    } catch (error) {
+      console.error("Error updating invoice:", error);
+      toast.error(`${t("errorUpdatingInvoice")}: ${error.message}`);
     }
   };
 
@@ -308,15 +351,15 @@ const PaymentManagement = () => {
       ),
     },
     {
-      header: t("paymentDate"),
-      accessor: "paymentDate",
+      header: t("dueDate"),
+      accessor: "dueDate",
       render: (payment) => (
         <span
           className={`text-gray-600 dark:text-gray-400 ${
             isRTL ? "text-right" : "text-left"
           }`}
         >
-          {formatDateTimeEnglish(payment.paymentDate)}
+          {formatDateTimeEnglish(payment.dueDate)}
         </span>
       ),
     },
@@ -334,6 +377,20 @@ const PaymentManagement = () => {
             <Eye className="w-4 h-4" />
           </button>
           <button
+            onClick={() => handleEditInvoice(payment)}
+            className="p-2 text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-all duration-200 hover:scale-110"
+            title={t("edit")}
+          >
+            <Edit className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => handleDeleteInvoice(payment)}
+            className="p-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200 hover:scale-110"
+            title={t("delete")}
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+          <button
             onClick={() => handleDownloadReceipt(payment)}
             className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-all duration-200 hover:scale-110"
             title={t("downloadReceipt")}
@@ -344,6 +401,38 @@ const PaymentManagement = () => {
       ),
     },
   ];
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">
+            {t("loadingInvoices")}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+          <button
+            onClick={() => dispatch(fetchCustomerInvoices())}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            {t("retry")}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -580,7 +669,7 @@ const PaymentManagement = () => {
                         isRTL ? "text-right" : "text-left"
                       }`}
                     >
-                      {t("paymentDate")}
+                      {t("issueDate")}
                     </label>
                     <div
                       className={`flex items-center gap-2 ${
@@ -589,7 +678,30 @@ const PaymentManagement = () => {
                     >
                       <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                       <span className="text-gray-900 dark:text-white">
-                        {formatDateTimeEnglish(selectedPayment.paymentDate)}
+                        {formatDateTimeEnglish(
+                          selectedPayment.issueDate ||
+                            selectedPayment.paymentDate
+                        )}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label
+                      className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 ${
+                        isRTL ? "text-right" : "text-left"
+                      }`}
+                    >
+                      {t("dueDate")}
+                    </label>
+                    <div
+                      className={`flex items-center gap-2 ${
+                        isRTL ? "flex-row" : ""
+                      }`}
+                    >
+                      <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                      <span className="text-gray-900 dark:text-white">
+                        {formatDateTimeEnglish(selectedPayment.dueDate)}
                       </span>
                     </div>
                   </div>
@@ -799,6 +911,17 @@ const PaymentManagement = () => {
         onClose={() => setIsCustomerInvoiceOpen(false)}
         onSubmit={handleSubmitCustomerInvoice}
       />
+
+      {/* Edit Invoice Modal */}
+      {editModalOpen && editingInvoice && (
+        <CustomerInvoiceForm
+          isOpen={editModalOpen}
+          onClose={handleEditModalClose}
+          onSubmit={handleEditSubmit}
+          invoice={editingInvoice}
+          mode="edit"
+        />
+      )}
     </div>
   );
 };

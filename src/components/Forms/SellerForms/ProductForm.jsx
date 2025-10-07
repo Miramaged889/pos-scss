@@ -6,7 +6,9 @@ import FormField from "../FormField";
 import {
   createProduct,
   updateProduct,
+  fetchProducts,
 } from "../../../store/slices/inventorySlice";
+import { supplierService } from "../../../services";
 
 const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
   const { t } = useTranslation();
@@ -32,6 +34,31 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
   const [imagePreview, setImagePreview] = useState(null);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [suppliers, setSuppliers] = useState([]);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+
+  // Fetch suppliers on component mount
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      setLoadingSuppliers(true);
+      try {
+        const response = await supplierService.getSuppliers();
+        const suppliersList = Array.isArray(response)
+          ? response
+          : response.results || [];
+        setSuppliers(suppliersList);
+      } catch (error) {
+        console.error("Error fetching suppliers:", error);
+        setSuppliers([]);
+      } finally {
+        setLoadingSuppliers(false);
+      }
+    };
+
+    if (isOpen) {
+      fetchSuppliers();
+    }
+  }, [isOpen]);
 
   // Load product data when component mounts
   useEffect(() => {
@@ -43,7 +70,7 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
         stock: product.stock?.toString() || "",
         minStock: product.minStock?.toString() || "",
         price: product.price?.toString() || "",
-        supplier: product.supplier || "",
+        supplier: product.supplierId || "",
         sku: product.sku || "",
         barcode: product.barcode || "",
         description: product.description || "",
@@ -132,6 +159,10 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
       newErrors.category = t("categoryRequired");
     }
 
+    if (!formData.description.trim()) {
+      newErrors.description = t("descriptionRequired");
+    }
+
     if (!formData.stock || parseInt(formData.stock) < 0) {
       newErrors.stock = t("validStockRequired");
     }
@@ -165,10 +196,14 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
         stock: parseInt(formData.stock),
         minStock: parseInt(formData.minStock),
         price: parseFloat(formData.price),
-        supplier: formData.supplier.trim() || null,
-        sku: formData.sku.trim() || null,
-        barcode: formData.barcode.trim() || null,
-        description: formData.description.trim() || null,
+        supplier: formData.supplier
+          ? formData.supplier.toString().trim()
+          : null,
+        sku: formData.sku ? formData.sku.toString().trim() : null,
+        barcode: formData.barcode ? formData.barcode.toString().trim() : null,
+        description: formData.description
+          ? formData.description.toString().trim()
+          : null,
         imageUrl: formData.imageUrl || null,
         unitSize: formData.unitSize ? parseFloat(formData.unitSize) : null,
         unitType: formData.unitType || null,
@@ -206,6 +241,8 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
           setImagePreview(null);
         }
         setErrors({});
+        // Refresh the products list
+        dispatch(fetchProducts());
         onClose();
       } else {
         setErrors({ submit: result.payload || t("errorSavingProduct") });
@@ -273,23 +310,54 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
             </label>
             <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-gray-400 dark:hover:border-gray-500 transition-colors">
               {imagePreview ? (
-                <div className="relative group">
+                <div className="relative group w-full">
                   <img
                     src={imagePreview}
                     alt="Product preview"
-                    className="max-h-48 rounded-lg object-contain"
+                    className="max-h-48 w-full rounded-lg object-contain mx-auto"
+                    onError={(e) => {
+                      console.log(
+                        "Image preview failed to load:",
+                        imagePreview
+                      );
+                      e.target.src =
+                        "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2VlZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjE4IiBmaWxsPSIjOTk5IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+SW1hZ2UgRXJyb3I8L3RleHQ+PC9zdmc+";
+                    }}
                   />
                   <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setImagePreview(null);
-                        setFormData((prev) => ({ ...prev, imageUrl: "" }));
-                      }}
-                      className="text-white hover:text-red-500 transition-colors"
-                    >
-                      {t("remove")}
-                    </button>
+                    <div className="flex gap-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageChange}
+                        className="hidden"
+                        id="product-image-change"
+                      />
+                      <label
+                        htmlFor="product-image-change"
+                        className="cursor-pointer px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
+                      >
+                        {t("edit")}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setImagePreview(null);
+                          setFormData((prev) => ({ ...prev, imageUrl: "" }));
+                          // Reset file input
+                          const fileInput =
+                            document.getElementById("product-image");
+                          if (fileInput) fileInput.value = "";
+                          const changeInput = document.getElementById(
+                            "product-image-change"
+                          );
+                          if (changeInput) changeInput.value = "";
+                        }}
+                        className="px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm font-medium"
+                      >
+                        {t("remove")}
+                      </button>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -303,7 +371,7 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
                   />
                   <label
                     htmlFor="product-image"
-                    className="cursor-pointer text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                    className="cursor-pointer text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
                   >
                     {t("uploadImage")}
                   </label>
@@ -453,10 +521,22 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
             <div className="space-y-4">
               <FormField
                 label={t("supplier")}
+                type="select"
                 value={formData.supplier}
                 onChange={handleInputChange("supplier")}
-                placeholder={t("enterSupplierName")}
+                placeholder={t("selectSupplier")}
+                options={[
+                  { value: "", label: t("noSupplier") },
+                  ...suppliers.map((supplier) => ({
+                    value: supplier.id,
+                    label:
+                      supplier.name ||
+                      supplier.supplier_name ||
+                      supplier.company_name,
+                  })),
+                ]}
                 helperText={t("supplierOptional")}
+                disabled={loadingSuppliers}
               />
               <FormField
                 label={t("description")}
@@ -465,7 +545,8 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
                 onChange={handleInputChange("description")}
                 placeholder={t("enterProductDescription")}
                 rows={3}
-                helperText={t("descriptionOptional")}
+                error={errors.description}
+                required
               />
             </div>
           </div>

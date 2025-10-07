@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import FormField from "../FormField";
 import { fetchOrders } from "../../../store/slices/ordersSlice";
+import { customerService } from "../../../services";
 
 const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const { t } = useTranslation();
@@ -21,7 +22,7 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const { products } = useSelector((state) => state.inventory);
   const { orders } = useSelector((state) => state.orders);
   const [formData, setFormData] = useState({
-    orderId: "",
+    orderItemId: "",
     customerId: "",
     customerName: "",
     productId: "",
@@ -30,23 +31,43 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
     reason: "",
     description: "",
     refundAmount: 0,
-    status: "pending",
   });
   const [errors, setErrors] = useState({});
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [customers, setCustomers] = useState([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
 
   useEffect(() => {
     if (editData) {
       setFormData(editData);
-      const order = orders.find((o) => o.id === editData.orderId);
+      const order = orders.find((o) => o.id === editData.orderItemId);
       setSelectedOrder(order);
     }
   }, [editData, orders]);
 
-  // Load orders when component mounts
+  // Load orders and customers when component mounts
   useEffect(() => {
-    dispatch(fetchOrders());
-  }, [dispatch]);
+    if (isOpen) {
+      dispatch(fetchOrders());
+      loadCustomers();
+    }
+  }, [isOpen, dispatch]);
+
+  const loadCustomers = async () => {
+    try {
+      setLoadingCustomers(true);
+      const response = await customerService.getCustomers();
+      const customersList = Array.isArray(response)
+        ? response
+        : response.data || [];
+      setCustomers(customersList);
+    } catch (error) {
+      console.error("Error loading customers:", error);
+      setCustomers([]);
+    } finally {
+      setLoadingCustomers(false);
+    }
+  };
 
   const returnReasons = [
     { value: "defective", label: t("defectiveProduct") },
@@ -58,14 +79,18 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   ];
 
   const handleOrderSelect = (orderId) => {
-    const order = orders.find((o) => o.id === orderId);
+    const order = orders.find((o) => o.id === parseInt(orderId));
     if (order) {
       setSelectedOrder(order);
+      // Find customer details
+      const customer = customers.find((c) => c.id === order.customer);
       setFormData((prev) => ({
         ...prev,
-        orderId: order.id,
+        orderItemId: order.id,
         customerId: order.customer || "",
-        customerName: order.customer || "",
+        customerName:
+          customer?.customer_name || customer?.name || order.customer || "",
+        productName: order.product_name || "",
       }));
     }
   };
@@ -96,12 +121,12 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.orderId) {
-      newErrors.orderId = t("orderIdRequired");
+    if (!formData.orderItemId) {
+      newErrors.orderItemId = t("orderIdRequired");
     }
 
-    if (!formData.productId) {
-      newErrors.productId = t("productRequired");
+    if (!formData.customerId) {
+      newErrors.customerId = t("customerRequired");
     }
 
     if (!formData.quantity || formData.quantity < 1) {
@@ -110,10 +135,6 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
 
     if (!formData.reason) {
       newErrors.reason = t("reasonRequired");
-    }
-
-    if (!formData.description.trim()) {
-      newErrors.description = t("descriptionRequired");
     }
 
     setErrors(newErrors);
@@ -137,7 +158,7 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
 
   const handleClose = () => {
     setFormData({
-      orderId: "",
+      orderItemId: "",
       customerId: "",
       customerName: "",
       productId: "",
@@ -146,7 +167,6 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
       reason: "",
       description: "",
       refundAmount: 0,
-      status: "pending",
     });
     setErrors({});
     setSelectedOrder(null);
@@ -187,19 +207,29 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FormField
               label={t("selectOrder")}
-              name="orderId"
+              name="orderItemId"
               type="select"
-              value={formData.orderId}
+              value={formData.orderItemId}
               onChange={(e) => handleOrderSelect(e.target.value)}
-              error={errors.orderId}
+              error={errors.orderItemId}
               required
               icon={<FileText className="w-4 h-4" />}
               options={[
                 { value: "", label: t("selectOrder") },
-                ...orders.map((order) => ({
-                  value: order.id,
-                  label: `${order.id} - ${order.customer}`,
-                })),
+                ...(orders || []).map((order) => {
+                  const customer = customers.find(
+                    (c) => c.id === order.customer
+                  );
+                  const customerName =
+                    customer?.customer_name ||
+                    customer?.name ||
+                    order.customer ||
+                    "Unknown";
+                  return {
+                    value: order.id,
+                    label: `Order ${order.id} - ${customerName}`,
+                  };
+                }),
               ]}
             />
 

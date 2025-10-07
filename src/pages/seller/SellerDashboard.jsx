@@ -20,7 +20,6 @@ import {
 } from "lucide-react";
 
 import DashboardLayout from "../../components/Layout/DashboardLayout";
-import { useAutoRefresh } from "../../hooks";
 
 // Import seller components
 import SellerHome from "./components/SellerHome";
@@ -44,11 +43,6 @@ import VouchersPage from "./components/VouchersPage";
 const SellerDashboard = () => {
   const { t } = useTranslation();
 
-  // Auto-refresh every 30 seconds
-  useAutoRefresh(() => {
-    // Refresh orders and inventory data
-    console.log("Auto-refreshing seller data...");
-  }, 30000);
 
   const sidebarItems = [
     {
@@ -60,7 +54,7 @@ const SellerDashboard = () => {
     {
       name: t("newSalesOrder"),
       icon: Plus,
-      href: "/seller",
+      href: "/seller/product-selection",
       current: false,
     },
     {
@@ -148,7 +142,7 @@ const SellerDashboard = () => {
     <DashboardLayout title={t("sellerDashboard")} sidebarItems={sidebarItems}>
       <Routes>
         <Route path="/home" element={<SellerHome />} />
-        <Route path="/" element={<ProductSelectionPage />} />
+        <Route path="/product-selection" element={<ProductSelectionPage />} />
         <Route path="/cart" element={<CartPage />} />
         <Route path="/checkout" element={<CheckoutPage />} />
         <Route path="/orders" element={<OrdersList />} />

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import {
   Search,
@@ -30,11 +30,17 @@ import {
   formatCurrencyEnglish,
   formatDateTimeEnglish,
 } from "../../../utils/formatters";
+import { fetchOrders } from "../../../store/slices/ordersSlice";
 
 const InvoicesManagement = () => {
   const { t } = useTranslation();
+  const dispatch = useDispatch();
   const { isRTL } = useSelector((state) => state.language);
-  const [invoices, setInvoices] = useState([]);
+
+  // Get data from Redux store
+  const { orders, loading, error } = useSelector((state) => state.orders);
+
+  // Local state for UI
   const [filteredInvoices, setFilteredInvoices] = useState([]);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -42,26 +48,102 @@ const InvoicesManagement = () => {
   const [sellerFilter, setSellerFilter] = useState("all");
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [showFilters, setShowFilters] = useState(false);
-  const [sellers, setSellers] = useState([]);
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
 
+  // Fetch orders on component mount
+  useEffect(() => {
+    dispatch(fetchOrders());
+  }, [dispatch]);
+
+  // Generate invoices from orders data
+  const invoices = React.useMemo(() => {
+    if (!Array.isArray(orders)) return [];
+
+    return orders.map((order) => ({
+      id: order.id,
+      invoiceNumber: `INV-${order.id}`,
+      customer:
+        order.customer?.name || order.customerName || "Unknown Customer",
+      customerName:
+        order.customer?.name || order.customerName || "Unknown Customer",
+      customerEmail: order.customer?.email || order.customerEmail || "",
+      seller: order.seller?.name || order.sellerName || "Unknown Seller",
+      sellerName: order.seller?.name || order.sellerName || "Unknown Seller",
+      sellerEmail: order.seller?.email || order.sellerEmail || "",
+      amount: order.totalAmount || order.total || 0,
+      total: order.totalAmount || order.total || 0,
+      status: order.status || "pending",
+      date:
+        order.createdAt || order.date || new Date().toISOString().split("T")[0],
+      issueDate:
+        order.createdAt || order.date || new Date().toISOString().split("T")[0],
+      dueDate:
+        order.dueDate ||
+        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split("T")[0],
+      paymentStatus: order.paymentStatus || "pending",
+      paymentMethod: order.paymentMethod || "cash",
+      items: order.items || [],
+      orderId: order.id,
+      description: order.description || "",
+      notes: order.notes || "",
+    }));
+  }, [orders]);
+
+  // Compute unique sellers from orders
+  const sellers = React.useMemo(() => {
+    if (!Array.isArray(orders)) return [];
+
+    const uniqueSellers = new Set();
+    orders.forEach((order) => {
+      const sellerEmail = order.seller?.email || order.sellerEmail;
+      const sellerName =
+        order.seller?.name || order.sellerName || "Unknown Seller";
+      if (sellerEmail && sellerName) {
+        uniqueSellers.add(
+          JSON.stringify({
+            id: sellerEmail,
+            email: sellerEmail,
+            name: sellerName,
+          })
+        );
+      }
+    });
+
+    return Array.from(uniqueSellers).map((seller) => JSON.parse(seller));
+  }, [orders]);
+
   const filterInvoices = useCallback(() => {
+    if (!Array.isArray(invoices)) {
+      setFilteredInvoices([]);
+      return;
+    }
+
     let filtered = [...invoices];
 
     // Search filter
     if (searchTerm) {
       filtered = filtered.filter(
         (invoice) =>
-          invoice.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          invoice.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          invoice.customerName
+          (invoice.id || "")
+            .toString()
             .toLowerCase()
             .includes(searchTerm.toLowerCase()) ||
-          invoice.customerEmail
+          (invoice.orderId || "")
+            .toString()
             .toLowerCase()
             .includes(searchTerm.toLowerCase()) ||
-          invoice.sellerName.toLowerCase().includes(searchTerm.toLowerCase())
+          (invoice.customerName || "")
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          (invoice.customerEmail || "")
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase()) ||
+          (invoice.sellerName || "")
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase())
       );
     }
 
@@ -91,102 +173,8 @@ const InvoicesManagement = () => {
   }, [invoices, searchTerm, statusFilter, sellerFilter, dateRange]);
 
   useEffect(() => {
-    loadInvoices();
-    loadSellers();
-  }, []);
-
-  useEffect(() => {
     filterInvoices();
   }, [filterInvoices]);
-
-  const loadInvoices = () => {
-    // Mock data
-    const mockInvoices = [
-      {
-        id: "INV-001",
-        orderId: "ORD-001",
-        customerName: "أحمد محمد",
-        customerEmail: "ahmed.mohamed@email.com",
-        customerPhone: "+966501234567",
-        sellerName: "محمد علي",
-        sellerEmail: "mohamed.ali@company.com",
-        total: 60.5,
-        status: "paid",
-        issueDate: "2024-01-15T10:30:00",
-        dueDate: "2024-01-22T10:30:00",
-        paymentDate: "2024-01-15T11:00:00",
-        paymentMethod: "cash",
-        notes: "Payment received on time",
-        description: "Food delivery order - Burger, Fries, Drink",
-      },
-      {
-        id: "INV-002",
-        orderId: "ORD-002",
-        customerName: "فاطمة أحمد",
-        customerEmail: "fatima.ahmed@email.com",
-        customerPhone: "+966507654321",
-        sellerName: "علي حسن",
-        sellerEmail: "ali.hassan@company.com",
-        total: 41.8,
-        status: "paid",
-        issueDate: "2024-01-14T15:45:00",
-        dueDate: "2024-01-21T15:45:00",
-        paymentDate: "2024-01-14T16:30:00",
-        paymentMethod: "card",
-        notes: "",
-        description: "Pizza delivery - Margherita Pizza, Garlic Bread",
-      },
-      {
-        id: "INV-003",
-        orderId: "ORD-003",
-        customerName: "خالد سعد",
-        customerEmail: "khalid.saad@email.com",
-        customerPhone: "+966509876543",
-        sellerName: "سارة محمد",
-        sellerEmail: "sara.mohamed@company.com",
-        total: 83.6,
-        status: "pending",
-        issueDate: "2024-01-13T18:20:00",
-        dueDate: "2024-01-20T18:20:00",
-        paymentDate: null,
-        paymentMethod: "cash",
-        notes: "Awaiting payment",
-        description: "Seafood platter - Grilled Fish, Rice, Salad",
-      },
-      {
-        id: "INV-004",
-        orderId: "ORD-004",
-        customerName: "نورا عبدالله",
-        customerEmail: "nora.abdullah@email.com",
-        customerPhone: "+966501112223",
-        sellerName: "محمد علي",
-        sellerEmail: "mohamed.ali@company.com",
-        total: 79.2,
-        status: "overdue",
-        issueDate: "2024-01-12T12:15:00",
-        dueDate: "2024-01-19T12:15:00",
-        paymentDate: null,
-        paymentMethod: "card",
-        notes: "Payment overdue",
-        description: "Dessert order - Chocolate Cake, Ice Cream",
-      },
-    ];
-
-    setTimeout(() => {
-      setInvoices(mockInvoices);
-      setFilteredInvoices(mockInvoices);
-    }, 1000);
-  };
-
-  const loadSellers = () => {
-    const mockSellers = [
-      { id: 1, name: "محمد علي", email: "mohamed.ali@company.com" },
-      { id: 2, name: "علي حسن", email: "ali.hassan@company.com" },
-      { id: 3, name: "سارة محمد", email: "sara.mohamed@company.com" },
-      { id: 4, name: "أحمد خالد", email: "ahmed.khalid@company.com" },
-    ];
-    setSellers(mockSellers);
-  };
 
   // Calculate stats
   const totalInvoices = invoices.length;
@@ -356,10 +344,7 @@ const InvoicesManagement = () => {
 
   const handleDeleteInvoice = (invoice) => {
     if (window.confirm(`${t("deleteInvoiceConfirmation")} ${invoice.id}?`)) {
-      // Remove from invoices array
-      const updatedInvoices = invoices.filter((inv) => inv.id !== invoice.id);
-      setInvoices(updatedInvoices);
-      setFilteredInvoices(updatedInvoices);
+      // For now, just show alert. In real app, you'd dispatch delete action
       alert(`${t("invoiceDeleted")} ${invoice.id}`);
     }
   };
@@ -496,6 +481,27 @@ const InvoicesManagement = () => {
       ),
     },
   ];
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <p className="text-red-600 dark:text-red-400">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

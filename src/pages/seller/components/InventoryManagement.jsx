@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import {
@@ -20,12 +20,17 @@ import DataTable from "../../../components/Common/DataTable";
 import StatsCard from "../../../components/Common/StatsCard";
 import { ProductForm } from "../../../components/Forms";
 import { formatCurrencyEnglish, formatNumberEnglish } from "../../../utils";
-import { deleteProduct } from "../../../store/slices/inventorySlice";
+import {
+  fetchProducts,
+  deleteProduct,
+} from "../../../store/slices/inventorySlice";
+import { fetchSuppliers } from "../../../store/slices/supplierSlice";
 
 const InventoryManagement = () => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
-  const { products } = useSelector((state) => state.inventory);
+  const { products, loading, error } = useSelector((state) => state.inventory);
+  const { suppliers } = useSelector((state) => state.suppliers);
   const dispatch = useDispatch();
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -36,6 +41,22 @@ const InventoryManagement = () => {
   const [showProductForm, setShowProductForm] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [formMode, setFormMode] = useState("create");
+
+  // Fetch products and suppliers on component mount
+  useEffect(() => {
+    dispatch(fetchProducts());
+    dispatch(fetchSuppliers());
+  }, [dispatch]);
+
+  // Helper function to get supplier name by ID
+  const getSupplierName = (supplierId) => {
+    if (!supplierId || !suppliers.length) return t("noSupplier");
+
+    const supplier = suppliers.find((s) => s.id === supplierId);
+    return supplier
+      ? supplier.name || supplier.supplier_name || `Supplier ${supplierId}`
+      : t("noSupplier");
+  };
 
   // Calculate inventory stats
   const totalProducts = products.length;
@@ -115,9 +136,13 @@ const InventoryManagement = () => {
     setShowDeleteModal(true);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (selectedProduct) {
-      dispatch(deleteProduct(selectedProduct.id));
+      const result = await dispatch(deleteProduct(selectedProduct.id));
+      if (result.type.endsWith("/fulfilled")) {
+        // Refresh the products list after successful deletion
+        dispatch(fetchProducts());
+      }
       setShowDeleteModal(false);
       setSelectedProduct(null);
     }
@@ -190,17 +215,28 @@ const InventoryManagement = () => {
       accessor: "name",
       render: (product) => (
         <div className={`flex items-center gap-3 ${isRTL ? "flex-row" : ""}`}>
-          {product.imageUrl ? (
+          {product.imageUrl && product.imageUrl.trim() !== "" ? (
             <img
               src={product.imageUrl}
               alt={product.name}
               className="w-10 h-10 rounded-lg object-cover shadow-md flex-shrink-0"
+              onError={(e) => {
+                e.target.style.display = "none";
+                e.target.nextSibling.style.display = "flex";
+              }}
             />
-          ) : (
-            <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center flex-shrink-0">
-              <span className="text-gray-400 dark:text-gray-500">?</span>
-            </div>
-          )}
+          ) : null}
+          <div
+            className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center flex-shrink-0"
+            style={{
+              display:
+                product.imageUrl && product.imageUrl.trim() !== ""
+                  ? "none"
+                  : "flex",
+            }}
+          >
+            <span className="text-gray-400 dark:text-gray-500">?</span>
+          </div>
           <div
             className={`min-w-0 flex-1 ${isRTL ? "text-right" : "text-left"}`}
           >
@@ -291,7 +327,7 @@ const InventoryManagement = () => {
       render: (product) => (
         <div className={`${isRTL ? "text-right" : "text-center"}`}>
           <span className="text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md inline-block">
-            {product.supplier || t("noSupplier")}
+            {getSupplierName(product.supplierId || product.supplier)}
           </span>
         </div>
       ),
@@ -368,6 +404,38 @@ const InventoryManagement = () => {
       ),
     },
   ];
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">
+            {t("loadingProducts")}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+          <button
+            onClick={() => dispatch(fetchProducts())}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            {t("retry")}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -506,12 +574,12 @@ const InventoryManagement = () => {
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div
                 className={`flex items-center justify-between ${
-                  isRTL ? "flex-row-reverse" : ""
+                  isRTL ? "flex-row" : ""
                 }`}
               >
                 <div
                   className={`flex items-center gap-3 ${
-                    isRTL ? "flex-row-reverse" : ""
+                    isRTL ? "flex-row" : ""
                   }`}
                 >
                   <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 dark:from-blue-600 dark:to-purple-700 rounded-lg flex items-center justify-center shadow-md">
@@ -636,7 +704,9 @@ const InventoryManagement = () => {
                     {t("supplier")}
                   </label>
                   <p className="text-gray-900 dark:text-white">
-                    {selectedProduct.supplier || t("noSupplier")}
+                    {getSupplierName(
+                      selectedProduct.supplierId || selectedProduct.supplier
+                    )}
                   </p>
                 </div>
                 <div>
@@ -709,7 +779,7 @@ const InventoryManagement = () => {
               <p className="text-gray-700 dark:text-gray-300 mb-6">
                 {t("areYouSureDeleteProduct")} {t("thisActionCannotBeUndone")}
               </p>
-              <div className={`flex gap-3 ${isRTL ? "flex-row-reverse" : ""}`}>
+              <div className={`flex gap-3 ${isRTL ? "flex-row" : ""}`}>
                 <button
                   onClick={handleConfirmDelete}
                   className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
