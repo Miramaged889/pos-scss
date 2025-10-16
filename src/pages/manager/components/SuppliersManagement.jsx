@@ -22,12 +22,13 @@ import {
 
 import DataTable from "../../../components/Common/DataTable";
 import StatsCard from "../../../components/Common/StatsCard";
-import { SupplierForm } from "../../../components/Forms";
+import { SellerSupplierForm } from "../../../components/Forms";
 import { formatCurrencyEnglish, formatNumberEnglish } from "../../../utils";
 import {
   fetchSuppliers,
   deleteSupplier,
 } from "../../../store/slices/supplierSlice";
+import { supplierService } from "../../../services/supplierService";
 
 const SuppliersManagement = () => {
   const { t } = useTranslation();
@@ -43,9 +44,71 @@ const SuppliersManagement = () => {
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [supplierToDelete, setSupplierToDelete] = useState(null);
+  const [supplierStats, setSupplierStats] = useState({});
+  const [loadingStats, setLoadingStats] = useState(false);
+
+  // Load purchase orders and calculate supplier statistics
+  const loadSupplierStatistics = async () => {
+    setLoadingStats(true);
+    try {
+      const response = await supplierService.getPurchaseOrders();
+      const orders = response.results || response || [];
+
+      // Calculate statistics for each supplier
+      const stats = {};
+
+      orders.forEach((order) => {
+        const supplierId = order.supplier;
+        if (!supplierId) return;
+
+        if (!stats[supplierId]) {
+          stats[supplierId] = {
+            totalOrders: 0,
+            uniqueProducts: new Set(),
+            totalProducts: 0,
+            totalSpent: 0,
+          };
+        }
+
+        // Count orders
+        stats[supplierId].totalOrders += 1;
+
+        // Count unique products and calculate total spent
+        if (order.items && Array.isArray(order.items)) {
+          order.items.forEach((item) => {
+            if (item.item_name && item.item_name.trim()) {
+              stats[supplierId].uniqueProducts.add(
+                item.item_name.toLowerCase()
+              );
+            }
+
+            // Calculate total spent for delivered orders
+            if (order.status === "Delivered") {
+              const itemTotal = (item.quantity || 0) * (item.unit_price || 0);
+              stats[supplierId].totalSpent += itemTotal;
+            }
+          });
+        }
+      });
+
+      // Convert Set to count for unique products
+      Object.keys(stats).forEach((supplierId) => {
+        stats[supplierId].totalProducts = stats[supplierId].uniqueProducts.size;
+        delete stats[supplierId].uniqueProducts; // Remove Set object
+      });
+
+      setSupplierStats(stats);
+    } catch (error) {
+      console.error("Error loading supplier statistics:", error);
+      setSupplierStats({});
+    } finally {
+      setLoadingStats(false);
+    }
+  };
 
   useEffect(() => {
     dispatch(fetchSuppliers());
+    loadSupplierStatistics();
   }, [dispatch]);
 
   const getStatusBadge = (supplier) => {
@@ -111,6 +174,8 @@ const SuppliersManagement = () => {
   const confirmDelete = async () => {
     try {
       await dispatch(deleteSupplier(supplierToDelete.id));
+      // Reload statistics after deletion
+      loadSupplierStatistics();
       setDeleteModalOpen(false);
       setSupplierToDelete(null);
     } catch (error) {
@@ -121,6 +186,8 @@ const SuppliersManagement = () => {
   const handleFormSubmit = () => {
     // Refresh suppliers from API
     dispatch(fetchSuppliers());
+    // Reload statistics to get updated data
+    loadSupplierStatistics();
     setIsFormOpen(false);
   };
 
@@ -129,12 +196,14 @@ const SuppliersManagement = () => {
   const activeSuppliers = suppliersArray.filter(
     (s) => s.status === "Active"
   ).length;
-  const totalProducts = suppliersArray.reduce(
-    (sum, s) => sum + (s.totalProducts || 0),
+
+  // Calculate totals from actual purchase order data
+  const totalProducts = Object.values(supplierStats).reduce(
+    (sum, stats) => sum + (stats.totalProducts || 0),
     0
   );
-  const totalOrders = suppliersArray.reduce(
-    (sum, s) => sum + (s.totalOrders || 0),
+  const totalOrders = Object.values(supplierStats).reduce(
+    (sum, stats) => sum + (stats.totalOrders || 0),
     0
   );
 
@@ -199,22 +268,36 @@ const SuppliersManagement = () => {
     {
       key: "stats",
       header: t("statistics"),
-      render: (supplier) => (
-        <div className="space-y-1 text-sm">
-          <div className="flex items-center gap-2">
-            <Package className="w-3 h-3 text-gray-400" />
-            <span className="text-gray-600 dark:text-gray-300">
-              {supplier.totalProducts || 0} {t("products")}
-            </span>
+      render: (supplier) => {
+        const stats = supplierStats[supplier.id] || {
+          totalProducts: 0,
+          totalOrders: 0,
+        };
+        return (
+          <div className="space-y-1 text-sm">
+            <div className="flex items-center gap-2">
+              <Package className="w-3 h-3 text-gray-400" />
+              <span className="text-gray-600 dark:text-gray-300">
+                {loadingStats ? (
+                  <span className="animate-pulse">...</span>
+                ) : (
+                  `${stats.totalProducts} ${t("products")}`
+                )}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <ShoppingBag className="w-3 h-3 text-gray-400" />
+              <span className="text-gray-600 dark:text-gray-300">
+                {loadingStats ? (
+                  <span className="animate-pulse">...</span>
+                ) : (
+                  `${stats.totalOrders} ${t("orders")}`
+                )}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <ShoppingBag className="w-3 h-3 text-gray-400" />
-            <span className="text-gray-600 dark:text-gray-300">
-              {supplier.totalOrders || 0} {t("orders")}
-            </span>
-          </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: "actions",
@@ -357,7 +440,7 @@ const SuppliersManagement = () => {
       </div>
 
       {/* Supplier Form Modal */}
-      <SupplierForm
+      <SellerSupplierForm
         isOpen={isFormOpen}
         onClose={() => setIsFormOpen(false)}
         onSubmit={handleFormSubmit}
@@ -433,7 +516,11 @@ const SuppliersManagement = () => {
                         {t("totalProducts")}
                       </label>
                       <p className="text-gray-900 dark:text-white">
-                        {selectedSupplier.totalProducts || 0}
+                        {loadingStats ? (
+                          <span className="animate-pulse">Loading...</span>
+                        ) : (
+                          supplierStats[selectedSupplier.id]?.totalProducts || 0
+                        )}
                       </p>
                     </div>
                     <div>
@@ -441,7 +528,11 @@ const SuppliersManagement = () => {
                         {t("totalOrders")}
                       </label>
                       <p className="text-gray-900 dark:text-white">
-                        {selectedSupplier.totalOrders || 0}
+                        {loadingStats ? (
+                          <span className="animate-pulse">Loading...</span>
+                        ) : (
+                          supplierStats[selectedSupplier.id]?.totalOrders || 0
+                        )}
                       </p>
                     </div>
                     <div>
@@ -449,8 +540,12 @@ const SuppliersManagement = () => {
                         {t("totalSpent")}
                       </label>
                       <p className="text-gray-900 dark:text-white">
-                        {formatCurrencyEnglish(
-                          selectedSupplier.totalSpent || 0
+                        {loadingStats ? (
+                          <span className="animate-pulse">Loading...</span>
+                        ) : (
+                          formatCurrencyEnglish(
+                            supplierStats[selectedSupplier.id]?.totalSpent || 0
+                          )
                         )}
                       </p>
                     </div>

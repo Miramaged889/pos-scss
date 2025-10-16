@@ -19,7 +19,7 @@ import { toast } from "react-hot-toast";
 import FormField from "../FormField";
 import { supplierService } from "../../../services/supplierService";
 
-const SupplierReturnForm = ({
+const SellerReturnForm = ({
   isOpen,
   onClose,
   onSubmit,
@@ -40,7 +40,9 @@ const SupplierReturnForm = ({
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [suppliersList, setSuppliersList] = useState([]);
+  const [supplierItems, setSupplierItems] = useState([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+  const [loadingItems, setLoadingItems] = useState(false);
 
   // Load suppliers from API
   const loadSuppliers = useCallback(async () => {
@@ -57,15 +59,42 @@ const SupplierReturnForm = ({
     }
   }, [t]);
 
-  // NOTE: Manager dashboard doesn't have access to seller endpoints
-  // So we don't load items and allow manual ID entry instead
-  // No need for loadSupplierItems function
+  // Load items for selected supplier
+  const loadSupplierItems = useCallback(
+    async (supplierId) => {
+      if (!supplierId) {
+        setSupplierItems([]);
+        return;
+      }
+
+      setLoadingItems(true);
+      try {
+        const items = await supplierService.getSupplierItems(supplierId);
+        setSupplierItems(items);
+      } catch (error) {
+        console.error("Error loading supplier items:", error);
+        toast.error(t("errorLoadingItems"));
+      } finally {
+        setLoadingItems(false);
+      }
+    },
+    [t]
+  );
 
   useEffect(() => {
     if (isOpen) {
       loadSuppliers();
     }
   }, [isOpen, loadSuppliers]);
+
+  // Load supplier items when supplier changes
+  useEffect(() => {
+    if (formData.supplier) {
+      loadSupplierItems(formData.supplier);
+    } else {
+      setSupplierItems([]);
+    }
+  }, [formData.supplier, loadSupplierItems]);
 
   useEffect(() => {
     if (isOpen) {
@@ -181,6 +210,7 @@ const SupplierReturnForm = ({
     });
     setErrors({});
     setIsSubmitting(false);
+    setSupplierItems([]);
     onClose();
   };
 
@@ -193,6 +223,7 @@ const SupplierReturnForm = ({
       created_at: new Date().toISOString().split("T")[0],
     });
     setErrors({});
+    setSupplierItems([]);
   };
 
   if (!isOpen) return null;
@@ -255,17 +286,24 @@ const SupplierReturnForm = ({
               />
 
               <FormField
-                label={t("purchaseItemId")}
-                type="number"
+                label={t("purchaseItem")}
+                type="select"
                 value={formData.purchase_item}
                 onChange={handleFieldChange("purchase_item")}
-                placeholder={t("enterPurchaseItemId")}
+                options={[
+                  {
+                    value: "",
+                    label: loadingItems ? t("loading") : t("selectItem"),
+                  },
+                  ...supplierItems.map((item) => ({
+                    value: item.id,
+                    label: item.name,
+                  })),
+                ]}
                 required
                 error={errors.purchase_item}
                 icon={Package}
-                disabled={!formData.supplier}
-                min="1"
-                step="1"
+                disabled={!formData.supplier || loadingItems}
               />
 
               <FormField
@@ -379,4 +417,4 @@ const SupplierReturnForm = ({
   );
 };
 
-export default SupplierReturnForm;
+export default SellerReturnForm;

@@ -19,7 +19,6 @@ import UserManagement from "./components/SellerManagement";
 import OrdersManagement from "./components/OrdersManagement";
 import InvoicesManagement from "./components/InvoicesManagement";
 import ManagerReports from "./components/ManagerReports";
-import ManagerSettings from "./components/ManagerSettings";
 import SuppliersManagement from "./components/SuppliersManagement";
 import SupplierInvoicesManagement from "./components/SupplierInvoicesManagement";
 import SupplierReturnsManagement from "./components/SupplierReturnsManagement";
@@ -98,12 +97,6 @@ const ManagerDashboard = () => {
       href: "/manager/supplier-returns",
       icon: RotateCcw,
     },
-    {
-      key: "settings",
-      title: t("settings"),
-      href: "/manager/settings",
-      icon: Settings,
-    },
   ];
 
   return (
@@ -127,7 +120,6 @@ const ManagerDashboard = () => {
           path="supplier-returns"
           element={<SupplierReturnsManagement />}
         />
-        <Route path="settings" element={<ManagerSettings />} />
       </Routes>
     </DashboardLayout>
   );

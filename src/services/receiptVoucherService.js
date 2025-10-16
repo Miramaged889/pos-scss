@@ -53,17 +53,6 @@ const mapFrontendToDb = (frontendReceipt) => {
   const on_bank = frontendReceipt.bankName || "";
   const receiver = frontendReceipt.receiver || "";
 
-  // Log the mapped data
-  console.log("Mapping frontend data:", {
-    type,
-    received_from,
-    amount,
-    paymant_way,
-    on_bank,
-    receiver,
-    attachment: attachment ? "present" : "not present",
-  });
-
   return {
     type,
     received_from,
@@ -103,10 +92,7 @@ export const receiptVoucherService = {
 
   // Create new receipt
   createReceipt: async (receiptData) => {
-    console.log("📦 Creating receipt with data:", receiptData);
-
     const dbData = mapFrontendToDb(receiptData);
-    console.log("🔄 Mapped to DB format:", dbData);
 
     const formData = new FormData();
 
@@ -133,18 +119,6 @@ export const receiptVoucherService = {
     // Add attachment if exists
     if (dbData.attachment && dbData.attachment instanceof File) {
       formData.append("attachment", dbData.attachment);
-      console.log("📎 Attachment added:", dbData.attachment.name);
-    } else {
-      console.log("⚠️ No attachment provided");
-    }
-
-    // Log what's being sent
-    console.log("📤 FormData entries:");
-    for (let [key, value] of formData.entries()) {
-      console.log(
-        `  ${key}:`,
-        value instanceof File ? `File: ${value.name}` : value
-      );
     }
 
     const response = await apiService.post(

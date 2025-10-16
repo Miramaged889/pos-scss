@@ -9,7 +9,6 @@ import {
   TrendingUp,
   BarChart3,
   Plus,
-  Settings,
   Receipt,
   Building,
   RotateCcw,
@@ -31,7 +30,7 @@ import ReturnsManagement from "./components/ReturnsManagement";
 import SupplierPurchase from "./components/SupplierPurchase";
 import SalesReports from "./components/SalesReports";
 import PaymentManagement from "./components/PaymentManagement";
-import SellerSettings from "./components/SellerSettings";
+
 import ProductSelectionPage from "./components/ProductSelectionPage";
 import CartPage from "./components/CartPage";
 import FinancialReceiptVoucher from "./components/FinancialReceiptVoucher";
@@ -130,12 +129,6 @@ const SellerDashboard = () => {
       href: "/seller/reports",
       current: false,
     },
-    {
-      name: t("settings"),
-      icon: Settings,
-      href: "/seller/settings",
-      current: false,
-    },
   ];
 
   return (
@@ -169,7 +162,6 @@ const SellerDashboard = () => {
           element={<FinancialReceiptVoucher />}
         />
         <Route path="/vouchers" element={<VouchersPage />} />
-        <Route path="/settings" element={<SellerSettings />} />
       </Routes>
     </DashboardLayout>
   );

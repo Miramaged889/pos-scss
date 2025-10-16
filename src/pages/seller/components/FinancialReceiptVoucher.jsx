@@ -358,11 +358,6 @@ const FinancialReceiptVoucher = () => {
       receivedFrom = otherName;
     }
 
-    console.log("🔍 Form validation:");
-    console.log("  receivedFrom:", receivedFrom);
-    console.log("  amount:", amount);
-    console.log("  receiver:", receiver);
-    console.log("  bankName:", bankName);
 
     if (!receivedFrom || receivedFrom.trim() === "") {
       toast.error(t("financialReceipt.errors.enterReceivedFrom"));
@@ -409,7 +404,6 @@ const FinancialReceiptVoucher = () => {
             : [],
       };
 
-      console.log("📝 Receipt data being sent:", receiptData);
 
       const result = await dispatch(createReceipt(receiptData));
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useSelector, useDispatch } from "react-redux";
+import { useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-hot-toast";
@@ -16,372 +16,25 @@ import {
   Wallet,
   Banknote,
   Calendar,
-  Printer,
-  RotateCcw,
+  CheckCircle,
+  ChevronRight,
+  Plus,
+  Package,
+  Mail,
 } from "lucide-react";
 import FormField from "../../../components/Forms/FormField";
-import { createOrder } from "../../../store/slices/ordersSlice";
-import { createCustomer } from "../../../store/slices/customerSlice";
+import api from "../../../services/api";
 
-const CheckoutPage = () => {
-  const { t } = useTranslation();
-  const { isRTL } = useSelector((state) => state.language);
-  const { user } = useSelector((state) => state.auth);
-  const customerState = useSelector((state) => state.customer);
-  const customers = customerState?.customers || [];
-  const navigate = useNavigate();
-  const location = useLocation();
-  const dispatch = useDispatch();
-
-  const orderData = location.state?.orderData;
-
-  const [deliveryType, setDeliveryType] = useState("pickup");
-  const [paymentMethod, setPaymentMethod] = useState("cash");
-  const [customerInfo, setCustomerInfo] = useState({
-    name: "",
-    phone: "",
-    address: "",
-  });
-  const [errors, setErrors] = useState({});
-
-  // Credit payment state
-  const [existingCustomers, setExistingCustomers] = useState([]);
-  const [selectedCustomerId, setSelectedCustomerId] = useState("");
-  const [isNewCustomer, setIsNewCustomer] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Discount state
-  const [discountType, setDiscountType] = useState("none"); // none | code | percent
-  const [discountCode, setDiscountCode] = useState("");
-  const [discountPercent, setDiscountPercent] = useState("");
-
-  // Simple mock discount codes (placeholder until backend/API)
-  const DISCOUNT_CODES = {
-    SAVE10: { kind: "percent", value: 10 },
-    OFF20: { kind: "percent", value: 20 },
-    FLAT5: { kind: "amount", value: 5 },
-  };
-
-  const subtotal = orderData?.total || 0;
-
-  const getDiscountValue = () => {
-    if (!subtotal || subtotal <= 0) return 0;
-    if (discountType === "percent") {
-      const percent = Math.max(
-        0,
-        Math.min(100, parseFloat(discountPercent) || 0)
-      );
-      return (subtotal * percent) / 100;
-    }
-    if (discountType === "code") {
-      const code = discountCode.trim().toUpperCase();
-      const rule = DISCOUNT_CODES[code];
-      if (!rule) return 0;
-      if (rule.kind === "percent") {
-        return (subtotal * rule.value) / 100;
-      }
-      if (rule.kind === "amount") {
-        return Math.min(subtotal, rule.value);
-      }
-    }
-    return 0;
-  };
-
-  const discountValue = Math.min(subtotal, getDiscountValue());
-  const grandTotal = Math.max(0, subtotal - discountValue);
-
-  useEffect(() => {
-    if (!orderData) {
-      navigate("/seller/products");
-      toast.error(t("noOrderDataFound"));
-    }
-  }, [orderData, navigate, t]);
-
-  useEffect(() => {
-    // Load existing customers when credit payment is selected
-    if (paymentMethod === "credit") {
-      setExistingCustomers(customers || []);
-    }
-  }, [paymentMethod, customers]);
-
-  if (!orderData) {
-    return null;
-  }
-
-  const validateForm = () => {
-    const newErrors = {};
-
-    // Validate delivery customer info
-    if (deliveryType === "delivery") {
-      if (!customerInfo.name.trim()) {
-        newErrors.name = t("customerNameRequired");
-      }
-      if (!customerInfo.phone.trim()) {
-        newErrors.phone = t("phoneRequired");
-      }
-      if (!customerInfo.address.trim()) {
-        newErrors.address = t("addressRequired");
-      }
-    }
-
-    // Validate credit payment customer info
-    if (paymentMethod === "credit") {
-      if (isNewCustomer) {
-        if (!customerInfo.name.trim()) {
-          newErrors.name = t("customerNameRequired");
-        }
-        if (!customerInfo.phone.trim()) {
-          newErrors.phone = t("phoneRequired");
-        }
-      } else {
-        if (!selectedCustomerId) {
-          newErrors.customer = t("pleaseSelectCustomer");
-        }
-      }
-    }
-
-    if (!paymentMethod) {
-      newErrors.paymentMethod = t("paymentMethodRequired");
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = async () => {
-    if (!validateForm() || isSubmitting) {
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      // Get customer info based on selection
-      let customerId = selectedCustomerId;
-      let finalCustomerInfo = { ...customerInfo };
-
-      if (paymentMethod === "credit" && !isNewCustomer && selectedCustomerId) {
-        const selectedCustomer = existingCustomers.find(
-          (c) => c.id === selectedCustomerId
-        );
-        if (selectedCustomer) {
-          finalCustomerInfo = {
-            name: selectedCustomer.name,
-            phone: selectedCustomer.phone,
-            address: selectedCustomer.address || "",
-          };
-          customerId = selectedCustomer.id;
-        }
-      }
-
-      // Save new customer if credit payment and new customer
-      if (
-        paymentMethod === "credit" &&
-        isNewCustomer &&
-        customerInfo.name.trim()
-      ) {
-        const newCustomer = {
-          name: customerInfo.name.trim(),
-          phone: customerInfo.phone.trim(),
-          address: customerInfo.address?.trim() || "",
-          email: "",
-          company: "",
-          notes: `Created from order`,
-          vip: false,
-          status: "active",
-          dateOfBirth: "",
-          preferredContactMethod: "phone",
-        };
-
-        // Create customer via Redux and get the ID
-        const result = await dispatch(createCustomer(newCustomer));
-        if (result.type.endsWith("/fulfilled")) {
-          customerId = result.payload.id;
-          setExistingCustomers([...existingCustomers, result.payload]);
-        }
-      }
-
-      const finalOrderData = {
-        ...orderData,
-        deliveryType,
-        paymentMethod,
-        customer: finalCustomerInfo.name,
-        customerId: customerId,
-        phone: finalCustomerInfo.phone,
-        deliveryAddress: finalCustomerInfo.address,
-        status: "pending",
-      };
-
-      // Get seller ID from auth state
-      const sellerId = user?.id;
-
-      // Create order via Redux
-      const orderResult = await dispatch(
-        createOrder({ orderData: finalOrderData, sellerId })
-      );
-
-      if (orderResult.type.endsWith("/fulfilled")) {
-        toast.success(t("orderCreatedSuccessfully"));
-        navigate("/seller/orders", {
-          state: {
-            newOrder: orderResult.payload,
-            showSuccessMessage: true,
-          },
-        });
-      } else {
-        // Show detailed error message
-        const errorMessage = orderResult.payload || t("errorCreatingOrder");
-        console.error("Order creation failed:", errorMessage);
-        toast.error(errorMessage);
-        setIsSubmitting(false);
-      }
-    } catch (error) {
-      console.error("Error creating order:", error);
-      // Show more detailed error message
-      const errorMessage =
-        error.message || error.toString() || t("errorCreatingOrder");
-      toast.error(errorMessage);
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleBackToProducts = () => {
-    navigate("/seller/product-selection", { state: { orderData } });
-  };
-
-  const handlePrintOrder = () => {
-    const printContent = `
-=================================
-          طلب / ORDER
-=================================
-
-رقم الطلب / Order ID: ${Date.now()}
-التاريخ / Date: ${new Date().toLocaleDateString()}
-الوقت / Time: ${new Date().toLocaleTimeString()}
-
----------------------------------
-تفاصيل الطلب / Order Details:
-${orderData.products
-  .map(
-    (product, index) => `
-${index + 1}. ${isRTL ? product.name : product.nameEn}
-   الكمية / Quantity: ${product.quantity}
-   السعر / Price: ${product.price} ${t("sar")}
-   الإجمالي / Subtotal: ${(product.price * product.quantity).toFixed(2)} ${t(
-      "sar"
-    )}
-`
-  )
-  .join("")}
-
----------------------------------
-طريقة التوصيل / Delivery Type: ${t(deliveryType)}
-طريقة الدفع / Payment Method: ${t(paymentMethod)}
-
-${
-  deliveryType === "delivery"
-    ? `
-معلومات العميل / Customer Information:
-الاسم / Name: ${customerInfo.name}
-الهاتف / Phone: ${customerInfo.phone}
-العنوان / Address: ${customerInfo.address}
-`
-    : ""
-}
-
----------------------------------
-الإجمالي قبل الخصم / Subtotal: ${subtotal.toFixed(2)} ${t("sar")}
-$${
-      discountValue > 0
-        ? `\nالخصم / Discount: -${discountValue.toFixed(2)} ${t("sar")}`
-        : ""
-    }
-\nالإجمالي بعد الخصم / Total: ${grandTotal.toFixed(2)} ${t("sar")}
-
-=================================
-شكراً لك / Thank You!
-=================================
-    `;
-
-    const printWindow = window.open("", "_blank");
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>${t("order")} - ${new Date().toLocaleDateString()}</title>
-          <style>
-            body { 
-              font-family: Arial, sans-serif; 
-              margin: 20px; 
-              line-height: 1.6;
-            }
-            .header { 
-              text-align: center; 
-              margin-bottom: 20px; 
-              font-weight: bold;
-              font-size: 18px;
-            }
-            .section { 
-              margin: 15px 0; 
-            }
-            .total { 
-              font-weight: bold; 
-              font-size: 18px; 
-              border-top: 2px solid #000;
-              padding-top: 10px;
-            }
-            @media print {
-              body { margin: 0; }
-            }
-          </style>
-        </head>
-        <body>
-          <pre style="font-family: 'Courier New', monospace; white-space: pre-wrap;">${printContent}</pre>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
-  };
-
-  const handleResetForm = () => {
-    setDeliveryType("pickup");
-    setPaymentMethod("cash");
-    setCustomerInfo({
-      name: "",
-      phone: "",
-      address: "",
-    });
-    setSelectedCustomerId("");
-    setIsNewCustomer(true);
-    setDiscountType("none");
-    setDiscountCode("");
-    setDiscountPercent("");
-    setErrors({});
-    toast.success(t("formResetSuccessfully"));
-  };
-
-  const handleCustomerSelection = (customerId) => {
-    setSelectedCustomerId(customerId);
-    if (customerId) {
-      const selectedCustomer = existingCustomers.find(
-        (c) => c.id === customerId
-      );
-      if (selectedCustomer) {
-        setCustomerInfo({
-          name: selectedCustomer.name,
-          phone: selectedCustomer.phone,
-          address: selectedCustomer.address || "",
-        });
-      }
-    } else {
-      setCustomerInfo({
-        name: "",
-        phone: "",
-        address: "",
-      });
-    }
-  };
-
+// Phase 1: Choose Delivery & Payment
+const PhaseOne = ({
+  deliveryType,
+  setDeliveryType,
+  paymentMethod,
+  setPaymentMethod,
+  onNext,
+  isRTL,
+  t,
+}) => {
   const paymentMethods = [
     {
       id: "cash",
@@ -409,9 +62,913 @@ $${
     },
   ];
 
+  const canProceed = deliveryType && paymentMethod;
+  const requiresPhase2 =
+    deliveryType === "delivery" || paymentMethod === "credit";
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg dark:shadow-xl border border-gray-200 dark:border-gray-700 p-6">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+          <Store className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+        </div>
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            {t("phase")} 1: {t("deliveryAndPayment")}
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {t("selectDeliveryAndPaymentMethod")}
+          </p>
+        </div>
+      </div>
+
+      {/* Delivery Type Selection */}
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+          {t("deliveryOption")}
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <button
+            onClick={() => setDeliveryType("pickup")}
+            className={`p-4 rounded-xl border-2 transition-all duration-300 w-full ${
+              deliveryType === "pickup"
+                ? "border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20"
+                : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <Store
+                className={`w-6 h-6 ${
+                  deliveryType === "pickup"
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-gray-600 dark:text-gray-400"
+                }`}
+              />
+              <div className="flex flex-col items-start">
+                <p
+                  className={`font-medium ${
+                    deliveryType === "pickup"
+                      ? "text-blue-700 dark:text-blue-300"
+                      : "text-gray-900 dark:text-white"
+                  }`}
+                >
+                  {t("pickup")}
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {t("pickupDescription")}
+                </p>
+              </div>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setDeliveryType("delivery")}
+            className={`p-4 rounded-xl border-2 transition-all duration-300 w-full ${
+              deliveryType === "delivery"
+                ? "border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20"
+                : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <Truck
+                className={`w-6 h-6 ${
+                  deliveryType === "delivery"
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-gray-600 dark:text-gray-400"
+                }`}
+              />
+              <div className="flex flex-col items-start">
+                <p
+                  className={`font-medium ${
+                    deliveryType === "delivery"
+                      ? "text-blue-700 dark:text-blue-300"
+                      : "text-gray-900 dark:text-white"
+                  }`}
+                >
+                  {t("delivery")}
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {t("deliveryDescription")}
+                </p>
+              </div>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* Payment Method Selection */}
+      <div className="mb-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+          {t("paymentMethod")}
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {paymentMethods.map((method) => (
+            <button
+              key={method.id}
+              onClick={() => setPaymentMethod(method.id)}
+              className={`p-4 rounded-xl border-2 transition-all duration-300 w-full ${
+                paymentMethod === method.id
+                  ? "border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20"
+                  : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500"
+              }`}
+            >
+              <div className="flex flex-col items-center gap-2 text-center">
+                <method.icon
+                  className={`w-6 h-6 ${
+                    paymentMethod === method.id
+                      ? "text-blue-600 dark:text-blue-400"
+                      : "text-gray-600 dark:text-gray-400"
+                  }`}
+                />
+                <p
+                  className={`font-medium text-sm ${
+                    paymentMethod === method.id
+                      ? "text-blue-700 dark:text-blue-300"
+                      : "text-gray-900 dark:text-white"
+                  }`}
+                >
+                  {method.label}
+                </p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Info Alert */}
+      {requiresPhase2 && canProceed && (
+        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <p className="text-sm text-blue-800 dark:text-blue-300">
+            ℹ️ {t("customerInformationRequired")}
+          </p>
+        </div>
+      )}
+
+      {/* Next Button */}
+      <button
+        onClick={onNext}
+        disabled={!canProceed}
+        className={`w-full px-6 py-3 font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-2 ${
+          canProceed
+            ? "bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 text-white"
+            : "bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+        }`}
+      >
+        {t("continue")}
+        {isRTL ? (
+          <ArrowLeft className="w-5 h-5" />
+        ) : (
+          <ArrowRight className="w-5 h-5" />
+        )}
+      </button>
+    </div>
+  );
+};
+
+// Phase 2: Customer Information
+const PhaseTwo = ({
+  deliveryType,
+  paymentMethod,
+  customerMode,
+  setCustomerMode,
+  selectedCustomerId,
+  setSelectedCustomerId,
+  customerInfo,
+  setCustomerInfo,
+  onNext,
+  onBack,
+  onSkip,
+  isRTL,
+  t,
+}) => {
+  const [customers, setCustomers] = useState([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  // Check if customer info is optional (not required)
+  const isOptional = deliveryType !== "delivery" && paymentMethod !== "credit";
+
+  const loadCustomers = async () => {
+    try {
+      setLoadingCustomers(true);
+      const response = await api.get("/customer/customers/");
+
+      // Handle different response formats
+      const customersList = Array.isArray(response.data)
+        ? response.data
+        : Array.isArray(response)
+        ? response
+        : [];
+
+      setCustomers(customersList);
+    } catch (error) {
+      console.error("Error loading customers:", error);
+      toast.error(t("errorLoadingCustomers"));
+    } finally {
+      setLoadingCustomers(false);
+    }
+  };
+
+  // Load customers when component mounts
+  useEffect(() => {
+    loadCustomers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const validateNewCustomer = () => {
+    const newErrors = {};
+
+    // If optional, no validation needed
+    if (isOptional) {
+      return true;
+    }
+
+    if (!customerInfo.name?.trim()) {
+      newErrors.name = t("customerNameRequired");
+    }
+    if (!customerInfo.phone?.trim()) {
+      newErrors.phone = t("phoneRequired");
+    }
+    if (!customerInfo.address?.trim()) {
+      newErrors.address = t("addressRequired");
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleCreateCustomer = async () => {
+    if (!validateNewCustomer()) {
+      return;
+    }
+
+    try {
+      setIsCreatingCustomer(true);
+      const newCustomer = {
+        customer_name: customerInfo.name.trim(),
+        customer_phone: customerInfo.phone.trim(),
+        customer_address: customerInfo.address?.trim() || "",
+        customer_email: customerInfo.email?.trim() || "",
+        notes: "Created from checkout",
+      };
+
+      console.log("Creating customer with payload:", newCustomer);
+
+      const response = await api.post("/customer/customers/", newCustomer);
+
+      console.log("Customer creation response:", response);
+      console.log("Response data:", response.data);
+
+      // Handle different response formats
+      let customerData = null;
+      if (response.data) {
+        customerData = response.data;
+      } else if (response.id) {
+        // API returns data directly in response object
+        customerData = response;
+      }
+
+      if (customerData && customerData.id) {
+        toast.success(t("customerCreatedSuccessfully"));
+        const customerId = customerData.id;
+        setSelectedCustomerId(customerId);
+
+        // Update customer info with the created customer data
+        setCustomerInfo({
+          name: customerData.customer_name || customerInfo.name,
+          phone: customerData.customer_phone || customerInfo.phone,
+          address: customerData.customer_address || customerInfo.address,
+          email: customerData.customer_email || customerInfo.email,
+        });
+
+        // Reload customers list
+        await loadCustomers();
+        // Move to next phase with the new customer ID
+        onNext(customerId);
+      } else {
+        console.error("Unexpected response format:", response);
+        throw new Error("Invalid response from customer creation API");
+      }
+    } catch (error) {
+      console.error("Error creating customer:", error);
+      console.error("Error response:", error.response?.data);
+      console.error("Error status:", error.response?.status);
+
+      // More specific error handling
+      let errorMessage = t("errorCreatingCustomer");
+
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      } else if (error.response?.data) {
+        // Handle field-specific errors
+        const fieldErrors = Object.values(error.response.data).flat();
+        if (fieldErrors.length > 0) {
+          errorMessage = fieldErrors.join(", ");
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      toast.error(errorMessage);
+    } finally {
+      setIsCreatingCustomer(false);
+    }
+  };
+
+  const handleSelectCustomer = (customerId) => {
+    setSelectedCustomerId(customerId);
+    const customer = customers.find((c) => c.id === parseInt(customerId));
+    if (customer) {
+      setCustomerInfo({
+        name: customer.customer_name || "",
+        phone: customer.customer_phone || "",
+        address: customer.customer_address || "",
+        email: customer.customer_email || "",
+      });
+    }
+  };
+
+  const handleContinue = () => {
+    if (customerMode === "existing") {
+      if (!selectedCustomerId) {
+        // If optional and no customer selected, allow continue without customer
+        if (isOptional) {
+          onNext(null);
+        } else {
+          toast.error(t("pleaseSelectCustomer"));
+        }
+        return;
+      }
+      onNext(selectedCustomerId);
+    } else {
+      handleCreateCustomer();
+    }
+  };
+
+  const canProceed =
+    isOptional || // If optional, can always proceed
+    (customerMode === "existing" && selectedCustomerId) ||
+    (customerMode === "new" &&
+      customerInfo.name &&
+      customerInfo.phone &&
+      (deliveryType !== "delivery" || customerInfo.address));
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg dark:shadow-xl border border-gray-200 dark:border-gray-700 p-6">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+          <User className="w-5 h-5 text-green-600 dark:text-green-400" />
+        </div>
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            {t("phase")} 2: {t("customerInformation")}
+            {isOptional && (
+              <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
+                ({t("optional")})
+              </span>
+            )}
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {isOptional
+              ? t("optionalCustomerInfoDescription")
+              : t("selectOrCreateCustomer")}
+          </p>
+        </div>
+      </div>
+
+      {/* Info Alert for Optional */}
+      {isOptional && (
+        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <p className="text-sm text-blue-800 dark:text-blue-300">
+            ℹ️ {t("customerInfoOptionalMessage")}
+          </p>
+        </div>
+      )}
+
+      {/* Customer Mode Toggle */}
+      <div className="flex gap-4 mb-6">
+        <button
+          type="button"
+          onClick={() => setCustomerMode("existing")}
+          className={`px-4 py-2 rounded-lg border-2 transition-all duration-300 flex-1 flex items-center justify-center gap-2 ${
+            customerMode === "existing"
+              ? "border-green-500 dark:border-green-400 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300"
+              : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-green-300 dark:hover:border-green-500"
+          }`}
+        >
+          <User className="w-4 h-4" />
+          {t("existingCustomer")}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setCustomerMode("new");
+            setSelectedCustomerId("");
+            setCustomerInfo({ name: "", phone: "", address: "", email: "" });
+          }}
+          className={`px-4 py-2 rounded-lg border-2 transition-all duration-300 flex-1 flex items-center justify-center gap-2 ${
+            customerMode === "new"
+              ? "border-green-500 dark:border-green-400 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300"
+              : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-green-300 dark:hover:border-green-500"
+          }`}
+        >
+          <Plus className="w-4 h-4" />
+          {t("newCustomer")}
+        </button>
+      </div>
+
+      {/* Existing Customer Selection */}
+      {customerMode === "existing" && (
+        <div className="space-y-4">
+          {/* Debug Info - Can be removed after testing */}
+          {!loadingCustomers && customers.length === 0 && (
+            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-sm text-yellow-800 dark:text-yellow-300">
+              ⚠️ {t("noCustomersFound")} - {t("loading")}...
+            </div>
+          )}
+
+          <FormField
+            label={t("selectCustomer")}
+            type="select"
+            value={selectedCustomerId}
+            onChange={(e) => handleSelectCustomer(e.target.value)}
+            options={[
+              {
+                value: "",
+                label: loadingCustomers
+                  ? t("loading")
+                  : customers.length === 0
+                  ? t("noCustomersAvailable")
+                  : t("selectCustomer"),
+              },
+              ...(customers || []).map((customer) => {
+                // Add null checks and default values
+                const name =
+                  customer?.customer_name || customer?.name || "Unknown";
+                const phone = customer?.customer_phone || customer?.phone || "";
+                return {
+                  value: customer.id,
+                  label: phone ? `${name} - ${phone}` : name,
+                };
+              }),
+            ]}
+            disabled={loadingCustomers}
+            icon={<User className="w-4 h-4" />}
+          />
+
+          {selectedCustomerId && (
+            <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg space-y-2">
+              <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+                {t("selectedCustomerInfo")}
+              </h4>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                <strong>{t("name")}:</strong> {customerInfo.name}
+              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                <strong>{t("phone")}:</strong> {customerInfo.phone}
+              </p>
+              {customerInfo.email && (
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <strong>{t("email")}:</strong> {customerInfo.email}
+                </p>
+              )}
+              {customerInfo.address && (
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <strong>{t("address")}:</strong> {customerInfo.address}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* New Customer Form */}
+      {customerMode === "new" && (
+        <div className="space-y-4">
+          <FormField
+            label={t("customerName")}
+            value={customerInfo.name}
+            onChange={(e) =>
+              setCustomerInfo((prev) => ({ ...prev, name: e.target.value }))
+            }
+            error={errors.name}
+            required
+            icon={<User className="w-4 h-4" />}
+          />
+
+          <FormField
+            label={t("phoneNumber")}
+            value={customerInfo.phone}
+            onChange={(e) =>
+              setCustomerInfo((prev) => ({ ...prev, phone: e.target.value }))
+            }
+            error={errors.phone}
+            required
+            icon={<Phone className="w-4 h-4" />}
+          />
+
+          <FormField
+            label={t("email")}
+            type="email"
+            value={customerInfo.email}
+            onChange={(e) =>
+              setCustomerInfo((prev) => ({ ...prev, email: e.target.value }))
+            }
+            icon={<Mail className="w-4 h-4" />}
+          />
+
+          <FormField
+            label={t("customerAddress")}
+            value={customerInfo.address}
+            onChange={(e) =>
+              setCustomerInfo((prev) => ({ ...prev, address: e.target.value }))
+            }
+            icon={<MapPin className="w-4 h-4" />}
+          />
+        </div>
+      )}
+
+      {/* Action Buttons */}
+      <div className="flex gap-3 mt-6">
+        <button
+          onClick={onBack}
+          className="px-6 py-3 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors duration-200 flex items-center gap-2"
+        >
+          {isRTL ? (
+            <ArrowRight className="w-5 h-5" />
+          ) : (
+            <ArrowLeft className="w-5 h-5" />
+          )}
+          {t("back")}
+        </button>
+
+        {/* Skip Button - Only show when optional */}
+        {isOptional && onSkip && (
+          <button
+            onClick={onSkip}
+            className="px-6 py-3 text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 border-2 border-orange-200 dark:border-orange-800 rounded-lg transition-colors duration-200 flex items-center gap-2"
+          >
+            {t("skipThisStep")}
+            {isRTL ? (
+              <ArrowLeft className="w-5 h-5" />
+            ) : (
+              <ArrowRight className="w-5 h-5" />
+            )}
+          </button>
+        )}
+
+        <button
+          onClick={handleContinue}
+          disabled={!canProceed || isCreatingCustomer}
+          className={`flex-1 px-6 py-3 font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-2 ${
+            canProceed && !isCreatingCustomer
+              ? "bg-green-600 dark:bg-green-500 hover:bg-green-700 dark:hover:bg-green-600 text-white"
+              : "bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+          }`}
+        >
+          {isCreatingCustomer ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              {t("creating")}
+            </>
+          ) : (
+            <>
+              {t("continue")}
+              {isRTL ? (
+                <ArrowLeft className="w-5 h-5" />
+              ) : (
+                <ArrowRight className="w-5 h-5" />
+              )}
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Phase 3: Confirm & Submit Order
+const PhaseThree = ({
+  deliveryType,
+  paymentMethod,
+  customerInfo,
+  orderData,
+  onSubmit,
+  onBack,
+  isSubmitting,
+  isRTL,
+  t,
+}) => {
+  const subtotal = orderData?.total || 0;
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg dark:shadow-xl border border-gray-200 dark:border-gray-700 p-6">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+          <Receipt className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+        </div>
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            {t("phase")} 3: {t("confirmOrder")}
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {t("reviewAndSubmitOrder")}
+          </p>
+        </div>
+      </div>
+
+      {/* Order Summary */}
+      <div className="space-y-6">
+        {/* Customer Info - Only show if exists */}
+        {(customerInfo.name || customerInfo.phone) && (
+          <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+              <User className="w-4 h-4" />
+              {t("customerInformation")}
+            </h3>
+            <div className="space-y-2">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                <strong>{t("name")}:</strong> {customerInfo.name}
+              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                <strong>{t("phone")}:</strong> {customerInfo.phone}
+              </p>
+              {customerInfo.email && (
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <strong>{t("email")}:</strong> {customerInfo.email}
+                </p>
+              )}
+              {customerInfo.address && (
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <strong>{t("address")}:</strong> {customerInfo.address}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Delivery & Payment Info */}
+        <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+            <Truck className="w-4 h-4" />
+            {t("deliveryAndPayment")}
+          </h3>
+          <div className="space-y-2">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              <strong>{t("deliveryOption")}:</strong> {t(deliveryType)}
+            </p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              <strong>{t("paymentMethod")}:</strong> {t(paymentMethod)}
+            </p>
+          </div>
+        </div>
+
+        {/* Products List */}
+        <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+            <Package className="w-4 h-4" />
+            {t("orderItems")}
+          </h3>
+          <div className="space-y-3">
+            {orderData?.products?.map((product, index) => (
+              <div
+                key={index}
+                className="flex justify-between items-center p-3 bg-white dark:bg-gray-800 rounded-lg"
+              >
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-white">
+                    {isRTL ? product.name : product.nameEn || product.name}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {t("quantity")}: {product.quantity}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="font-medium text-gray-900 dark:text-white">
+                    {(product.price * product.quantity).toFixed(2)} {t("sar")}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Total */}
+        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-2 border-blue-200 dark:border-blue-800">
+          <div className="flex justify-between items-center">
+            <span className="text-lg font-semibold text-gray-900 dark:text-white">
+              {t("total")}
+            </span>
+            <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+              {subtotal.toFixed(2)} {t("sar")}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex gap-3 mt-6">
+        <button
+          onClick={onBack}
+          disabled={isSubmitting}
+          className="px-6 py-3 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors duration-200 flex items-center gap-2 disabled:opacity-50"
+        >
+          {isRTL ? (
+            <ArrowRight className="w-5 h-5" />
+          ) : (
+            <ArrowLeft className="w-5 h-5" />
+          )}
+          {t("back")}
+        </button>
+        <button
+          onClick={onSubmit}
+          disabled={isSubmitting}
+          className={`flex-1 px-6 py-3 font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-2 ${
+            isSubmitting
+              ? "bg-gray-400 dark:bg-gray-600 cursor-not-allowed"
+              : "bg-orange-600 dark:bg-orange-500 hover:bg-orange-700 dark:hover:bg-orange-600 text-white"
+          }`}
+        >
+          {isSubmitting ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              {t("processing")}
+            </>
+          ) : (
+            <>
+              <CheckCircle className="w-5 h-5" />
+              {t("placeOrder")}
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Main Checkout Component
+const CheckoutPage = () => {
+  const { t } = useTranslation();
+  const { isRTL } = useSelector((state) => state.language);
+  const { user } = useSelector((state) => state.auth);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const orderData = location.state?.orderData;
+
+  // Phase management
+  const [currentPhase, setCurrentPhase] = useState(1);
+
+  // Phase 1 state
+  const [deliveryType, setDeliveryType] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("");
+
+  // Phase 2 state
+  const [customerMode, setCustomerMode] = useState("existing"); // "existing" or "new"
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [customerInfo, setCustomerInfo] = useState({
+    name: "",
+    phone: "",
+    address: "",
+    email: "",
+  });
+
+  // Phase 3 state
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!orderData) {
+      navigate("/seller/products");
+      toast.error(t("noOrderDataFound"));
+    }
+  }, [orderData, navigate, t]);
+
+  if (!orderData) {
+    return null;
+  }
+
+  const handlePhaseOneNext = () => {
+    // Always go to Phase 2 (customer info is optional when pickup + cash/card/knet)
+    setCurrentPhase(2);
+  };
+
+  const handlePhaseTwoNext = (customerId) => {
+    setSelectedCustomerId(customerId);
+    setCurrentPhase(3);
+  };
+
+  const handlePhaseTwoSkip = () => {
+    // Skip customer info and go directly to Phase 3
+    setSelectedCustomerId("");
+    setCustomerInfo({ name: "", phone: "", address: "", email: "" });
+    setCurrentPhase(3);
+  };
+
+  const handleSubmitOrder = async () => {
+    setIsSubmitting(true);
+
+    try {
+      // Get the real seller ID from tenantusers API based on email
+      let sellerId = null;
+      if (user?.email) {
+        try {
+          const usersResponse = await api.get("/tenuser/tenantusers/");
+          const users = Array.isArray(usersResponse.data)
+            ? usersResponse.data
+            : usersResponse;
+          const currentUser = users.find((u) => u.email === user.email);
+          if (currentUser) {
+            sellerId = currentUser.id;
+            console.log("Found seller ID from tenantusers:", sellerId);
+          }
+        } catch (error) {
+          console.error("Error fetching tenantusers:", error);
+        }
+      }
+
+      // Calculate totals
+      const subtotal = orderData.total || 0;
+      const discount = 0; // You can add discount logic here if needed
+      const totalAmount = subtotal - discount;
+
+      // Build the order payload according to API schema
+      const orderPayload = {
+        status: "pending",
+        payment_type: paymentMethod,
+        delivery_option: deliveryType, // Add delivery option
+        items: orderData.products.map((product) => ({
+          product_id: product.id,
+          quantity: product.quantity,
+        })),
+        subtotal: subtotal.toFixed(2),
+        discount: discount.toFixed(2),
+        total_amount: totalAmount.toFixed(2),
+      };
+
+      // Add customer only if selected (convert to integer)
+      if (selectedCustomerId) {
+        orderPayload.customer = parseInt(selectedCustomerId);
+      }
+
+      // Add seller only if we found the ID
+      if (sellerId) {
+        orderPayload.seller = sellerId;
+      }
+
+
+      const response = await api.post("/seller/orders/", orderPayload);
+
+
+      // Handle different response formats
+      let orderData = null;
+      if (response.data) {
+        orderData = response.data;
+      } else if (response.id) {
+        // API returns data directly in response object
+        orderData = response;
+      }
+
+      if (orderData) {
+        toast.success(t("orderCreatedSuccessfully"));
+        setIsSubmitting(false); // Reset loading state
+        navigate("/seller/orders", {
+          state: {
+            newOrder: orderData,
+            showSuccessMessage: true,
+          },
+        });
+      } else {
+        throw new Error("Invalid response from order creation API");
+      }
+    } catch (error) {
+      console.error("=== ERROR DETAILS ===");
+      console.error("Full Error:", error);
+      console.error("Error Response:", error.response);
+      console.error("Error Data:", error.response?.data);
+      console.error("Error Status:", error.response?.status);
+      console.error("====================");
+
+      const errorMessage =
+        error.response?.data?.message ||
+        error.response?.data?.detail ||
+        (error.response?.data?.seller && error.response.data.seller[0]) ||
+        JSON.stringify(error.response?.data) ||
+        error.message ||
+        t("errorCreatingOrder");
+      toast.error(errorMessage);
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleBackToProducts = () => {
+    navigate("/seller/product-selection", { state: { orderData } });
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <button
@@ -428,60 +985,106 @@ $${
             {t("backToProducts")}
           </button>
 
-          <h1
-            className={`text-2xl font-bold text-gray-900 dark:text-white mb-2`}
-          >
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
             {t("checkout")}
           </h1>
+
+          {/* Progress Steps */}
+          <div className="flex items-center gap-4 mt-6">
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold ${
+                  currentPhase >= 1
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-200 dark:bg-gray-700 text-gray-500"
+                }`}
+              >
+                1
+              </div>
+              <span
+                className={`text-sm font-medium ${
+                  currentPhase >= 1
+                    ? "text-gray-900 dark:text-white"
+                    : "text-gray-500"
+                }`}
+              >
+                {t("deliveryAndPayment")}
+              </span>
+            </div>
+
+            <ChevronRight className="w-4 h-4 text-gray-400" />
+
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold ${
+                  currentPhase >= 2
+                    ? "bg-green-600 text-white"
+                    : "bg-gray-200 dark:bg-gray-700 text-gray-500"
+                }`}
+              >
+                2
+              </div>
+              <span
+                className={`text-sm font-medium ${
+                  currentPhase >= 2
+                    ? "text-gray-900 dark:text-white"
+                    : "text-gray-500"
+                }`}
+              >
+                {t("customerInfo")}
+              </span>
+            </div>
+
+            <ChevronRight className="w-4 h-4 text-gray-400" />
+
+            <div className="flex items-center gap-2">
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold ${
+                  currentPhase >= 3
+                    ? "bg-orange-600 text-white"
+                    : "bg-gray-200 dark:bg-gray-700 text-gray-500"
+                }`}
+              >
+                3
+              </div>
+              <span
+                className={`text-sm font-medium ${
+                  currentPhase >= 3
+                    ? "text-gray-900 dark:text-white"
+                    : "text-gray-500"
+                }`}
+              >
+                {t("confirm")}
+              </span>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-          {/* Order Summary */}
+          {/* Order Summary Sidebar */}
           <div className="lg:col-span-1">
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg dark:shadow-xl border border-gray-200 dark:border-gray-700 p-6 lg:sticky lg:top-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  {t("orderSummary")}
-                </h2>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handlePrintOrder}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    title={t("printOrder")}
-                    aria-label={t("printOrder")}
-                  >
-                    <Printer className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={handleResetForm}
-                    className="p-2 text-text-secondary-light dark:text-text-secondary-dark hover:text-text-primary-light dark:hover:text-text-primary-dark hover:bg-surface-light dark:hover:bg-surface-dark rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    title={t("resetForm")}
-                    aria-label={t("resetForm")}
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                {t("orderSummary")}
+              </h2>
 
               {/* Products List */}
-              <div className="space-y-4 mb-6 max-h-64 sm:max-h-80 overflow-y-auto pr-1">
+              <div className="space-y-3 mb-6 max-h-80 overflow-y-auto pr-1">
                 {orderData.products?.map((product, index) => (
                   <div
                     key={index}
-                    className={`flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg ${
-                      isRTL ? "flex-row" : ""
-                    }`}
+                    className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
                   >
                     <div>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {isRTL ? product.name : product.nameEn}
+                      <p className="font-medium text-gray-900 dark:text-white text-sm">
+                        {isRTL ? product.name : product.nameEn || product.name}
                       </p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {t("quantity")}: {product.quantity}
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        {t("qty")}: {product.quantity}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium text-gray-900 dark:text-white">
+                      <p className="font-medium text-gray-900 dark:text-white text-sm">
                         {(product.price * product.quantity).toFixed(2)}{" "}
                         {t("sar")}
                       </p>
@@ -490,485 +1093,71 @@ $${
                 ))}
               </div>
 
-              {/* Discount Controls */}
-              <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                    {t("discount")}
-                  </span>
-                  <div className="flex gap-2 flex-wrap">
-                    <button
-                      onClick={() => {
-                        setDiscountType("none");
-                        setDiscountCode("");
-                        setDiscountPercent("");
-                      }}
-                      className={`px-2 py-1 rounded text-xs border transition-colors ${
-                        discountType === "none"
-                          ? "bg-blue-600 text-white border-blue-600"
-                          : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600"
-                      }`}
-                    >
-                      {t("none")}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setDiscountType("code");
-                        setDiscountPercent("");
-                      }}
-                      className={`px-2 py-1 rounded text-xs border transition-colors ${
-                        discountType === "code"
-                          ? "bg-blue-600 text-white border-blue-600"
-                          : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600"
-                      }`}
-                    >
-                      {t("code")}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setDiscountType("percent");
-                        setDiscountCode("");
-                      }}
-                      className={`px-2 py-1 rounded text-xs border transition-colors ${
-                        discountType === "percent"
-                          ? "bg-blue-600 text-white border-blue-600"
-                          : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600"
-                      }`}
-                    >
-                      {t("percent")}
-                    </button>
-                  </div>
-                </div>
-
-                {discountType === "code" && (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <input
-                      type="text"
-                      value={discountCode}
-                      onChange={(e) => setDiscountCode(e.target.value)}
-                      placeholder={t("enterDiscountCode")}
-                      className="flex-1 min-w-[200px] px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      SAVE10, OFF20, FLAT5
-                    </span>
-                  </div>
-                )}
-
-                {discountType === "percent" && (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={discountPercent}
-                      onChange={(e) => setDiscountPercent(e.target.value)}
-                      placeholder={t("enterPercentage")}
-                      className="flex-1 min-w-[140px] px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">
-                      %
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Totals */}
+              {/* Total */}
               <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                <div
-                  className={`flex justify-between items-center mb-2 ${
-                    isRTL ? "flex-row" : ""
-                  }`}
-                >
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {t("subtotal")}
-                  </span>
-                  <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                    {subtotal.toFixed(2)} {t("currency")}
-                  </span>
-                </div>
-                {discountValue > 0 && (
-                  <div
-                    className={`flex justify-between items-center mb-2 ${
-                      isRTL ? "flex-row" : ""
-                    }`}
-                  >
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      {t("discount")}
-                    </span>
-                    <span className="text-sm font-semibold text-green-600 dark:text-green-400">
-                      -{discountValue.toFixed(2)} {t("sar")}
-                    </span>
-                  </div>
-                )}
-                <div
-                  className={`flex justify-between items-center ${
-                    isRTL ? "flex-row" : ""
-                  }`}
-                >
+                <div className="flex justify-between items-center">
                   <span className="text-lg font-semibold text-gray-900 dark:text-white">
                     {t("total")}
                   </span>
-                  <span className="text-lg font-bold text-gray-900 dark:text-white">
-                    {grandTotal.toFixed(2)} {t("sar")}
+                  <span className="text-xl font-bold text-gray-900 dark:text-white">
+                    {orderData.total?.toFixed(2)} {t("sar")}
                   </span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Delivery Options and Customer Info */}
+          {/* Phase Content */}
           <div className="lg:col-span-2">
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg dark:shadow-xl border border-gray-200 dark:border-gray-700 p-6">
-              {/* Delivery Type Selection */}
-              <div className="mb-8">
-                <h3
-                  className={`text-lg font-semibold text-gray-900 dark:text-white mb-4`}
-                >
-                  {t("deliveryOption")}
-                </h3>
+            {currentPhase === 1 && (
+              <PhaseOne
+                deliveryType={deliveryType}
+                setDeliveryType={setDeliveryType}
+                paymentMethod={paymentMethod}
+                setPaymentMethod={setPaymentMethod}
+                onNext={handlePhaseOneNext}
+                isRTL={isRTL}
+                t={t}
+              />
+            )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <button
-                    onClick={() => setDeliveryType("pickup")}
-                    className={`p-4 rounded-xl border-2 transition-all duration-300 w-full ${
-                      deliveryType === "pickup"
-                        ? "border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                        : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10 hover:shadow-md"
-                    }`}
-                    aria-pressed={deliveryType === "pickup"}
-                    aria-label={t("pickup")}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Store
-                        className={`w-6 h-6 ${
-                          deliveryType === "pickup"
-                            ? "text-blue-600 dark:text-blue-400"
-                            : "text-gray-600 dark:text-gray-400"
-                        }`}
-                      />
-                      <div className="flex flex-col items-start">
-                        <p
-                          className={`font-medium ${
-                            deliveryType === "pickup"
-                              ? "text-blue-700 dark:text-blue-300"
-                              : "text-gray-900 dark:text-white"
-                          }`}
-                        >
-                          {t("pickup")}
-                        </p>
-                        <p
-                          className={`text-sm ${
-                            deliveryType === "pickup"
-                              ? "text-blue-600 dark:text-blue-400"
-                              : "text-gray-600 dark:text-gray-400"
-                          }`}
-                        >
-                          {t("pickupDescription")}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
+            {currentPhase === 2 && (
+              <PhaseTwo
+                deliveryType={deliveryType}
+                paymentMethod={paymentMethod}
+                customerMode={customerMode}
+                setCustomerMode={setCustomerMode}
+                selectedCustomerId={selectedCustomerId}
+                setSelectedCustomerId={setSelectedCustomerId}
+                customerInfo={customerInfo}
+                setCustomerInfo={setCustomerInfo}
+                onNext={handlePhaseTwoNext}
+                onBack={() => setCurrentPhase(1)}
+                onSkip={handlePhaseTwoSkip}
+                isRTL={isRTL}
+                t={t}
+              />
+            )}
 
-                  <button
-                    onClick={() => setDeliveryType("delivery")}
-                    className={`p-4 rounded-xl border-2 transition-all duration-300 w-full ${
-                      deliveryType === "delivery"
-                        ? "border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                        : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10 hover:shadow-md"
-                    }`}
-                    aria-pressed={deliveryType === "delivery"}
-                    aria-label={t("delivery")}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Truck
-                        className={`w-6 h-6 ${
-                          deliveryType === "delivery"
-                            ? "text-blue-600 dark:text-blue-400"
-                            : "text-gray-600 dark:text-gray-400"
-                        }`}
-                      />
-                      <div className="flex flex-col items-start">
-                        <p
-                          className={`font-medium ${
-                            deliveryType === "delivery"
-                              ? "text-blue-700 dark:text-blue-300"
-                              : "text-gray-900 dark:text-white"
-                          }`}
-                        >
-                          {t("delivery")}
-                        </p>
-                        <p
-                          className={`text-sm ${
-                            deliveryType === "delivery"
-                              ? "text-blue-600 dark:text-blue-400"
-                              : "text-gray-600 dark:text-gray-400"
-                          }`}
-                        >
-                          {t("deliveryDescription")}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              {/* Payment Method Selection */}
-              <div className="mb-8">
-                <h3
-                  className={`text-lg font-semibold text-gray-900 dark:text-white mb-4`}
-                >
-                  {t("paymentMethod")}
-                </h3>
-
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {paymentMethods.map((method) => (
-                    <button
-                      key={method.id}
-                      onClick={() => setPaymentMethod(method.id)}
-                      className={`p-4 rounded-xl border-2 transition-all duration-300 w-full ${
-                        paymentMethod === method.id
-                          ? "border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                          : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10 hover:shadow-md"
-                      }`}
-                      aria-pressed={paymentMethod === method.id}
-                      aria-label={method.label}
-                    >
-                      <div className="flex flex-col items-center gap-2 text-center">
-                        <method.icon
-                          className={`w-6 h-6 ${
-                            paymentMethod === method.id
-                              ? "text-blue-600 dark:text-blue-400"
-                              : "text-gray-600 dark:text-gray-400"
-                          }`}
-                        />
-                        <div>
-                          <p
-                            className={`font-medium ${
-                              paymentMethod === method.id
-                                ? "text-blue-700 dark:text-blue-300"
-                                : "text-gray-900 dark:text-white"
-                            }`}
-                          >
-                            {method.label}
-                          </p>
-                          <p
-                            className={`text-sm ${
-                              paymentMethod === method.id
-                                ? "text-blue-600 dark:text-blue-400"
-                                : "text-gray-600 dark:text-gray-400"
-                            }`}
-                          >
-                            {method.description}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-                {errors.paymentMethod && (
-                  <p className="mt-2 text-sm text-red-600 dark:text-red-400">
-                    {errors.paymentMethod}
-                  </p>
-                )}
-              </div>
-
-              {/* Customer Information Form for Delivery */}
-              {deliveryType === "delivery" && paymentMethod !== "credit" && (
-                <div className="space-y-6">
-                  <h3
-                    className={`text-lg font-semibold text-gray-900 dark:text-white mb-4`}
-                  >
-                    {t("customerInformation")}
-                  </h3>
-
-                  <FormField
-                    label={t("customerName")}
-                    value={customerInfo.name}
-                    onChange={(e) =>
-                      setCustomerInfo((prev) => ({
-                        ...prev,
-                        name: e.target.value,
-                      }))
-                    }
-                    error={errors.name}
-                    icon={<User className="w-4 h-4" />}
-                  />
-
-                  <FormField
-                    label={t("phoneNumber")}
-                    value={customerInfo.phone}
-                    onChange={(e) =>
-                      setCustomerInfo((prev) => ({
-                        ...prev,
-                        phone: e.target.value,
-                      }))
-                    }
-                    error={errors.phone}
-                    icon={<Phone className="w-4 h-4" />}
-                  />
-
-                  <FormField
-                    label={t("deliveryAddress")}
-                    value={customerInfo.address}
-                    onChange={(e) =>
-                      setCustomerInfo((prev) => ({
-                        ...prev,
-                        address: e.target.value,
-                      }))
-                    }
-                    error={errors.address}
-                    icon={<MapPin className="w-4 h-4" />}
-                  />
-                </div>
-              )}
-
-              {/* Credit Payment Customer Form */}
-              {paymentMethod === "credit" && (
-                <div className="space-y-6">
-                  <h3
-                    className={`text-lg font-semibold text-gray-900 dark:text-white mb-4`}
-                  >
-                    {t("customerInformation")}
-                  </h3>
-
-                  {/* Customer Selection Toggle */}
-                  <div className="flex gap-4 mb-6">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsNewCustomer(true);
-                        setSelectedCustomerId("");
-                        setCustomerInfo({ name: "", phone: "", address: "" });
-                      }}
-                      className={`px-4 py-2 rounded-lg border-2 transition-all duration-300 flex-1 ${
-                        isNewCustomer
-                          ? "border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                          : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500"
-                      }`}
-                    >
-                      {t("newCustomer")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsNewCustomer(false);
-                        setCustomerInfo({ name: "", phone: "", address: "" });
-                      }}
-                      className={`px-4 py-2 rounded-lg border-2 transition-all duration-300 flex-1 ${
-                        !isNewCustomer
-                          ? "border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                          : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500"
-                      }`}
-                    >
-                      {t("existingCustomer")}
-                    </button>
-                  </div>
-
-                  {/* Existing Customer Dropdown */}
-                  {!isNewCustomer && (
-                    <div className="space-y-4">
-                      <FormField
-                        label={t("selectCustomer")}
-                        type="select"
-                        value={selectedCustomerId}
-                        onChange={(e) =>
-                          handleCustomerSelection(e.target.value)
-                        }
-                        error={errors.customer}
-                        options={[
-                          { value: "", label: t("selectCustomer") },
-                          ...existingCustomers.map((customer) => ({
-                            value: customer.id,
-                            label: `${customer.name} - ${customer.phone}`,
-                          })),
-                        ]}
-                      />
-
-                      {selectedCustomerId && (
-                        <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                          <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
-                            {t("selectedCustomerInfo")}
-                          </h4>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            <strong>{t("name")}:</strong> {customerInfo.name}
-                          </p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            <strong>{t("phone")}:</strong> {customerInfo.phone}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* New Customer Form */}
-                  {isNewCustomer && (
-                    <div className="space-y-4">
-                      <FormField
-                        label={t("customerName")}
-                        value={customerInfo.name}
-                        onChange={(e) =>
-                          setCustomerInfo((prev) => ({
-                            ...prev,
-                            name: e.target.value,
-                          }))
-                        }
-                        error={errors.name}
-                        icon={<User className="w-4 h-4" />}
-                      />
-
-                      <FormField
-                        label={t("phoneNumber")}
-                        value={customerInfo.phone}
-                        onChange={(e) =>
-                          setCustomerInfo((prev) => ({
-                            ...prev,
-                            phone: e.target.value,
-                          }))
-                        }
-                        error={errors.phone}
-                        icon={<Phone className="w-4 h-4" />}
-                      />
-                    </div>
-                  )}
-
-                  {/* Delivery Address for Credit + Delivery */}
-                  {deliveryType === "delivery" && (
-                    <FormField
-                      label={t("deliveryAddress")}
-                      value={customerInfo.address}
-                      onChange={(e) =>
-                        setCustomerInfo((prev) => ({
-                          ...prev,
-                          address: e.target.value,
-                        }))
-                      }
-                      error={errors.address}
-                      icon={<MapPin className="w-4 h-4" />}
-                    />
-                  )}
-                </div>
-              )}
-
-              {/* Submit Button */}
-              <button
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-                className="w-full mt-8 px-6 py-3 bg-gray-900 dark:bg-gray-100 hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-gray-900 font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white dark:border-gray-900 border-t-transparent rounded-full animate-spin"></div>
-                    {t("processing")}
-                  </>
-                ) : (
-                  <>
-                    <Receipt className="w-5 h-5" />
-                    {t("placeOrder")}
-                  </>
-                )}
-              </button>
-            </div>
+            {currentPhase === 3 && (
+              <PhaseThree
+                deliveryType={deliveryType}
+                paymentMethod={paymentMethod}
+                customerId={selectedCustomerId}
+                customerInfo={customerInfo}
+                orderData={orderData}
+                onSubmit={handleSubmitOrder}
+                onBack={() => {
+                  // Go back to Phase 2 if it was required, otherwise Phase 1
+                  const requiresPhase2 =
+                    deliveryType === "delivery" || paymentMethod === "credit";
+                  setCurrentPhase(requiresPhase2 ? 2 : 1);
+                }}
+                isSubmitting={isSubmitting}
+                isRTL={isRTL}
+                t={t}
+              />
+            )}
           </div>
         </div>
       </div>

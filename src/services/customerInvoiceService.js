@@ -6,14 +6,6 @@ import { apiService, API_ENDPOINTS, replaceUrlParams } from "./api";
 
 // Helper function to map database schema to frontend format
 const mapDbToFrontend = (dbInvoice) => {
-  const subTotal =
-    dbInvoice.items?.reduce(
-      (sum, item) => sum + (item.quantity * item.unit_price || 0),
-      0
-    ) || 0;
-
-  const total = dbInvoice.total || subTotal;
-
   return {
     id: dbInvoice.id,
     customerName: dbInvoice.customer_name,
@@ -25,8 +17,9 @@ const mapDbToFrontend = (dbInvoice) => {
     updatedAt: dbInvoice.updated_at,
     issueDate: dbInvoice.issue_date,
     dueDate: dbInvoice.due_date,
-    subTotal,
-    total,
+    subTotal: parseFloat(dbInvoice.subtotal) || 0,
+    tax: parseFloat(dbInvoice.tax) || 0,
+    total: parseFloat(dbInvoice.total) || 0,
   };
 };
 
@@ -39,18 +32,25 @@ const mapFrontendToDb = (
   const dbData = {};
 
   // Only include fields that are actually provided and not undefined/null
+  // Handle both camelCase and snake_case field names
   if (
-    frontendInvoice.customerName !== undefined &&
-    frontendInvoice.customerName !== null
+    (frontendInvoice.customerName !== undefined &&
+      frontendInvoice.customerName !== null) ||
+    (frontendInvoice.customer_name !== undefined &&
+      frontendInvoice.customer_name !== null)
   ) {
-    dbData.customer_name = frontendInvoice.customerName;
+    dbData.customer_name =
+      frontendInvoice.customer_name || frontendInvoice.customerName;
   }
 
   if (
-    frontendInvoice.customerPhone !== undefined &&
-    frontendInvoice.customerPhone !== null
+    (frontendInvoice.customerPhone !== undefined &&
+      frontendInvoice.customerPhone !== null) ||
+    (frontendInvoice.customer_phone !== undefined &&
+      frontendInvoice.customer_phone !== null)
   ) {
-    dbData.customer_phone = frontendInvoice.customerPhone;
+    dbData.customer_phone =
+      frontendInvoice.customer_phone || frontendInvoice.customerPhone;
   }
 
   if (frontendInvoice.notes !== undefined) {
@@ -71,12 +71,12 @@ const mapFrontendToDb = (
       .filter(
         (item) =>
           item &&
-          item.productId &&
-          item.productId !== "" &&
-          item.productId !== null
+          (item.productId || item.product) &&
+          (item.productId || item.product) !== "" &&
+          (item.productId || item.product) !== null
       ) // Filter out invalid items
       .map((item) => ({
-        product_id: item.productId,
+        product_id: item.productId || item.product, // Backend expects product_id
         quantity: item.quantity || 1,
         unit_price: item.unitPrice || 0,
       }));
@@ -87,18 +87,30 @@ const mapFrontendToDb = (
     }
   }
 
-  // Handle dates if provided
-  if (frontendInvoice.issueDate) {
-    dbData.issue_date = frontendInvoice.issueDate;
+  // Handle dates if provided - support both camelCase and snake_case
+  if (frontendInvoice.issue_date || frontendInvoice.issueDate) {
+    dbData.issue_date = frontendInvoice.issue_date || frontendInvoice.issueDate;
   }
 
-  if (frontendInvoice.dueDate) {
-    dbData.due_date = frontendInvoice.dueDate;
+  if (frontendInvoice.due_date || frontendInvoice.dueDate) {
+    dbData.due_date = frontendInvoice.due_date || frontendInvoice.dueDate;
   }
 
   // Handle totals if provided
   if (frontendInvoice.total !== undefined) {
     dbData.total = frontendInvoice.total;
+  }
+
+  if (frontendInvoice.subtotal !== undefined) {
+    dbData.subtotal = frontendInvoice.subtotal;
+  }
+
+  if (frontendInvoice.tax !== undefined) {
+    dbData.tax = frontendInvoice.tax;
+  }
+
+  if (frontendInvoice.payment_method !== undefined) {
+    dbData.payment_method = frontendInvoice.payment_method;
   }
 
   return dbData;
@@ -136,7 +148,9 @@ export const customerInvoiceService = {
 
   // Create new customer invoice
   createCustomerInvoice: async (invoiceData) => {
+
     const dbData = mapFrontendToDb(invoiceData);
+
     const response = await apiService.post(
       API_ENDPOINTS.CUSTOMER_INVOICES.CREATE,
       dbData

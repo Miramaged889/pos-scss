@@ -10,7 +10,7 @@ const hostname = window.location.hostname;
 // 2. Extract subdomain if exists
 let subdomain = null;
 
-if (hostname.includes(".detalls-sa.com")) {
+if (hostname.includes(".posback.shop")) {
   subdomain = hostname.split(".")[0]; // ou2
 } else if (hostname.includes(".localhost")) {
   subdomain = hostname.split(".")[0]; // ou2 if ou2.localhost
@@ -19,9 +19,9 @@ if (hostname.includes(".detalls-sa.com")) {
 }
 
 // 3. Build the Base URL dynamically
-const SAAS_BASE_URL = "https://detalls-sa.com"; // default SaaS (no trailing slash)
+const SAAS_BASE_URL = "https://posback.shop"; // default SaaS (no trailing slash)
 const TENANT_BASE_URL = subdomain
-  ? `https://${subdomain}.detalls-sa.com`
+  ? `https://${subdomain}.posback.shop`
   : SAAS_BASE_URL;
 
 // 5. Development mode detection
@@ -60,7 +60,7 @@ export const API_ENDPOINTS = {
   BRANCHES: {
     LIST: "/tenuser/branches/",
     CREATE: "/tenuser/branches/",
-      UPDATE: "/tenuser/branches/:id/",
+    UPDATE: "/tenuser/branches/:id/",
     DELETE: "/tenuser/branches/:id/",
     GET: "/tenuser/branches/:id/",
   },
@@ -248,12 +248,23 @@ const handleResponse = async (response) => {
         errorData = {};
       }
     }
-    throw new Error(
+
+    // Create error with response data attached
+    const error = new Error(
       errorData.message ||
         errorData.detail ||
         errorData.error ||
         `HTTP error! status: ${response.status} - ${response.statusText}`
     );
+
+    // Attach response data to error object
+    error.response = {
+      status: response.status,
+      statusText: response.statusText,
+      data: errorData,
+    };
+
+    throw error;
   }
 
   const contentType = response.headers.get("content-type");

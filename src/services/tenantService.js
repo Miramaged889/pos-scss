@@ -7,7 +7,7 @@ import { API_ENDPOINTS } from "./api";
 
 // Create a separate API service for tenant calls that uses SAAS_BASE_URL
 const createTenantApiService = () => {
-  const SAAS_BASE_URL = "https://detalls-sa.com";
+  const SAAS_BASE_URL = "https://posback.shop";
 
   // For tenant API calls, we use SAAS_BASE_URL
   const makeRequest = async (endpoint, options = {}) => {
@@ -167,7 +167,7 @@ const tenantService = {
   // Helper method to get subdomain
   getSubdomain() {
     const hostname = window.location.hostname;
-    if (hostname.includes(".detalls-sa.com")) {
+    if (hostname.includes(".posback.shop")) {
       return hostname.split(".")[0];
     } else if (hostname.includes(".localhost")) {
       return hostname.split(".")[0];

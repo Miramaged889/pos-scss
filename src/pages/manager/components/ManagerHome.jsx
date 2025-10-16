@@ -45,7 +45,7 @@ const ManagerHome = () => {
   const recentOrders = React.useMemo(() => {
     if (!Array.isArray(orders)) return [];
 
-    return orders
+    return [...orders]
       .sort(
         (a, b) =>
           new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date)

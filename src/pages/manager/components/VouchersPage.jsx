@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import {
   FileText,
   DollarSign,
@@ -33,16 +33,20 @@ import {
   PaymentVoucherForm,
 } from "../../../components/Forms/SellerForms";
 import { numberToWords } from "../../../utils/formatters";
-import { voucherService } from "../../../services/voucherService";
+import {
+  fetchVouchers,
+  createVoucher,
+  updateVoucher,
+  deleteVoucher,
+} from "../../../store/slices/voucherSlice";
 
 const VouchersPage = () => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
+  const dispatch = useDispatch();
 
-  // State for vouchers
-  const [expenseVouchers, setExpenseVouchers] = useState([]);
-  const [paymentVouchers, setPaymentVouchers] = useState([]);
-  const [loading, setLoading] = useState(false);
+  // Redux state
+  const { vouchers, loading } = useSelector((state) => state.vouchers);
 
   // Modal states
   const [expenseModal, setExpenseModal] = useState(false);
@@ -53,33 +57,12 @@ const VouchersPage = () => {
   const [modalMode, setModalMode] = useState("add");
 
   useEffect(() => {
-    loadVouchers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    dispatch(fetchVouchers());
+  }, [dispatch]);
 
-  const loadVouchers = async () => {
-    setLoading(true);
-    try {
-      const response = await voucherService.getVouchers();
-
-      // Transform API data to frontend format
-      const transformedVouchers = response.map((voucher) =>
-        voucherService.transformVoucherFromAPI(voucher)
-      );
-
-      // Separate expense and payment vouchers
-      const expenses = transformedVouchers.filter((v) => v.type === "expense");
-      const payments = transformedVouchers.filter((v) => v.type === "payment");
-
-      setExpenseVouchers(expenses);
-      setPaymentVouchers(payments);
-    } catch (error) {
-      console.error("Error loading vouchers:", error);
-      toast.error(t("errorLoadingVouchers"));
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Separate vouchers by type
+  const expenseVouchers = vouchers.filter((v) => v.type === "expense");
+  const paymentVouchers = vouchers.filter((v) => v.type === "payment");
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -179,20 +162,13 @@ const VouchersPage = () => {
     }
   };
 
-  const handleDeleteVoucher = async (voucher, type) => {
+  const handleDeleteVoucher = async (voucher) => {
     if (!window.confirm(t("confirmDeleteVoucher"))) {
       return;
     }
 
     try {
-      await voucherService.deleteVoucher(voucher.id);
-
-      if (type === "expense") {
-        setExpenseVouchers(expenseVouchers.filter((v) => v.id !== voucher.id));
-      } else {
-        setPaymentVouchers(paymentVouchers.filter((v) => v.id !== voucher.id));
-      }
-
+      await dispatch(deleteVoucher(voucher.id));
       toast.success(t("voucherDeleted"));
     } catch (error) {
       console.error("Error deleting voucher:", error);
@@ -203,20 +179,17 @@ const VouchersPage = () => {
   const handleExpenseSubmit = async (voucherData) => {
     try {
       if (modalMode === "add") {
-        const response = await voucherService.createVoucher(voucherData);
-        const newVoucher = voucherService.transformVoucherFromAPI(response);
-        setExpenseVouchers([newVoucher, ...expenseVouchers]);
+        await dispatch(
+          createVoucher({ ...voucherData, voucherType: "Expense" })
+        );
         toast.success(t("expenseVoucherCreated"));
       } else {
-        const response = await voucherService.updateVoucher(
-          editingVoucher.id,
-          voucherData
+        await dispatch(
+          updateVoucher({
+            id: editingVoucher.id,
+            voucherData: { ...voucherData, voucherType: "Expense" },
+          })
         );
-        const updatedVoucher = voucherService.transformVoucherFromAPI(response);
-        const updatedVouchers = expenseVouchers.map((voucher) =>
-          voucher.id === editingVoucher.id ? updatedVoucher : voucher
-        );
-        setExpenseVouchers(updatedVouchers);
         toast.success(t("expenseVoucherUpdated"));
       }
       setExpenseModal(false);
@@ -230,24 +203,31 @@ const VouchersPage = () => {
     }
   };
 
-  const handlePaymentSubmit = (voucherData) => {
-    if (modalMode === "add") {
-      const newVoucher = {
-        ...voucherData,
-        id: `PAY-${Date.now()}`,
-        status: "pending",
-        createdAt: new Date().toISOString(),
-      };
-      setPaymentVouchers([newVoucher, ...paymentVouchers]);
-      toast.success(t("paymentVoucherCreated"));
-    } else {
-      const updatedVouchers = paymentVouchers.map((voucher) =>
-        voucher.id === editingVoucher.id ? voucherData : voucher
+  const handlePaymentSubmit = async (voucherData) => {
+    try {
+      if (modalMode === "add") {
+        await dispatch(
+          createVoucher({ ...voucherData, voucherType: "Supplier" })
+        );
+        toast.success(t("paymentVoucherCreated"));
+      } else {
+        await dispatch(
+          updateVoucher({
+            id: editingVoucher.id,
+            voucherData: { ...voucherData, voucherType: "Supplier" },
+          })
+        );
+        toast.success(t("paymentVoucherUpdated"));
+      }
+      setPaymentModal(false);
+    } catch (error) {
+      console.error("Error submitting payment voucher:", error);
+      toast.error(
+        modalMode === "add"
+          ? t("errorCreatingVoucher")
+          : t("errorUpdatingVoucher")
       );
-      setPaymentVouchers(updatedVouchers);
-      toast.success(t("paymentVoucherUpdated"));
     }
-    setPaymentModal(false);
   };
 
   const handlePrintVoucher = (voucher) => {
@@ -606,9 +586,7 @@ const VouchersPage = () => {
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() =>
-                            handleDeleteVoucher(voucher, "expense")
-                          }
+                          onClick={() => handleDeleteVoucher(voucher)}
                           className="p-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                           title={t("delete")}
                         >
@@ -732,9 +710,7 @@ const VouchersPage = () => {
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() =>
-                            handleDeleteVoucher(voucher, "payment")
-                          }
+                          onClick={() => handleDeleteVoucher(voucher)}
                           className="p-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                           title={t("delete")}
                         >

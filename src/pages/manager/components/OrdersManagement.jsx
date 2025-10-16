@@ -241,17 +241,40 @@ const OrdersManagement = () => {
       accessor: "items",
       render: (item) => (
         <div className="max-w-xs">
-          {(item.items || []).map((orderItem, index) => (
-            <div key={index} className="text-sm">
+          {Array.isArray(item.items) ? (
+            item.items.map((orderItem, index) => (
+              <div key={index} className="text-sm">
+                <span className="text-gray-900 dark:text-white">
+                  {orderItem.quantity || 1}x{" "}
+                  {orderItem.name || orderItem.product?.name || "Item"}
+                </span>
+                <span className="text-gray-500 dark:text-gray-400 ml-2">
+                  $
+                  {(orderItem.price || orderItem.product?.price || 0).toFixed(
+                    2
+                  )}
+                </span>
+              </div>
+            ))
+          ) : Array.isArray(item.products) ? (
+            item.products.map((product, index) => (
+              <div key={index} className="text-sm">
+                <span className="text-gray-900 dark:text-white">
+                  {product.quantity || 1}x{" "}
+                  {product.name || product.nameEn || "Item"}
+                </span>
+                <span className="text-gray-500 dark:text-gray-400 ml-2">
+                  ${(product.price || 0).toFixed(2)}
+                </span>
+              </div>
+            ))
+          ) : (
+            <div className="text-sm">
               <span className="text-gray-900 dark:text-white">
-                {orderItem.quantity || 1}x{" "}
-                {orderItem.name || orderItem.product?.name || "Item"}
-              </span>
-              <span className="text-gray-500 dark:text-gray-400 ml-2">
-                ${(orderItem.price || orderItem.product?.price || 0).toFixed(2)}
+                {typeof item.items === "number" ? item.items : 0} items
               </span>
             </div>
-          ))}
+          )}
         </div>
       ),
     },

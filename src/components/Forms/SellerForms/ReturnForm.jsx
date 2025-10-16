@@ -19,7 +19,6 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
   const { isRTL } = useSelector((state) => state.language);
-  const { products } = useSelector((state) => state.inventory);
   const { orders } = useSelector((state) => state.orders);
   const [formData, setFormData] = useState({
     orderItemId: "",
@@ -35,7 +34,8 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const [errors, setErrors] = useState({});
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [customers, setCustomers] = useState([]);
-  const [loadingCustomers, setLoadingCustomers] = useState(false);
+  const [customerOrders, setCustomerOrders] = useState([]);
+  const [orderProducts, setOrderProducts] = useState([]);
 
   useEffect(() => {
     if (editData) {
@@ -55,7 +55,6 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
 
   const loadCustomers = async () => {
     try {
-      setLoadingCustomers(true);
       const response = await customerService.getCustomers();
       const customersList = Array.isArray(response)
         ? response
@@ -64,8 +63,6 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
     } catch (error) {
       console.error("Error loading customers:", error);
       setCustomers([]);
-    } finally {
-      setLoadingCustomers(false);
     }
   };
 
@@ -78,42 +75,113 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
     { value: "other", label: t("other") },
   ];
 
+  // Handle customer selection
+  const handleCustomerSelect = (customerId) => {
+    const customer = customers.find((c) => c.id === parseInt(customerId));
+    if (customer) {
+      // Filter orders for this customer
+      const filteredOrders = orders.filter(
+        (o) =>
+          o.customer === parseInt(customerId) ||
+          o.customer === customer.customer_name ||
+          o.customer === customer.name
+      );
+      setCustomerOrders(filteredOrders);
+      setFormData((prev) => ({
+        ...prev,
+        customerId: customer.id,
+        customerName: customer.customer_name || customer.name || "",
+        orderItemId: "",
+        productId: "",
+        productName: "",
+        quantity: 1,
+        refundAmount: 0,
+      }));
+      setSelectedOrder(null);
+      setOrderProducts([]);
+    }
+  };
+
   const handleOrderSelect = (orderId) => {
-    const order = orders.find((o) => o.id === parseInt(orderId));
+    const order = customerOrders.find((o) => o.id === parseInt(orderId));
     if (order) {
       setSelectedOrder(order);
-      // Find customer details
-      const customer = customers.find((c) => c.id === order.customer);
+
+      // Extract products from the order
+      // Assuming order has items array or product information
+      let productsInOrder = [];
+
+      // Check if order has items array
+      if (order.items && Array.isArray(order.items)) {
+        productsInOrder = order.items.map((item) => ({
+          id: item.product_id || item.productId || item.id,
+          name: item.product_name || item.productName || item.name,
+          quantity: item.quantity,
+          price: item.price || item.unitPrice || 0,
+        }));
+      }
+      // Check if order has direct product information
+      else if (order.product_id || order.productId) {
+        productsInOrder = [
+          {
+            id: order.product_id || order.productId,
+            name: order.product_name || order.productName,
+            quantity: order.quantity,
+            price: order.price || order.unitPrice || 0,
+          },
+        ];
+      }
+      // Check if order has product field that is a product object
+      else if (order.product) {
+        productsInOrder = [
+          {
+            id: order.product.id,
+            name: order.product.name,
+            quantity: order.quantity,
+            price: order.product.price || 0,
+          },
+        ];
+      }
+
+      setOrderProducts(productsInOrder);
       setFormData((prev) => ({
         ...prev,
         orderItemId: order.id,
-        customerId: order.customer || "",
-        customerName:
-          customer?.customer_name || customer?.name || order.customer || "",
-        productName: order.product_name || "",
+        productId: "",
+        productName: "",
+        quantity: 1,
+        refundAmount: 0,
       }));
     }
   };
 
   const handleProductSelect = (productId) => {
-    const product = products.find((p) => p.id === parseInt(productId));
+    const product = orderProducts.find((p) => p.id === parseInt(productId));
     if (product) {
       setFormData((prev) => ({
         ...prev,
         productId: product.id,
         productName: product.name,
-        refundAmount: product.price * prev.quantity,
+        quantity: product.quantity || 1,
+        refundAmount: product.price * (product.quantity || 1),
       }));
     }
   };
 
   const handleQuantityChange = (quantity) => {
-    const product = products.find((p) => p.id === parseInt(formData.productId));
+    const product = orderProducts.find(
+      (p) => p.id === parseInt(formData.productId)
+    );
     if (product) {
+      const qty = parseInt(quantity) || 1;
+      // Don't allow more than the original quantity
+      const maxQty = product.quantity || 1;
+      const finalQty = Math.min(qty, maxQty);
+
       setFormData((prev) => ({
         ...prev,
-        quantity: parseInt(quantity) || 1,
-        refundAmount: product.price * (parseInt(quantity) || 1),
+        quantity: finalQty,
+        refundAmount: product.price * finalQty,
       }));
     }
   };
@@ -170,6 +238,8 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
     });
     setErrors({});
     setSelectedOrder(null);
+    setCustomerOrders([]);
+    setOrderProducts([]);
     onClose();
   };
 
@@ -203,99 +273,125 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Order Selection */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Customer Selection - First Step */}
+          <div className="grid grid-cols-1 gap-6">
             <FormField
-              label={t("selectOrder")}
-              name="orderItemId"
+              label={t("selectCustomer")}
+              name="customerId"
               type="select"
-              value={formData.orderItemId}
-              onChange={(e) => handleOrderSelect(e.target.value)}
-              error={errors.orderItemId}
+              value={formData.customerId}
+              onChange={(e) => handleCustomerSelect(e.target.value)}
+              error={errors.customerId}
               required
-              icon={<FileText className="w-4 h-4" />}
+              icon={<User className="w-4 h-4" />}
               options={[
-                { value: "", label: t("selectOrder") },
-                ...(orders || []).map((order) => {
-                  const customer = customers.find(
-                    (c) => c.id === order.customer
-                  );
-                  const customerName =
-                    customer?.customer_name ||
-                    customer?.name ||
-                    order.customer ||
-                    "Unknown";
-                  return {
-                    value: order.id,
-                    label: `Order ${order.id} - ${customerName}`,
-                  };
-                }),
-              ]}
-            />
-
-            {selectedOrder && (
-              <div className={`${isRTL ? "text-right" : "text-left"}`}>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t("orderDetails")}
-                </label>
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 space-y-2">
-                  <div
-                    className={`flex items-center gap-2 ${
-                      isRTL ? "flex-row" : ""
-                    }`}
-                  >
-                    <User className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                    <span className="text-sm text-gray-600 dark:text-gray-300">
-                      {selectedOrder.customer}
-                    </span>
-                  </div>
-                  <div
-                    className={`flex items-center gap-2 ${
-                      isRTL ? "flex-row" : ""
-                    }`}
-                  >
-                    <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                    <span className="text-sm text-gray-600 dark:text-gray-300">
-                      {new Date(selectedOrder.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Product Selection */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <FormField
-              label={t("selectProduct")}
-              name="productId"
-              type="select"
-              value={formData.productId}
-              onChange={(e) => handleProductSelect(e.target.value)}
-              error={errors.productId}
-              required
-              icon={<Package className="w-4 h-4" />}
-              options={[
-                { value: "", label: t("selectProduct") },
-                ...products.map((product) => ({
-                  value: product.id,
-                  label: product.name,
+                { value: "", label: t("selectCustomer") },
+                ...customers.map((customer) => ({
+                  value: customer.id,
+                  label:
+                    customer.customer_name ||
+                    customer.name ||
+                    `Customer ${customer.id}`,
                 })),
               ]}
             />
-
-            <FormField
-              label={t("quantity")}
-              name="quantity"
-              type="number"
-              value={formData.quantity}
-              onChange={(e) => handleQuantityChange(e.target.value)}
-              error={errors.quantity}
-              required
-              min="1"
-              icon={<Package className="w-4 h-4" />}
-            />
           </div>
+
+          {/* Order Selection - Second Step (shown after customer selected) */}
+          {formData.customerId && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                label={t("selectOrder")}
+                name="orderItemId"
+                type="select"
+                value={formData.orderItemId}
+                onChange={(e) => handleOrderSelect(e.target.value)}
+                error={errors.orderItemId}
+                required
+                icon={<FileText className="w-4 h-4" />}
+                options={[
+                  { value: "", label: t("selectOrder") },
+                  ...(customerOrders || []).map((order) => ({
+                    value: order.id,
+                    label: `${t("order")} #${order.id} - ${new Date(
+                      order.createdAt
+                    ).toLocaleDateString()}`,
+                  })),
+                ]}
+              />
+
+              {selectedOrder && (
+                <div className={`${isRTL ? "text-right" : "text-left"}`}>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {t("orderDetails")}
+                  </label>
+                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 space-y-2">
+                    <div
+                      className={`flex items-center gap-2 ${
+                        isRTL ? "flex-row" : ""
+                      }`}
+                    >
+                      <User className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                      <span className="text-sm text-gray-600 dark:text-gray-300">
+                        {formData.customerName}
+                      </span>
+                    </div>
+                    <div
+                      className={`flex items-center gap-2 ${
+                        isRTL ? "flex-row" : ""
+                      }`}
+                    >
+                      <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                      <span className="text-sm text-gray-600 dark:text-gray-300">
+                        {new Date(selectedOrder.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Product Selection - Third Step (shown after order selected) */}
+          {formData.orderItemId && orderProducts.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                label={t("selectProduct")}
+                name="productId"
+                type="select"
+                value={formData.productId}
+                onChange={(e) => handleProductSelect(e.target.value)}
+                error={errors.productId}
+                required
+                icon={<Package className="w-4 h-4" />}
+                options={[
+                  { value: "", label: t("selectProduct") },
+                  ...orderProducts.map((product) => ({
+                    value: product.id,
+                    label: `${product.name} (${t("qty")}: ${product.quantity})`,
+                  })),
+                ]}
+              />
+
+              <FormField
+                label={t("quantity")}
+                name="quantity"
+                type="number"
+                value={formData.quantity}
+                onChange={(e) => handleQuantityChange(e.target.value)}
+                error={errors.quantity}
+                required
+                min="1"
+                max={
+                  orderProducts.find(
+                    (p) => p.id === parseInt(formData.productId)
+                  )?.quantity || 999
+                }
+                icon={<Package className="w-4 h-4" />}
+                disabled={!formData.productId}
+              />
+            </div>
+          )}
 
           {/* Return Reason */}
           <FormField

@@ -61,28 +61,36 @@ const PaymentManagement = () => {
   }, [dispatch]);
 
   // Convert customer invoices to payment format for display
-  const payments = customerInvoices.map((invoice) => ({
-    id: invoice.id,
-    transactionId: `INV-${invoice.id}`,
-    orderId: invoice.orderId || `ORD-${invoice.id}`,
-    customer: invoice.customerName,
-    customerPhone: invoice.customerPhone,
-    amount: invoice.total || invoice.subTotal,
-    method: "invoice", // Customer invoices are treated as invoice payments
-    fees: 0, // No fees for customer invoices
-    status: invoice.status,
-    paymentDate: invoice.createdAt,
-    issueDate: invoice.issueDate,
-    dueDate: invoice.dueDate,
-    description: invoice.notes || t("customerInvoice"),
-    items: invoice.items || [],
-  }));
+  const payments = customerInvoices.map((invoice) => {
+    return {
+      id: invoice.id,
+      transactionId: `INV-${invoice.id}`,
+      orderId: invoice.orderId || `ORD-${invoice.id}`,
+      customer: invoice.customer_name || invoice.customerName,
+      customerPhone: invoice.customer_phone || invoice.customerPhone,
+      amount: parseFloat(invoice.total || 0),
+      method: invoice.payment_method || "cash", // Default to cash instead of invoice
+      status: invoice.status,
+      paymentDate:
+        invoice.issue_date || invoice.createdAt || invoice.created_at,
+      issueDate: invoice.issue_date || invoice.issueDate,
+      dueDate: invoice.due_date || invoice.dueDate,
+      description: invoice.notes || t("customerInvoice"),
+      items: invoice.items || [],
+      subtotal: parseFloat(invoice.subTotal || invoice.subtotal || 0), 
+      tax: parseFloat(invoice.tax || 0),
+      total: parseFloat(invoice.total || 0),
+    };
+  });
 
   const totalTransactions = payments.length;
   const completedPayments = payments.filter((p) => p.status === "completed");
   const pendingPayments = payments.filter((p) => p.status === "pending").length;
-  const totalRevenue = completedPayments.reduce((sum, p) => sum + p.amount, 0);
-  const totalFees = completedPayments.reduce((sum, p) => sum + p.fees, 0);
+  const totalRevenue = completedPayments.reduce(
+    (sum, p) => sum + (p.total || p.amount),
+    0
+  );
+  const totalTax = completedPayments.reduce((sum, p) => sum + (p.tax || 0), 0);
 
   const filteredPayments = payments.filter((payment) => {
     const matchesSearch =
@@ -133,22 +141,21 @@ const PaymentManagement = () => {
       color: "green",
     },
     {
+      title: t("totalTax"),
+      value: formatCurrencyEnglish(totalTax, t("currency")),
+      icon: TrendingUp,
+      color: "purple",
+    },
+    {
       title: t("pendingPayments"),
       value: formatNumberEnglish(pendingPayments),
       icon: AlertCircle,
       color: "yellow",
     },
-    {
-      title: t("transactionFees"),
-      value: formatCurrencyEnglish(totalFees, t("currency")),
-      icon: TrendingUp,
-      color: "purple",
-    },
   ];
 
-  const handleSubmitCustomerInvoice = (invoice) => {
+  const handleSubmitCustomerInvoice = () => {
     // Form already dispatches the action, just close the modal
-    console.log("Customer invoice created successfully:", invoice);
     setIsCustomerInvoiceOpen(false);
   };
 
@@ -177,7 +184,6 @@ const PaymentManagement = () => {
           toast.error(`${t("errorDeletingInvoice")}: ${result.payload}`);
         }
       } catch (error) {
-        console.error("Error deleting invoice:", error);
         toast.error(`${t("errorDeletingInvoice")}: ${error.message}`);
       }
     }
@@ -204,7 +210,6 @@ const PaymentManagement = () => {
         toast.error(`${t("errorUpdatingInvoice")}: ${result.payload}`);
       }
     } catch (error) {
-      console.error("Error updating invoice:", error);
       toast.error(`${t("errorUpdatingInvoice")}: ${error.message}`);
     }
   };
@@ -230,6 +235,10 @@ const PaymentManagement = () => {
   };
 
   const handleDownloadReceipt = (payment) => {
+    const subtotal = payment.subtotal || 0;
+    const tax = payment.tax || 0;
+    const total = payment.total || payment.amount;
+
     const receiptContent = `
 =================================
           فاتورة دفع / PAYMENT RECEIPT
@@ -245,14 +254,21 @@ const PaymentManagement = () => {
 
 ---------------------------------
 الوصف / Description: ${payment.description}
-المبلغ / Amount: ${formatCurrencyEnglish(payment.amount, t("currency"))}
-الرسوم / Fees: ${formatCurrencyEnglish(payment.fees, t("currency"))}
-الإجمالي / Total: ${formatCurrencyEnglish(
-      payment.amount + payment.fees,
-      t("currency")
-    )}
+المبلغ الفرعي / Subtotal: ${formatCurrencyEnglish(subtotal, t("currency"))}
+الضريبة / Tax: ${formatCurrencyEnglish(tax, t("currency"))}
+الإجمالي / Total: ${formatCurrencyEnglish(total, t("currency"))}
 
-طريقة الدفع / Payment Method: ${t(payment.method)}
+طريقة الدفع / Payment Method: ${
+      payment.method === "cash"
+        ? t("cash")
+        : payment.method === "card"
+        ? t("card")
+        : payment.method === "kent"
+        ? t("kent")
+        : payment.method === "digital"
+        ? t("digital")
+        : payment.method
+    }
 الحالة / Status: ${t(payment.status)}
 
 =================================
@@ -299,11 +315,13 @@ const PaymentManagement = () => {
     {
       header: t("amount"),
       accessor: "amount",
-      render: (payment) => (
-        <span className="font-semibold text-green-600 dark:text-green-400">
-          {formatCurrencyEnglish(payment.amount, t("currency"))}
-        </span>
-      ),
+      render: (payment) => {
+        return (
+          <span className="font-semibold text-green-600 dark:text-green-400">
+            {formatCurrencyEnglish(payment.amount, t("currency"))}
+          </span>
+        );
+      },
     },
     {
       header: t("method"),
@@ -313,18 +331,30 @@ const PaymentManagement = () => {
           <div className="p-1 bg-gray-100 dark:bg-gray-700 rounded">
             {getPaymentMethodIcon(payment.method)}
           </div>
-          <span className="capitalize font-medium">{t(payment.method)}</span>
+          <span className="capitalize font-medium">
+            {payment.method === "cash"
+              ? t("cash")
+              : payment.method === "card"
+              ? t("card")
+              : payment.method === "kent"
+              ? t("kent")
+              : payment.method === "digital"
+              ? t("digital")
+              : payment.method}
+          </span>
         </div>
       ),
     },
     {
-      header: t("fees"),
-      accessor: "fees",
-      render: (payment) => (
-        <span className="text-orange-600 dark:text-orange-400 font-medium">
-          {formatCurrencyEnglish(payment.fees, t("currency"))}
-        </span>
-      ),
+      header: t("tax"),
+      accessor: "tax",
+      render: (payment) => {
+        return (
+          <span className="text-purple-600 dark:text-purple-400 font-medium">
+            {formatCurrencyEnglish(payment.tax || 0, t("currency"))}
+          </span>
+        );
+      },
     },
     {
       header: t("status"),
@@ -721,7 +751,15 @@ const PaymentManagement = () => {
                     >
                       {getPaymentMethodIcon(selectedPayment.method)}
                       <span className="text-gray-900 dark:text-white capitalize">
-                        {t(selectedPayment.method)}
+                        {selectedPayment.method === "cash"
+                          ? t("cash")
+                          : selectedPayment.method === "card"
+                          ? t("card")
+                          : selectedPayment.method === "kent"
+                          ? t("kent")
+                          : selectedPayment.method === "digital"
+                          ? t("digital")
+                          : selectedPayment.method}
                       </span>
                     </div>
                   </div>
@@ -766,25 +804,25 @@ const PaymentManagement = () => {
                 >
                   {t("financialDetails")}
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className={isRTL ? "text-right" : "text-left"}>
                     <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      {t("amount")}
+                      {t("subtotal")}
                     </label>
                     <span className="text-lg font-semibold text-green-600 dark:text-green-400">
                       {formatCurrencyEnglish(
-                        selectedPayment.amount,
+                        selectedPayment.subtotal || 0,
                         t("currency")
                       )}
                     </span>
                   </div>
                   <div className={isRTL ? "text-right" : "text-left"}>
                     <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                      {t("fees")}
+                      {t("tax")}
                     </label>
-                    <span className="text-lg font-semibold text-orange-600 dark:text-orange-400">
+                    <span className="text-lg font-semibold text-purple-600 dark:text-purple-400">
                       {formatCurrencyEnglish(
-                        selectedPayment.fees,
+                        selectedPayment.tax || 0,
                         t("currency")
                       )}
                     </span>
@@ -793,9 +831,9 @@ const PaymentManagement = () => {
                     <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
                       {t("total")}
                     </label>
-                    <span className="text-lg font-semibold text-blue-600 dark:text-blue-400">
+                    <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
                       {formatCurrencyEnglish(
-                        selectedPayment.amount + selectedPayment.fees,
+                        selectedPayment.total || selectedPayment.amount,
                         t("currency")
                       )}
                     </span>

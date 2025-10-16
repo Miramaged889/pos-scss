@@ -13,8 +13,8 @@ const mapDbToFrontend = (dbOrder) => {
     phone: dbOrder.customer_phone || "",
     sellerId: dbOrder.seller,
     status: dbOrder.status || "pending",
-    paymentMethod: dbOrder.payment_type || "cash",
-    deliveryType: dbOrder.delivery_type || "pickup",
+    payment_type: dbOrder.payment_type || "cash",
+    delivery_option: dbOrder.delivery_option || "pickup",
     deliveryAddress: dbOrder.delivery_address || "",
     createdAt: dbOrder.date || dbOrder.created_at,
     items: dbOrder.items?.length || 0,
@@ -26,13 +26,9 @@ const mapDbToFrontend = (dbOrder) => {
         quantity: item.quantity,
         price: parseFloat(item.product?.price || item.price || 0),
       })) || [],
-    total:
-      dbOrder.items?.reduce(
-        (sum, item) =>
-          sum +
-          item.quantity * parseFloat(item.product?.price || item.price || 0),
-        0
-      ) || 0,
+    total_amount: parseFloat(dbOrder.total_amount || 0),
+    discount: parseFloat(dbOrder.discount || 0),
+    subtotal: parseFloat(dbOrder.subtotal || 0),
     kitchenNotes: dbOrder.kitchen_notes || "",
     generalNotes: dbOrder.notes || "",
     priority: dbOrder.priority || "normal",
@@ -45,8 +41,8 @@ const mapFrontendToDb = (frontendOrder, sellerId) => {
     customer: frontendOrder.customerId || frontendOrder.customer,
     seller: sellerId,
     status: frontendOrder.status || "pending",
-    payment_type: frontendOrder.paymentMethod || "cash",
-    delivery_type: frontendOrder.deliveryType || "pickup",
+    payment_type: frontendOrder.payment_type || "cash",
+    delivery_option: frontendOrder.delivery_option || "pickup",
     delivery_address: frontendOrder.deliveryAddress || "",
     items:
       frontendOrder.products?.map((product) => ({
@@ -55,6 +51,8 @@ const mapFrontendToDb = (frontendOrder, sellerId) => {
       })) ||
       frontendOrder.items ||
       [],
+    discount: frontendOrder.discount || 0,
+    subtotal: frontendOrder.subtotal || 0,
     kitchen_notes: frontendOrder.kitchenNotes || "",
     notes: frontendOrder.generalNotes || frontendOrder.notes || "",
     priority: frontendOrder.priority || "normal",

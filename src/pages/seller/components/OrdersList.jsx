@@ -29,16 +29,11 @@ import {
   updateOrder,
   fetchOrders,
 } from "../../../store/slices/ordersSlice";
-import {
-  fetchCustomers,
-  createCustomer,
-} from "../../../store/slices/customerSlice";
-import { productService } from "../../../services";
+import { productService, customerService } from "../../../services";
 
 const OrdersList = () => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
-  const { user } = useSelector((state) => state.auth);
   const { orders } = useSelector((state) => state.orders);
   const dispatch = useDispatch();
 
@@ -54,11 +49,14 @@ const OrdersList = () => {
   const [editFormData, setEditFormData] = useState({});
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(false);
+  const [customers, setCustomers] = useState([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
 
-  // Load orders and products from API on component mount
+  // Load orders, products, and customers from API on component mount
   useEffect(() => {
     dispatch(fetchOrders());
     fetchProducts();
+    fetchCustomersData();
   }, [dispatch]);
 
   // Fetch products from API
@@ -74,6 +72,19 @@ const OrdersList = () => {
     }
   };
 
+  // Fetch customers from API
+  const fetchCustomersData = async () => {
+    try {
+      setCustomersLoading(true);
+      const response = await customerService.getCustomers();
+      setCustomers(response);
+    } catch (error) {
+      console.error("Error fetching customers:", error);
+    } finally {
+      setCustomersLoading(false);
+    }
+  };
+
   // Helper function to get product name by ID
   const getProductName = (productId) => {
     const product = products.find((p) => p.id === productId);
@@ -83,19 +94,80 @@ const OrdersList = () => {
     return `Product #${productId}`;
   };
 
+  // Helper function to get product price by ID
+  const getProductPrice = (productId) => {
+    const product = products.find((p) => p.id === productId);
+    return product ? parseFloat(product.price) : 0;
+  };
+
+  // Helper function to get customer name by ID
+  const getCustomerName = (customerId) => {
+    const customer = customers.find((c) => c.id === customerId);
+    return customer ? customer.customer_name : `Customer #${customerId}`;
+  };
+
+  // Helper function to get customer phone by ID
+  const getCustomerPhone = (customerId) => {
+    const customer = customers.find((c) => c.id === customerId);
+    return customer ? customer.customer_phone : "";
+  };
+
+  // Normalize helpers for mixed shapes (mapped by service vs raw API)
+  const getCustomerIdFromOrder = (order) => {
+    // Prefer numeric id if present on order.customer; else use order.customerId
+    if (typeof order.customer === "number") return order.customer;
+    if (order.customerId) return order.customerId;
+    // Try to parse patterns like "Customer #5"
+    if (typeof order.customer === "string") {
+      const match = order.customer.match(/#(\d+)/);
+      if (match) return parseInt(match[1], 10);
+    }
+    return undefined;
+  };
+
+  const getOrderItemsCount = (order) => {
+    if (Array.isArray(order.items)) return order.items.length;
+    if (Array.isArray(order.products)) return order.products.length;
+    if (typeof order.items === "number") return order.items; // mapped service provides number
+    return 0;
+  };
+
+  const getOrderTotal = (order) => {
+    // Raw API uses total_amount; mapped service sets total (number)
+    if (order.total_amount != null) return parseFloat(order.total_amount) || 0;
+    if (order.total != null) return parseFloat(order.total) || 0;
+    return 0;
+  };
+
+  const getOrderDateValue = (order) => {
+    // Raw API uses date, mapped may use createdAt
+    return order.date || order.createdAt || order.created_at || null;
+  };
+
   // Filter orders based on status, search term and date range
   const filteredOrders = orders.filter((order) => {
     const matchesStatus =
       statusFilter === "all" || order.status === statusFilter;
+
+    // Get customer name and phone for search (normalize id first)
+    const customerId = getCustomerIdFromOrder(order);
+    const customerName = customerId
+      ? getCustomerName(customerId)
+      : String(order.customer || "");
+    const customerPhone = customerId
+      ? getCustomerPhone(customerId)
+      : String(order.phone || "");
+
     const matchesSearch =
-      order.customer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.phone?.includes(searchTerm) ||
+      customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      customerPhone?.includes(searchTerm) ||
       (order.id &&
         order.id.toString().toLowerCase().includes(searchTerm.toLowerCase()));
+
     // Date filter
     let matchesDate = true;
     if (dateRange !== "all") {
-      const created = new Date(order.createdAt);
+      const created = new Date(getOrderDateValue(order));
       const now = new Date();
       if (dateRange === "today") {
         const todayStr = new Date().toDateString();
@@ -137,13 +209,12 @@ const OrdersList = () => {
   const handleEditOrder = (order) => {
     setSelectedOrder(order);
     setEditFormData({
-      customer: order.customer,
-      phone: order.phone,
+      customer: getCustomerName(getCustomerIdFromOrder(order)),
+      phone: getCustomerPhone(getCustomerIdFromOrder(order)),
       status: order.status,
-      priority: order.priority,
-      deliveryAddress: order.deliveryAddress,
-      kitchenNotes: order.kitchenNotes,
-      generalNotes: order.generalNotes,
+      payment_type: order.payment_type,
+      delivery_option: order.delivery_option,
+      discount: order.discount,
     });
     setShowEditModal(true);
   };
@@ -157,34 +228,34 @@ const OrdersList = () => {
   // Helper function to ensure customer exists
   const ensureCustomerExists = async (orderData) => {
     try {
-      // First, fetch current customers to check if customer exists
-      const result = await dispatch(fetchCustomers());
-      const customers = result.payload || [];
-
+      // Check if customer exists by name or phone
       const customerExists = customers.some(
         (c) =>
-          (c.name &&
+          (c.customer_name &&
             orderData.customer &&
-            c.name.toLowerCase() === orderData.customer.toLowerCase()) ||
-          (c.phone && orderData.phone && c.phone === orderData.phone)
+            c.customer_name.toLowerCase() ===
+              orderData.customer.toLowerCase()) ||
+          (c.customer_phone &&
+            orderData.phone &&
+            c.customer_phone === orderData.phone)
       );
 
       if (!customerExists && orderData.customer) {
         // Create new customer via API
         const newCustomer = {
-          name: orderData.customer,
-          email: "",
-          phone: orderData.phone || "",
-          address: orderData.deliveryAddress || "",
-          company: "",
-          notes: `Auto-created from order #${orderData.id}`,
-          vip: false,
+          customer_name: orderData.customer,
+          customer_email: "",
+          customer_phone: orderData.phone || "",
+          customer_address: "",
+          connect_way: "phone",
           status: "active",
-          dateOfBirth: "",
-          preferredContactMethod: "phone",
+          VIP: false,
+          notes: `Auto-created from order #${selectedOrder?.id}`,
         };
 
-        await dispatch(createCustomer(newCustomer));
+        await customerService.createCustomer(newCustomer);
+        // Refresh customers list
+        await fetchCustomersData();
       }
     } catch (error) {
       console.error("Error ensuring customer exists:", error);
@@ -197,13 +268,25 @@ const OrdersList = () => {
       try {
         await ensureCustomerExists(editFormData);
 
-        const sellerId = user?.id;
+        // Find customer ID by name or phone
+        const customer = customers.find(
+          (c) =>
+            (c.customer_name && c.customer_name === editFormData.customer) ||
+            (c.customer_phone && c.customer_phone === editFormData.phone)
+        );
+
+        const updates = {
+          customer: customer?.id || selectedOrder.customer,
+          status: editFormData.status,
+          payment_type: editFormData.payment_type,
+          delivery_option: editFormData.delivery_option,
+          discount: editFormData.discount,
+        };
 
         await dispatch(
           updateOrder({
             id: selectedOrder.id,
-            updates: editFormData,
-            sellerId,
+            updates,
           })
         );
         setShowEditModal(false);
@@ -285,10 +368,14 @@ const OrdersList = () => {
             className={`min-w-0 flex-1 ${isRTL ? "text-right" : "text-left"}`}
           >
             <div className="font-medium text-gray-900 dark:text-white truncate">
-              {order.customer}
+              {customersLoading
+                ? "..."
+                : getCustomerName(getCustomerIdFromOrder(order))}
             </div>
             <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-              {order.phone}
+              {customersLoading
+                ? "..."
+                : getCustomerPhone(getCustomerIdFromOrder(order))}
             </div>
           </div>
         </div>
@@ -305,7 +392,7 @@ const OrdersList = () => {
         >
           <Package className="w-4 h-4 text-gray-500 dark:text-gray-400" />
           <span className="text-sm font-medium text-gray-900 dark:text-white">
-            {formatNumberEnglish(order.items)} {t("items")}
+            {formatNumberEnglish(getOrderItemsCount(order))} {t("items")}
           </span>
         </div>
       ),
@@ -321,7 +408,7 @@ const OrdersList = () => {
         >
           <DollarSign className="w-4 h-4 text-green-600 dark:text-green-400" />
           <span className="font-semibold text-green-600 dark:text-green-400">
-            {formatCurrencyEnglish(order.total, t("currency"))}
+            {formatCurrencyEnglish(getOrderTotal(order), t("currency"))}
           </span>
         </div>
       ),
@@ -341,7 +428,7 @@ const OrdersList = () => {
     },
     {
       header: t("date"),
-      accessor: "createdAt",
+      accessor: "date",
       render: (order) => (
         <div
           className={`flex items-center gap-2 ${
@@ -350,7 +437,7 @@ const OrdersList = () => {
         >
           <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
           <span className="text-sm text-gray-600 dark:text-gray-300">
-            {formatDateTimeEnglish(order.createdAt)}
+            {formatDateTimeEnglish(getOrderDateValue(order))}
           </span>
         </div>
       ),
@@ -419,7 +506,10 @@ const OrdersList = () => {
     {
       title: t("totalRevenue"),
       value: formatCurrencyEnglish(
-        orders.reduce((sum, order) => sum + order.total, 0),
+        orders.reduce(
+          (sum, order) => sum + parseFloat(order.total_amount || 0),
+          0
+        ),
         t("currency")
       ),
       icon: DollarSign,
@@ -445,7 +535,7 @@ const OrdersList = () => {
           </p>
         </div>
         <Link
-          to="/seller/new-order"
+          to="/seller/product-selection"
           className={`inline-flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-all duration-200 hover:scale-105 shadow-md ${
             isRTL ? "flex-row" : ""
           }`}
@@ -608,7 +698,9 @@ const OrdersList = () => {
                     {t("customer")}
                   </label>
                   <p className="text-gray-900 dark:text-white">
-                    {selectedOrder.customer}
+                    {customersLoading
+                      ? "..."
+                      : getCustomerName(getCustomerIdFromOrder(selectedOrder))}
                   </p>
                 </div>
                 <div>
@@ -616,7 +708,9 @@ const OrdersList = () => {
                     {t("phoneNumber")}
                   </label>
                   <p className="text-gray-900 dark:text-white">
-                    {selectedOrder.phone}
+                    {customersLoading
+                      ? "..."
+                      : getCustomerPhone(getCustomerIdFromOrder(selectedOrder))}
                   </p>
                 </div>
                 <div>
@@ -630,59 +724,97 @@ const OrdersList = () => {
                     {t("total")}
                   </label>
                   <p className="text-green-600 dark:text-green-400 font-semibold">
-                    {formatCurrencyEnglish(selectedOrder.total, t("currency"))}
+                    {formatCurrencyEnglish(
+                      parseFloat(selectedOrder.total_amount || 0),
+                      t("currency")
+                    )}
                   </p>
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {t("deliveryAddress")}
-                </label>
-                <p className="text-gray-900 dark:text-white">
-                  {selectedOrder.deliveryAddress}
-                </p>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t("paymentType")}
+                  </label>
+                  <p className="text-gray-900 dark:text-white capitalize">
+                    {selectedOrder.payment_type === "cash"
+                      ? t("cash")
+                      : selectedOrder.payment_type === "card"
+                      ? t("card")
+                      : selectedOrder.payment_type === "bank_transfer"
+                      ? t("bankTransfer")
+                      : selectedOrder.payment_type}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t("deliveryOption")}
+                  </label>
+                  <p className="text-gray-900 dark:text-white capitalize">
+                    {selectedOrder.delivery_option === "pickup"
+                      ? t("pickup")
+                      : selectedOrder.delivery_option === "delivery"
+                      ? t("delivery")
+                      : selectedOrder.delivery_option}
+                  </p>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {t("products")}
                 </label>
                 <div className="space-y-2">
-                  {selectedOrder.products.map((product, index) => (
+                  {(Array.isArray(selectedOrder.items)
+                    ? selectedOrder.items
+                    : Array.isArray(selectedOrder.products)
+                    ? selectedOrder.products.map((p) => ({
+                        product_id: p.id,
+                        quantity: p.quantity,
+                      }))
+                    : []
+                  ).map((item, index) => (
                     <div
                       key={index}
                       className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
                     >
                       <span className="text-gray-900 dark:text-white">
-                        {productsLoading ? "..." : getProductName(product.id)}
+                        {productsLoading
+                          ? "..."
+                          : getProductName(item.product_id)}
                       </span>
                       <span className="text-gray-600 dark:text-gray-400">
-                        {formatNumberEnglish(product.quantity)} ×{" "}
-                        {formatCurrencyEnglish(product.price, t("currency"))}
+                        {formatNumberEnglish(item.quantity)} ×{" "}
+                        {formatCurrencyEnglish(
+                          getProductPrice(item.product_id),
+                          t("currency")
+                        )}
                       </span>
                     </div>
                   ))}
                 </div>
               </div>
-              {selectedOrder.kitchenNotes && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t("kitchenNotes")}
+                    {t("subtotal")}
                   </label>
                   <p className="text-gray-900 dark:text-white">
-                    {selectedOrder.kitchenNotes}
+                    {formatCurrencyEnglish(
+                      parseFloat(selectedOrder.subtotal || 0),
+                      t("currency")
+                    )}
                   </p>
                 </div>
-              )}
-              {selectedOrder.generalNotes && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t("generalNotes")}
+                    {t("discount")}
                   </label>
                   <p className="text-gray-900 dark:text-white">
-                    {selectedOrder.generalNotes}
+                    {formatCurrencyEnglish(
+                      parseFloat(selectedOrder.discount || 0),
+                      t("currency")
+                    )}
                   </p>
                 </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
@@ -765,71 +897,58 @@ const OrdersList = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t("orderPriority")}
+                    {t("paymentType")}
                   </label>
                   <select
-                    value={editFormData.priority}
+                    value={editFormData.payment_type}
                     onChange={(e) =>
                       setEditFormData({
                         ...editFormData,
-                        priority: e.target.value,
+                        payment_type: e.target.value,
                       })
                     }
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
-                    <option value="normal">{t("normal")}</option>
-                    <option value="medium">{t("medium")}</option>
-                    <option value="urgent">{t("urgent")}</option>
+                    <option value="cash">{t("cash")}</option>
+                    <option value="card">{t("card")}</option>
+                    <option value="bank_transfer">{t("bankTransfer")}</option>
                   </select>
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {t("deliveryAddress")}
-                </label>
-                <textarea
-                  value={editFormData.deliveryAddress}
-                  onChange={(e) =>
-                    setEditFormData({
-                      ...editFormData,
-                      deliveryAddress: e.target.value,
-                    })
-                  }
-                  rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {t("kitchenNotes")}
-                </label>
-                <textarea
-                  value={editFormData.kitchenNotes}
-                  onChange={(e) =>
-                    setEditFormData({
-                      ...editFormData,
-                      kitchenNotes: e.target.value,
-                    })
-                  }
-                  rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {t("generalNotes")}
-                </label>
-                <textarea
-                  value={editFormData.generalNotes}
-                  onChange={(e) =>
-                    setEditFormData({
-                      ...editFormData,
-                      generalNotes: e.target.value,
-                    })
-                  }
-                  rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t("deliveryOption")}
+                  </label>
+                  <select
+                    value={editFormData.delivery_option}
+                    onChange={(e) =>
+                      setEditFormData({
+                        ...editFormData,
+                        delivery_option: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="pickup">{t("pickup")}</option>
+                    <option value="delivery">{t("delivery")}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    {t("discount")}
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editFormData.discount}
+                    onChange={(e) =>
+                      setEditFormData({
+                        ...editFormData,
+                        discount: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                </div>
               </div>
               <div
                 className={`flex gap-3 pt-4 ${isRTL ? "flex-row-reverse" : ""}`}

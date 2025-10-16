@@ -34,17 +34,19 @@ const CustomerInvoiceForm = ({
   const dispatch = useDispatch();
 
   const [formData, setFormData] = useState({
-    invoiceNumber: "",
-    customerName: "",
-    customerPhone: "",
-    orderId: "",
-    issueDate: new Date().toISOString().split("T")[0],
-    dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    customer_name: "",
+    customer_phone: "",
+    issue_date: new Date().toISOString().split("T")[0],
+    due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       .toISOString()
       .split("T")[0],
     status: "pending",
     notes: "",
     items: [],
+    subtotal: "0.00",
+    tax: "0.00",
+    total: "0.00",
+    payment_method: null,
   });
 
   const [errors, setErrors] = useState({});
@@ -90,51 +92,55 @@ const CustomerInvoiceForm = ({
   useEffect(() => {
     if (!isOpen) return;
     if (invoice && mode === "edit") {
+
       setFormData({
-        invoiceNumber: invoice.invoiceNumber || "",
-        customerName: invoice.customerName || "",
-        customerPhone: invoice.customerPhone
-          ? invoice.customerPhone.toString()
-          : "",
-        orderId: invoice.orderId || "",
-        issueDate: invoice.issueDate
-          ? invoice.issueDate.split("T")[0]
-          : new Date().toISOString().split("T")[0],
-        dueDate: invoice.dueDate
-          ? invoice.dueDate.split("T")[0]
-          : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-              .toISOString()
-              .split("T")[0],
+        customer_name: invoice.customer_name || invoice.customerName || "",
+        customer_phone: invoice.customer_phone || invoice.customerPhone || "",
+        issue_date:
+          invoice.issue_date || invoice.issueDate
+            ? (invoice.issue_date || invoice.issueDate).split("T")[0]
+            : new Date().toISOString().split("T")[0],
+        due_date:
+          invoice.due_date || invoice.dueDate
+            ? (invoice.due_date || invoice.dueDate).split("T")[0]
+            : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+                .toISOString()
+                .split("T")[0],
         status: invoice.status || "pending",
         notes: invoice.notes || "",
         items: Array.isArray(invoice.items)
-          ? invoice.items
-              .map((item) => ({
-                productId: item.productId || item.product_id || null,
-                name: item.name || item.product_name || "",
-                quantity: item.quantity || 0,
-                unitPrice: item.unitPrice || item.unit_price || 0,
-                total:
-                  item.total ||
-                  (item.quantity || 0) *
-                    (item.unitPrice || item.unit_price || 0),
-              }))
-              .filter((item) => item.productId !== null) // Filter out items without product ID
+          ? invoice.items.map((item) => ({
+              productId: item.product?.id || null,
+              name:
+                item.product?.english_name || item.product?.arabic_name || "",
+              quantity: item.quantity || 0,
+              unitPrice: parseFloat(item.product?.price || 0),
+              total:
+                (item.quantity || 0) * parseFloat(item.product?.price || 0),
+            }))
           : [],
+        subtotal: (invoice.subTotal || invoice.subtotal || 0).toString(),
+        tax: (invoice.tax || 0).toString(),
+        total: (invoice.total || 0).toString(),
+        payment_method: invoice.payment_method || null,
       });
+
+
     } else {
       setFormData({
-        invoiceNumber: "",
-        customerName: "",
-        customerPhone: "",
-        orderId: "",
-        issueDate: new Date().toISOString().split("T")[0],
-        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        customer_name: "",
+        customer_phone: "",
+        issue_date: new Date().toISOString().split("T")[0],
+        due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
           .toISOString()
           .split("T")[0],
         status: "pending",
         notes: "",
         items: [],
+        subtotal: "0.00",
+        tax: "0.00",
+        total: "0.00",
+        payment_method: null,
       });
     }
     setErrors({});
@@ -147,8 +153,23 @@ const CustomerInvoiceForm = ({
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
   };
 
-  const handleFieldChange = (field) => (e) =>
-    handleInputChange(field, e.target.value);
+  const handleFieldChange = (field) => (e) => {
+    const value = e.target.value;
+
+    if (field === "tax") {
+      const taxValue = parseFloat(value) || 0;
+      handleInputChange(field, taxValue.toFixed(2));
+
+      // Recalculate total when tax changes
+      const { subTotal } = calculateTotals();
+      setFormData((prev) => ({
+        ...prev,
+        total: (subTotal + taxValue).toFixed(2),
+      }));
+    } else {
+      handleInputChange(field, value);
+    }
+  };
 
   const handleNewItemChange = (field, value) =>
     setNewItem((prev) => ({ ...prev, [field]: value }));
@@ -160,8 +181,8 @@ const CustomerInvoiceForm = ({
       setNewItem((prev) => ({
         ...prev,
         productId: selectedId,
-        name: product.name,
-        unitPrice: product.price ?? prev.unitPrice,
+        name: product.english_name || product.arabic_name || product.name,
+        unitPrice: parseFloat(product.price || 0),
       }));
     } else {
       setNewItem((prev) => ({ ...prev, productId: "", name: "" }));
@@ -180,15 +201,32 @@ const CustomerInvoiceForm = ({
       unitPrice: newItem.unitPrice,
       total: newItem.quantity * newItem.unitPrice,
     };
-    setFormData((prev) => ({ ...prev, items: [...prev.items, item] }));
+    setFormData((prev) => {
+      const newItems = [...prev.items, item];
+      const subtotal = newItems.reduce((sum, it) => sum + (it.total || 0), 0);
+      const taxAmount = parseFloat(prev.tax) || 0;
+      return {
+        ...prev,
+        items: newItems,
+        subtotal: subtotal.toFixed(2),
+        total: (subtotal + taxAmount).toFixed(2),
+      };
+    });
     setNewItem({ productId: "", name: "", quantity: 1, unitPrice: 0 });
   };
 
   const removeItem = (index) => {
-    setFormData((prev) => ({
-      ...prev,
-      items: prev.items.filter((_, i) => i !== index),
-    }));
+    setFormData((prev) => {
+      const newItems = prev.items.filter((_, i) => i !== index);
+      const subtotal = newItems.reduce((sum, it) => sum + (it.total || 0), 0);
+      const taxAmount = parseFloat(prev.tax) || 0;
+      return {
+        ...prev,
+        items: newItems,
+        subtotal: subtotal.toFixed(2),
+        total: (subtotal + taxAmount).toFixed(2),
+      };
+    });
   };
 
   const calculateTotals = () => {
@@ -196,20 +234,21 @@ const CustomerInvoiceForm = ({
       (sum, it) => sum + (it.total || 0),
       0
     );
-    const grandTotal = subTotal;
+    const taxAmount = parseFloat(formData.tax) || 0;
+    const grandTotal = subTotal + taxAmount;
     return { subTotal, grandTotal };
   };
 
   const validateForm = () => {
     const next = {};
-    if (!formData.customerName || !formData.customerName.toString().trim())
-      next.customerName = t("customerNameRequired");
-    if (!formData.customerPhone || !formData.customerPhone.toString().trim())
-      next.customerPhone = t("phoneRequired");
-    if (!formData.issueDate) next.issueDate = t("issueDateRequired");
-    if (!formData.dueDate) next.dueDate = t("dueDateRequired");
-    if (new Date(formData.dueDate) <= new Date(formData.issueDate))
-      next.dueDate = t("dueDateMustBeAfterIssueDate");
+    if (!formData.customer_name || !formData.customer_name.toString().trim())
+      next.customer_name = t("customerNameRequired");
+    if (!formData.customer_phone || !formData.customer_phone.toString().trim())
+      next.customer_phone = t("phoneRequired");
+    if (!formData.issue_date) next.issue_date = t("issueDateRequired");
+    if (!formData.due_date) next.due_date = t("dueDateRequired");
+    if (new Date(formData.due_date) <= new Date(formData.issue_date))
+      next.due_date = t("dueDateMustBeAfterIssueDate");
     if (!Array.isArray(formData.items) || formData.items.length === 0)
       next.items = t("atLeastOneItemRequired");
     setErrors(next);
@@ -223,14 +262,27 @@ const CustomerInvoiceForm = ({
     setIsSubmitting(true);
     try {
       const { subTotal, grandTotal } = calculateTotals();
+
+      // Transform items to match backend schema
+      const transformedItems = formData.items.map((item) => ({
+        product: item.productId, // Backend expects product ID
+        quantity: item.quantity,
+      }));
+
       const payload = {
-        ...formData,
-        amount: subTotal,
-        total: grandTotal,
-        issueDate: new Date(formData.issueDate).toISOString(),
-        dueDate: new Date(formData.dueDate).toISOString(),
-        createdAt: invoice?.createdAt || new Date().toISOString(),
+        customer_name: formData.customer_name,
+        customer_phone: formData.customer_phone,
+        issue_date: formData.issue_date,
+        due_date: formData.due_date,
+        items: transformedItems,
+        subtotal: subTotal.toFixed(2),
+        tax: (parseFloat(formData.tax) || 0).toFixed(2),
+        total: grandTotal.toFixed(2),
+        notes: formData.notes,
+        payment_method: formData.payment_method,
+        status: formData.status,
       };
+
 
       let result;
       if (mode === "edit" && invoice) {
@@ -240,6 +292,7 @@ const CustomerInvoiceForm = ({
       } else {
         result = await dispatch(createCustomerInvoice(payload));
       }
+
 
       if (result.type.endsWith("/fulfilled")) {
         handleClose();
@@ -266,8 +319,6 @@ const CustomerInvoiceForm = ({
   };
 
   if (!isOpen) return null;
-
-  const { subTotal, grandTotal } = calculateTotals();
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -314,31 +365,11 @@ const CustomerInvoiceForm = ({
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
-                label={
-                  isRTL ? "رقم الفاتورة (اختياري)" : "Invoice Number (optional)"
-                }
-                value={formData.invoiceNumber}
-                onChange={handleFieldChange("invoiceNumber")}
-                placeholder={
-                  isRTL ? "أدخل رقم الفاتورة" : "Enter invoice number"
-                }
-                icon={FileText}
-              />
-
-              <FormField
-                label={t("orderId")}
-                value={formData.orderId}
-                onChange={handleFieldChange("orderId")}
-                placeholder={t("enterOrderId")}
-                icon={FileText}
-              />
-
-              <FormField
                 label={t("issueDate")}
                 type="date"
-                value={formData.issueDate}
-                onChange={handleFieldChange("issueDate")}
-                error={errors.issueDate}
+                value={formData.issue_date}
+                onChange={handleFieldChange("issue_date")}
+                error={errors.issue_date}
                 required
                 icon={Calendar}
               />
@@ -346,9 +377,9 @@ const CustomerInvoiceForm = ({
               <FormField
                 label={t("dueDate")}
                 type="date"
-                value={formData.dueDate}
-                onChange={handleFieldChange("dueDate")}
-                error={errors.dueDate}
+                value={formData.due_date}
+                onChange={handleFieldChange("due_date")}
+                error={errors.due_date}
                 required
                 icon={Calendar}
               />
@@ -368,15 +399,15 @@ const CustomerInvoiceForm = ({
               <FormField
                 label={t("customerName")}
                 type="select"
-                value={formData.customerName}
+                value={formData.customer_name}
                 onChange={(e) => {
                   const selectedCustomer = customers.find(
-                    (c) => c.customer_name === e.target.value // ✅ Use correct field name
+                    (c) => c.customer_name === e.target.value
                   );
-                  handleInputChange("customerName", e.target.value);
+                  handleInputChange("customer_name", e.target.value);
                   if (selectedCustomer) {
                     handleInputChange(
-                      "customerPhone",
+                      "customer_phone",
                       selectedCustomer.customer_phone
                         ? selectedCustomer.customer_phone.toString()
                         : ""
@@ -389,14 +420,14 @@ const CustomerInvoiceForm = ({
                     return {
                       value:
                         customer.customer_name ||
-                        `customer-${customer.id || index}`, // ✅ Ensure unique value
+                        `customer-${customer.id || index}`,
                       label:
                         customer.customer_name ||
-                        `Customer ${customer.id || index}`, // ✅ Fallback label
+                        `Customer ${customer.id || index}`,
                     };
                   }),
                 ]}
-                error={errors.customerName}
+                error={errors.customer_name}
                 required
                 icon={User}
                 disabled={loadingCustomers}
@@ -404,10 +435,10 @@ const CustomerInvoiceForm = ({
               />
               <FormField
                 label={t("phoneNumber")}
-                value={formData.customerPhone}
-                onChange={handleFieldChange("customerPhone")}
+                value={formData.customer_phone}
+                onChange={handleFieldChange("customer_phone")}
                 placeholder={t("enterPhoneNumber")}
-                error={errors.customerPhone}
+                error={errors.customer_phone}
                 required
               />
             </div>
@@ -433,8 +464,12 @@ const CustomerInvoiceForm = ({
                     { value: "", label: t("selectProduct") },
                     ...products.map((product, index) => {
                       return {
-                        value: product.id || `product-${index}`, // ✅ Ensure unique value
-                        label: product.name || `Product ${product.id || index}`, // ✅ Fallback label
+                        value: product.id || `product-${index}`,
+                        label:
+                          product.english_name ||
+                          product.arabic_name ||
+                          product.name ||
+                          `Product ${product.id || index}`,
                       };
                     }),
                   ]}
@@ -512,24 +547,99 @@ const CustomerInvoiceForm = ({
             )}
           </div>
 
+          {/* Tax, Payment Method, and Status Fields */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <FormField
+              label={t("tax")}
+              type="number"
+              value={formData.tax}
+              onChange={(e) => {
+                const value = e.target.value;
+                handleInputChange("tax", value);
+
+                // Recalculate total when tax changes
+                const subTotal = formData.items.reduce(
+                  (sum, it) => sum + (it.total || 0),
+                  0
+                );
+                const taxAmount = parseFloat(value) || 0;
+                setFormData((prev) => ({
+                  ...prev,
+                  total: (subTotal + taxAmount).toFixed(2),
+                }));
+              }}
+              placeholder={t("enterTax")}
+              min={0}
+              step={0.01}
+              icon={DollarSign}
+            />
+
+            <FormField
+              label={t("paymentMethod")}
+              type="select"
+              value={formData.payment_method || ""}
+              onChange={(e) =>
+                handleInputChange("payment_method", e.target.value || null)
+              }
+              options={[
+                { value: "", label: t("selectPaymentMethod") },
+                { value: "cash", label: t("cash") },
+                { value: "card", label: t("card") },
+                { value: "knet", label: t("knet") },
+                { value: "digital", label: t("digital") },
+              ]}
+              icon={DollarSign}
+            />
+
+            <FormField
+              label={t("status")}
+              type="select"
+              value={formData.status}
+              onChange={(e) => handleInputChange("status", e.target.value)}
+              options={[
+                { value: "pending", label: t("pending") },
+                { value: "completed", label: t("completed") },
+                { value: "cancelled", label: t("cancelled") },
+              ]}
+            />
+          </div>
+
           {/* Summary */}
           <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-            <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">
-                {t("subtotal")}:
-              </span>
-              <span className="font-medium text-gray-900 dark:text-white">
-                {subTotal.toFixed(2)}
-              </span>
-            </div>
-            <div className="border-t border-gray-200 dark:border-gray-600 mt-2 pt-2">
+            <h3
+              className={`text-lg font-medium text-gray-900 dark:text-white mb-4 ${
+                isRTL ? "text-right" : "text-left"
+              }`}
+            >
+              {t("invoiceSummary")}
+            </h3>
+            <div className="space-y-2">
               <div className="flex justify-between">
-                <span className="text-lg font-medium text-gray-900 dark:text-white">
-                  {t("total")}:
+                <span className="text-gray-600 dark:text-gray-400">
+                  {t("subtotal")}:
                 </span>
-                <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                  {grandTotal.toFixed(2)}
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {parseFloat(formData.subtotal || 0).toFixed(2)}{" "}
+                  {t("currency")}
                 </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">
+                  {t("tax")}:
+                </span>
+                <span className="font-medium text-purple-600 dark:text-purple-400">
+                  {parseFloat(formData.tax || 0).toFixed(2)} {t("currency")}
+                </span>
+              </div>
+              <div className="border-t border-gray-200 dark:border-gray-600 pt-2">
+                <div className="flex justify-between">
+                  <span className="text-lg font-medium text-gray-900 dark:text-white">
+                    {t("total")}:
+                  </span>
+                  <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                    {parseFloat(formData.total || 0).toFixed(2)} {t("currency")}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
