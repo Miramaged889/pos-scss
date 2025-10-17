@@ -20,7 +20,6 @@ import {
   fetchOrders,
   updateOrderStatus,
 } from "../../../store/slices/ordersSlice";
-import { paymentService } from "../../../services/paymentService";
 import { customerService, productService } from "../../../services";
 
 const MyOrders = ({ isHome = false }) => {
@@ -42,6 +41,7 @@ const MyOrders = ({ isHome = false }) => {
   const [isConfirming, setIsConfirming] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [startingDelivery, setStartingDelivery] = useState(null); // Track which order is being started
+
 
   // Customer data states
   const [customers, setCustomers] = useState([]);
@@ -235,32 +235,25 @@ const MyOrders = ({ isHome = false }) => {
     switch (filter) {
       case "pending":
         filteredOrders = filteredOrders.filter(
-          (order) =>
-            (!order.assignedDriver || order.assignedDriver === user?.name) &&
-            order.deliveryStatus !== "delivered"
+          (order) => (order.status || order.deliveryStatus) === "pending"
         );
         break;
       case "delivering":
         filteredOrders = filteredOrders.filter(
-          (order) =>
-            order.assignedDriver === user?.name &&
-            order.deliveryStatus === "delivering"
+          (order) => (order.status || order.deliveryStatus) === "delivering"
         );
         break;
       case "delivered":
         filteredOrders = filteredOrders.filter(
           (order) =>
-            order.assignedDriver === user?.name &&
-            order.deliveryStatus === "delivered" &&
-            order.isPaid
+            order.status === "completed" ||
+            order.status === "delivered" ||
+            order.deliveryStatus === "delivered"
         );
         break;
       default:
-        filteredOrders = filteredOrders.filter(
-          (order) =>
-            (order.assignedDriver === user?.name && !order.isPaid) ||
-            !order.assignedDriver
-        );
+        // Show all delivery orders
+        break;
     }
 
     return filteredOrders;
@@ -280,11 +273,11 @@ const MyOrders = ({ isHome = false }) => {
         console.log("Starting delivery for order:", orderId);
         setStartingDelivery(orderId);
 
-        // Update order status via API - set status to "pending" when starting delivery
+        // Update order status via API - set status to "delivering" when starting delivery
         await dispatch(
           updateOrderStatus({
             id: orderId,
-            status: "pending",
+            status: "delivering",
             assignedDriver: user?.name,
             deliveryStartTime: new Date().toISOString(),
             deliveryStatus: "delivering",
@@ -340,8 +333,9 @@ const MyOrders = ({ isHome = false }) => {
 
       setProcessing(true);
 
-      // Add payment record via API
-      const payment = await paymentService.createPayment({
+      // Since payment service is not available, we'll just update the order directly
+      // In a real app, you would create a payment record here
+      console.log("Payment collected:", {
         orderId: selectedOrder.id,
         amount: amount,
         collectedBy: user?.name,
@@ -354,20 +348,20 @@ const MyOrders = ({ isHome = false }) => {
         isPaid: true,
       });
 
-      if (!payment) throw new Error("Failed to create payment");
-
       // Update order status via API
       await dispatch(
         updateOrderStatus({
           id: selectedOrder.id,
-          status: "delivered",
+          status: "completed",
+          total_amount: amount.toString(), // Update the total amount
           isDelivered: true,
           deliveryEndTime: new Date().toISOString(),
           deliveryStatus: "delivered",
           isPaid: true,
-          paidAt: payment.paidAt || payment.collectedAt,
-          paymentId: payment.id,
+          paidAt: new Date().toISOString(),
           paymentStatus: "completed",
+          payment_method: "cash",
+          collectedBy: user?.name,
         })
       );
 
@@ -391,24 +385,40 @@ const MyOrders = ({ isHome = false }) => {
     navigate(`/delivery/order/${orderId}`);
   };
 
+
+
+
   const getOrderStatusColor = (order) => {
-    if (order.deliveryStatus === "delivered") {
-      return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+    const status = order.status || order.deliveryStatus;
+    switch (status) {
+      case "completed":
+      case "delivered":
+        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+      case "pending":
+      case "delivering":
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
+      case "cancelled":
+        return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+      default:
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
     }
-    if (order.deliveryStatus === "delivering") {
-      return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
-    }
-    return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
   };
 
   const getOrderStatusText = (order) => {
-    switch (order.deliveryStatus) {
+    const status = order.status || order.deliveryStatus;
+    switch (status) {
+      case "completed":
+        return t("completed");
       case "delivered":
         return t("delivered");
+      case "pending":
+        return t("pending");
       case "delivering":
         return t("delivering");
+      case "cancelled":
+        return t("cancelled");
       default:
-        return t("readyForDelivery");
+        return status || t("readyForDelivery");
     }
   };
 
@@ -497,7 +507,9 @@ const MyOrders = ({ isHome = false }) => {
                   <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                     <Clock className="w-4 h-4" />
                     <span>
-                      {new Date(order.createdAt).toLocaleTimeString()}
+                      {new Date(
+                        order.date || order.createdAt
+                      ).toLocaleTimeString()}
                     </span>
                   </div>
                 </div>
@@ -653,7 +665,7 @@ const MyOrders = ({ isHome = false }) => {
                     {t("viewDetails")}
                   </button>
 
-                  {!order.assignedDriver && (
+                  {(order.status === "pending" || !order.status) && (
                     <button
                       onClick={(e) => {
                         e.preventDefault();
@@ -675,17 +687,17 @@ const MyOrders = ({ isHome = false }) => {
                     </button>
                   )}
 
-                  {order.assignedDriver === user?.name &&
-                    order.deliveryStatus === "delivering" && (
-                      <button
-                        onClick={() => handleCompleteDelivery(order)}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                        title={t("markAsDeliveredTooltip")}
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                        {t("markAsDelivered")}
-                      </button>
-                    )}
+                  {(order.status === "delivering" ||
+                    order.deliveryStatus === "delivering") && (
+                    <button
+                      onClick={() => handleCompleteDelivery(order)}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                      title={t("markAsDeliveredTooltip")}
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      {t("markAsDelivered")}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

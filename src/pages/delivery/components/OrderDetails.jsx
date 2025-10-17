@@ -19,7 +19,6 @@ import {
   updateOrderStatus,
 } from "../../../store/slices/ordersSlice";
 import { customerService, productService } from "../../../services";
-import { paymentService } from "../../../services/paymentService";
 
 const OrderDetails = () => {
   const { t } = useTranslation();
@@ -42,6 +41,10 @@ const OrderDetails = () => {
   const [paymentError, setPaymentError] = useState("");
   const [isConfirming, setIsConfirming] = useState(false);
   const [processing, setProcessing] = useState(false);
+
+  // Status editing states
+  const [statusInput, setStatusInput] = useState("");
+  const [editingStatus, setEditingStatus] = useState(false);
 
   // Customer and product data states
   const [customers, setCustomers] = useState([]);
@@ -243,11 +246,11 @@ const OrderDetails = () => {
     try {
       console.log("Starting delivery for order:", order.id);
 
-      // Update order status via Redux - set status to "pending" when starting delivery
+      // Update order status via Redux - set status to "delivering" when starting delivery
       await dispatch(
         updateOrderStatus({
           id: order.id,
-          status: "pending",
+          status: "delivering",
           assignedDriver: user?.name,
           deliveryStartTime: new Date().toISOString(),
           deliveryStatus: "delivering",
@@ -257,7 +260,7 @@ const OrderDetails = () => {
       // Update local state
       setOrder((prev) => ({
         ...prev,
-        status: "pending",
+        status: "delivering",
         deliveryStartTime: new Date().toISOString(),
         deliveryStatus: "delivering",
         assignedDriver: user?.name,
@@ -266,6 +269,40 @@ const OrderDetails = () => {
       console.error("Error starting delivery:", err);
       setError(err.message);
     }
+  };
+
+  const handleStatusUpdate = async (newStatus) => {
+    try {
+      console.log(`Updating order ${order.id} status to: ${newStatus}`);
+
+      await dispatch(
+        updateOrderStatus({
+          id: order.id,
+          status: newStatus,
+        })
+      );
+
+      setOrder((prev) => ({
+        ...prev,
+        status: newStatus,
+      }));
+
+      setEditingStatus(false);
+      setStatusInput("");
+    } catch (err) {
+      console.error("Error updating order status:", err);
+      setError(err.message);
+    }
+  };
+
+  const handleEditStatus = () => {
+    setEditingStatus(true);
+    setStatusInput(order.status || "");
+  };
+
+  const handleCancelEditStatus = () => {
+    setEditingStatus(false);
+    setStatusInput("");
   };
 
   const handleCompleteDelivery = () => {
@@ -305,8 +342,9 @@ const OrderDetails = () => {
 
       setProcessing(true);
 
-      // Add payment record via API
-      const payment = await paymentService.createPayment({
+      // Since payment service is not available, we'll just update the order directly
+      // In a real app, you would create a payment record here
+      console.log("Payment collected:", {
         orderId: selectedOrder.id,
         amount: amount,
         collectedBy: user?.name,
@@ -319,30 +357,36 @@ const OrderDetails = () => {
         isPaid: true,
       });
 
-      if (!payment) throw new Error("Failed to create payment");
-
       // Update order status via API
       await dispatch(
         updateOrderStatus({
           id: selectedOrder.id,
-          status: "delivered",
+          status: "completed",
+          total_amount: amount.toString(), // Update the total amount
           isDelivered: true,
           deliveryEndTime: new Date().toISOString(),
           deliveryStatus: "delivered",
           isPaid: true,
-          paidAt: payment.paidAt || payment.collectedAt,
-          paymentId: payment.id,
+          paidAt: new Date().toISOString(),
           paymentStatus: "completed",
+          payment_method: "cash",
+          collectedBy: user?.name,
         })
       );
 
       // Update local state
       setOrder((prev) => ({
         ...prev,
+        status: "completed",
+        total_amount: amount.toString(),
         deliveryEndTime: new Date().toISOString(),
         deliveryStatus: "delivered",
         isDelivered: true,
         isPaid: true,
+        paidAt: new Date().toISOString(),
+        paymentStatus: "completed",
+        payment_method: "cash",
+        collectedBy: user?.name,
       }));
 
       // The Redux state will automatically update the UI
@@ -437,21 +481,65 @@ const OrderDetails = () => {
         {/* Delivery Status */}
         <div className="mb-6">
           <div className="flex items-center gap-3">
-            <span
-              className={`px-3 py-1 text-sm font-medium rounded-full ${
-                order.isDelivered
-                  ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                  : order.deliveryStatus === "delivering"
-                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
-                  : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
-              }`}
-            >
-              {order.isDelivered
-                ? t("delivered")
-                : order.deliveryStatus === "delivering"
-                ? t("delivering")
-                : t("readyForDelivery")}
-            </span>
+            {editingStatus ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={statusInput}
+                  onChange={(e) => setStatusInput(e.target.value)}
+                  className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  placeholder="Enter status"
+                />
+                <button
+                  onClick={() => handleStatusUpdate(statusInput)}
+                  className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                >
+                  ✓
+                </button>
+                <button
+                  onClick={handleCancelEditStatus}
+                  className="px-2 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span
+                  className={`px-3 py-1 text-sm font-medium rounded-full ${
+                    order.status === "completed" || order.isDelivered
+                      ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                      : order.status === "delivering" ||
+                        order.deliveryStatus === "delivering"
+                      ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
+                      : order.status === "cancelled"
+                      ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                      : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+                  }`}
+                >
+                  {order.status === "completed"
+                    ? t("completed")
+                    : order.status === "delivering"
+                    ? t("delivering")
+                    : order.status === "pending"
+                    ? t("pending")
+                    : order.status === "cancelled"
+                    ? t("cancelled")
+                    : order.isDelivered
+                    ? t("delivered")
+                    : order.deliveryStatus === "delivering"
+                    ? t("delivering")
+                    : t("readyForDelivery")}
+                </span>
+                <button
+                  onClick={handleEditStatus}
+                  className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                  title="Edit Status"
+                >
+                  Edit
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -557,18 +645,21 @@ const OrderDetails = () => {
           >
             {t("back")}
           </button>
-          {!order.isDelivered && (
+          {(order.status === "pending" || !order.status) && (
             <button
-              onClick={
-                order.deliveryStatus === "delivering"
-                  ? handleCompleteDelivery
-                  : handleStartDelivery
-              }
+              onClick={handleStartDelivery}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
-              {order.deliveryStatus === "delivering"
-                ? t("markAsDelivered")
-                : t("startDelivery")}
+              {t("startDelivery")}
+            </button>
+          )}
+          {(order.status === "delivering" ||
+            order.deliveryStatus === "delivering") && (
+            <button
+              onClick={handleCompleteDelivery}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              {t("markAsDelivered")}
             </button>
           )}
         </div>

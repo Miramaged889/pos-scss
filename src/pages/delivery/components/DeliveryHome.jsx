@@ -56,18 +56,22 @@ const DeliveryHome = () => {
       // Get today's orders
       const today = new Date().toDateString();
       const todaysOrders = driverOrders.filter(
-        (order) => new Date(order.createdAt).toDateString() === today
+        (order) =>
+          new Date(order.date || order.createdAt).toDateString() === today
       );
 
       // Calculate statistics
       const completed = todaysOrders.filter(
-        (order) => order.isDelivered
+        (order) => order.status === "completed" || order.isDelivered
       ).length;
-      const pending = driverOrders.filter((order) => !order.isDelivered).length;
+      const pending = driverOrders.filter(
+        (order) =>
+          order.status === "pending" || (!order.status && !order.isDelivered)
+      ).length;
 
       // Calculate earnings (simplified without payments data)
       const earnings = todaysOrders.reduce(
-        (sum, order) => sum + (order.total || 0) * 0.1,
+        (sum, order) => sum + (order.total_amount || order.total || 0) * 0.1,
         0
       );
 

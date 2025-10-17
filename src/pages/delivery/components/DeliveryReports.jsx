@@ -45,16 +45,56 @@ const DeliveryReports = () => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
   const { isRTL } = useSelector((state) => state.language);
-  const { orders, loading, error } = useSelector((state) => state.orders);
+  const { orders } = useSelector((state) => state.orders);
   const [stats, setStats] = useState(null);
   const [dateRange, setDateRange] = useState("today");
 
-  // Get completed deliveries from orders - only delivery orders
-  const completedDeliveries = orders.filter(
-    (order) =>
-      order.delivery_option === "delivery" &&
-      (order.status === "delivered" || order.status === "completed")
-  );
+  // Helper function to filter orders by date range
+  const filterOrdersByDateRange = (orders, range) => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    switch (range) {
+      case "today": {
+        return orders.filter((order) => {
+          const orderDate = new Date(order.date || order.createdAt);
+          const orderDay = new Date(
+            orderDate.getFullYear(),
+            orderDate.getMonth(),
+            orderDate.getDate()
+          );
+          return orderDay.getTime() === today.getTime();
+        });
+      }
+
+      case "week": {
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - today.getDay()); // Start of current week (Sunday)
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6); // End of current week (Saturday)
+        weekEnd.setHours(23, 59, 59, 999);
+
+        return orders.filter((order) => {
+          const orderDate = new Date(order.date || order.createdAt);
+          return orderDate >= weekStart && orderDate <= weekEnd;
+        });
+      }
+
+      case "month": {
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        monthEnd.setHours(23, 59, 59, 999);
+
+        return orders.filter((order) => {
+          const orderDate = new Date(order.date || order.createdAt);
+          return orderDate >= monthStart && orderDate <= monthEnd;
+        });
+      }
+
+      default:
+        return orders;
+    }
+  };
 
   // Load orders from API
   useEffect(() => {
@@ -64,12 +104,24 @@ const DeliveryReports = () => {
   // Calculate stats from orders data
   useEffect(() => {
     if (orders.length > 0) {
-      // Only calculate earnings from delivery orders
-      const deliveryOrders = orders.filter(
+      // Filter orders by selected date range
+      const filteredOrders = filterOrdersByDateRange(orders, dateRange);
+
+      // Get completed deliveries from filtered orders - only delivery orders
+      const completedDeliveries = filteredOrders.filter(
+        (order) =>
+          order.delivery_option === "delivery" &&
+          (order.status === "completed" ||
+            order.status === "delivered" ||
+            order.isDelivered)
+      );
+
+      // Only calculate earnings from filtered delivery orders
+      const deliveryOrders = filteredOrders.filter(
         (order) => order.delivery_option === "delivery"
       );
       const totalEarnings = deliveryOrders.reduce(
-        (sum, order) => sum + (order.total || 0),
+        (sum, order) => sum + (order.total_amount || order.total || 0),
         0
       );
 
@@ -99,7 +151,7 @@ const DeliveryReports = () => {
 
       setStats(overallStats);
     }
-  }, [orders, completedDeliveries]);
+  }, [orders, dateRange]);
 
   // Prepare stats cards data with null check
   const statsCards = (() => {
@@ -152,32 +204,131 @@ const DeliveryReports = () => {
 
   // Prepare data for charts
   const prepareDeliveryTrendData = () => {
-    const data = new Array(7).fill(0);
-    const labels = [];
     const now = new Date();
 
-    // Calculate previous period data for trend
-    const previousPeriodDeliveries = completedDeliveries.filter((action) => {
-      const actionDate = new Date(action.timestamp);
-      const periodStart = new Date(now);
-      periodStart.setDate(periodStart.getDate() - 14);
-      const periodEnd = new Date(now);
-      periodEnd.setDate(periodEnd.getDate() - 7);
-      return actionDate >= periodStart && actionDate < periodEnd;
-    }).length;
+    // Determine array size based on date range
+    let periodDays = 7; // Default to 7 days
+    if (dateRange === "today") {
+      periodDays = 1;
+    } else if (dateRange === "week") {
+      periodDays = 7;
+    } else if (dateRange === "month") {
+      periodDays = 30;
+    }
+
+    const data = new Array(periodDays).fill(0);
+    const labels = [];
+
+    // Filter orders by selected date range first
+    const filteredOrders = filterOrdersByDateRange(orders, dateRange);
+
+    // Get completed deliveries from filtered orders - only delivery orders
+    const completedDeliveries = filteredOrders.filter(
+      (order) =>
+        order.delivery_option === "delivery" &&
+        (order.status === "completed" ||
+          order.status === "delivered" ||
+          order.isDelivered)
+    );
+
+    // Calculate previous period data for trend based on date range
+    let previousPeriodDeliveries = 0;
+    if (dateRange === "today") {
+      // Compare with yesterday
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      previousPeriodDeliveries = orders.filter((order) => {
+        const orderDate = new Date(order.date || order.createdAt);
+        const orderDay = new Date(
+          orderDate.getFullYear(),
+          orderDate.getMonth(),
+          orderDate.getDate()
+        );
+        const yesterdayDay = new Date(
+          yesterday.getFullYear(),
+          yesterday.getMonth(),
+          yesterday.getDate()
+        );
+        return (
+          orderDay.getTime() === yesterdayDay.getTime() &&
+          order.delivery_option === "delivery" &&
+          (order.status === "completed" ||
+            order.status === "delivered" ||
+            order.isDelivered)
+        );
+      }).length;
+    } else if (dateRange === "week") {
+      // Compare with previous week
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - now.getDay() - 7); // Start of previous week
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      weekEnd.setHours(23, 59, 59, 999);
+
+      previousPeriodDeliveries = orders.filter((order) => {
+        const orderDate = new Date(order.date || order.createdAt);
+        return (
+          orderDate >= weekStart &&
+          orderDate <= weekEnd &&
+          order.delivery_option === "delivery" &&
+          (order.status === "completed" ||
+            order.status === "delivered" ||
+            order.isDelivered)
+        );
+      }).length;
+    } else if (dateRange === "month") {
+      // Compare with previous month
+      const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+      prevMonthEnd.setHours(23, 59, 59, 999);
+
+      previousPeriodDeliveries = orders.filter((order) => {
+        const orderDate = new Date(order.date || order.createdAt);
+        return (
+          orderDate >= prevMonthStart &&
+          orderDate <= prevMonthEnd &&
+          order.delivery_option === "delivery" &&
+          (order.status === "completed" ||
+            order.status === "delivered" ||
+            order.isDelivered)
+        );
+      }).length;
+    }
 
     // Calculate current period data
-    for (let i = 6; i >= 0; i--) {
+    for (let i = periodDays - 1; i >= 0; i--) {
       const date = new Date(now);
       date.setDate(date.getDate() - i);
-      labels.push(date.toLocaleDateString(undefined, { weekday: "short" }));
 
-      const dayDeliveries = completedDeliveries.filter((action) => {
-        const actionDate = new Date(action.timestamp);
-        return actionDate.toDateString() === date.toDateString();
+      if (dateRange === "today") {
+        labels.push(
+          date.toLocaleDateString(undefined, {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        );
+      } else if (dateRange === "week") {
+        labels.push(date.toLocaleDateString(undefined, { weekday: "short" }));
+      } else {
+        labels.push(
+          date.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+        );
+      }
+
+      const dayDeliveries = completedDeliveries.filter((order) => {
+        const orderDate = new Date(order.date || order.createdAt);
+        if (dateRange === "today") {
+          return (
+            orderDate.getDate() === date.getDate() &&
+            orderDate.getMonth() === date.getMonth() &&
+            orderDate.getFullYear() === date.getFullYear()
+          );
+        } else {
+          return orderDate.toDateString() === date.toDateString();
+        }
       });
 
-      data[6 - i] = dayDeliveries.length;
+      data[periodDays - 1 - i] = dayDeliveries.length;
     }
 
     const currentPeriodDeliveries = data.reduce((sum, count) => sum + count, 0);
@@ -191,40 +342,139 @@ const DeliveryReports = () => {
   };
 
   const prepareEarningsTrendData = () => {
-    const data = new Array(7).fill(0);
-    const labels = [];
     const now = new Date();
 
-    // Get payment collection actions
-    const paymentActions = actions.filter(
-      (action) => action.type === "COLLECT_PAYMENT"
+    // Determine array size based on date range
+    let periodDays = 7; // Default to 7 days
+    if (dateRange === "today") {
+      periodDays = 1;
+    } else if (dateRange === "week") {
+      periodDays = 7;
+    } else if (dateRange === "month") {
+      periodDays = 30;
+    }
+
+    const data = new Array(periodDays).fill(0);
+    const labels = [];
+
+    // Filter orders by selected date range first
+    const filteredOrders = filterOrdersByDateRange(orders, dateRange);
+
+    // Get completed delivery orders for earnings calculation
+    const completedOrders = filteredOrders.filter(
+      (order) =>
+        order.delivery_option === "delivery" &&
+        (order.status === "completed" || order.isPaid)
     );
 
-    // Calculate previous period earnings for trend
-    const previousPeriodEarnings = paymentActions
-      .filter((action) => {
-        const actionDate = new Date(action.timestamp);
-        const periodStart = new Date(now);
-        periodStart.setDate(periodStart.getDate() - 14);
-        const periodEnd = new Date(now);
-        periodEnd.setDate(periodEnd.getDate() - 7);
-        return actionDate >= periodStart && actionDate < periodEnd;
-      })
-      .reduce((sum, action) => sum + (action.amount || 0) * 0.1, 0);
+    // Calculate previous period earnings for trend based on date range
+    let previousPeriodEarnings = 0;
+    if (dateRange === "today") {
+      // Compare with yesterday
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      previousPeriodEarnings = orders
+        .filter((order) => {
+          const orderDate = new Date(order.date || order.createdAt);
+          const orderDay = new Date(
+            orderDate.getFullYear(),
+            orderDate.getMonth(),
+            orderDate.getDate()
+          );
+          const yesterdayDay = new Date(
+            yesterday.getFullYear(),
+            yesterday.getMonth(),
+            yesterday.getDate()
+          );
+          return (
+            orderDay.getTime() === yesterdayDay.getTime() &&
+            order.delivery_option === "delivery" &&
+            (order.status === "completed" || order.isPaid)
+          );
+        })
+        .reduce(
+          (sum, order) => sum + (order.total_amount || order.total || 0) * 0.1,
+          0
+        );
+    } else if (dateRange === "week") {
+      // Compare with previous week
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - now.getDay() - 7);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      weekEnd.setHours(23, 59, 59, 999);
+
+      previousPeriodEarnings = orders
+        .filter((order) => {
+          const orderDate = new Date(order.date || order.createdAt);
+          return (
+            orderDate >= weekStart &&
+            orderDate <= weekEnd &&
+            order.delivery_option === "delivery" &&
+            (order.status === "completed" || order.isPaid)
+          );
+        })
+        .reduce(
+          (sum, order) => sum + (order.total_amount || order.total || 0) * 0.1,
+          0
+        );
+    } else if (dateRange === "month") {
+      // Compare with previous month
+      const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+      prevMonthEnd.setHours(23, 59, 59, 999);
+
+      previousPeriodEarnings = orders
+        .filter((order) => {
+          const orderDate = new Date(order.date || order.createdAt);
+          return (
+            orderDate >= prevMonthStart &&
+            orderDate <= prevMonthEnd &&
+            order.delivery_option === "delivery" &&
+            (order.status === "completed" || order.isPaid)
+          );
+        })
+        .reduce(
+          (sum, order) => sum + (order.total_amount || order.total || 0) * 0.1,
+          0
+        );
+    }
 
     // Calculate current period data
-    for (let i = 6; i >= 0; i--) {
+    for (let i = periodDays - 1; i >= 0; i--) {
       const date = new Date(now);
       date.setDate(date.getDate() - i);
-      labels.push(date.toLocaleDateString(undefined, { weekday: "short" }));
 
-      const dayPayments = paymentActions.filter((action) => {
-        const actionDate = new Date(action.timestamp);
-        return actionDate.toDateString() === date.toDateString();
+      if (dateRange === "today") {
+        labels.push(
+          date.toLocaleDateString(undefined, {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        );
+      } else if (dateRange === "week") {
+        labels.push(date.toLocaleDateString(undefined, { weekday: "short" }));
+      } else {
+        labels.push(
+          date.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+        );
+      }
+
+      const dayOrders = completedOrders.filter((order) => {
+        const orderDate = new Date(order.date || order.createdAt);
+        if (dateRange === "today") {
+          return (
+            orderDate.getDate() === date.getDate() &&
+            orderDate.getMonth() === date.getMonth() &&
+            orderDate.getFullYear() === date.getFullYear()
+          );
+        } else {
+          return orderDate.toDateString() === date.toDateString();
+        }
       });
 
-      data[6 - i] = dayPayments.reduce(
-        (sum, action) => sum + (action.amount || 0) * 0.1,
+      data[periodDays - 1 - i] = dayOrders.reduce(
+        (sum, order) => sum + (order.total_amount || order.total || 0) * 0.1,
         0
       );
     }
@@ -240,16 +490,19 @@ const DeliveryReports = () => {
   };
 
   const prepareOrderStatusData = () => {
+    // Filter orders by selected date range first
+    const filteredOrders = filterOrdersByDateRange(orders, dateRange);
+
     const statusCounts = {
-      ready: orders.filter(
+      ready: filteredOrders.filter(
         (order) => order.delivery_option === "delivery" && !order.deliveryStatus
       ).length,
-      delivering: orders.filter(
+      delivering: filteredOrders.filter(
         (order) =>
           order.delivery_option === "delivery" &&
           order.deliveryStatus === "delivering"
       ).length,
-      completed: orders.filter(
+      completed: filteredOrders.filter(
         (order) =>
           order.delivery_option === "delivery" &&
           order.deliveryStatus === "delivered"
@@ -512,14 +765,27 @@ const DeliveryReports = () => {
                 </div>
               </div>
               <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                {completedDeliveries.length > 0
-                  ? (
-                      (completedDeliveries.filter((action) => action.isDelayed)
-                        .length /
-                        completedDeliveries.length) *
-                      100
-                    ).toFixed(1)
-                  : "0"}
+                {(() => {
+                  const filteredOrders = filterOrdersByDateRange(
+                    orders,
+                    dateRange
+                  );
+                  const completedDeliveries = filteredOrders.filter(
+                    (order) =>
+                      order.delivery_option === "delivery" &&
+                      (order.status === "completed" ||
+                        order.status === "delivered" ||
+                        order.isDelivered)
+                  );
+                  return completedDeliveries.length > 0
+                    ? (
+                        (completedDeliveries.filter((order) => order.isDelayed)
+                          .length /
+                          completedDeliveries.length) *
+                        100
+                      ).toFixed(1)
+                    : "0";
+                })()}
                 %
               </span>
             </div>

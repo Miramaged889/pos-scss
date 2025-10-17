@@ -3,7 +3,10 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { Search, Filter, ArrowUp, ArrowDown, Eye, Loader2 } from "lucide-react";
-import { fetchOrders } from "../../../store/slices/ordersSlice";
+import {
+  fetchOrders,
+  updateOrderStatus,
+} from "../../../store/slices/ordersSlice";
 import { customerService } from "../../../services";
 
 const AllOrders = () => {
@@ -16,6 +19,8 @@ const AllOrders = () => {
     key: "createdAt",
     direction: "desc",
   });
+  const [statusInput, setStatusInput] = useState("");
+  const [editingStatus, setEditingStatus] = useState(null);
 
   // Customer data states
   const [customers, setCustomers] = useState([]);
@@ -152,14 +157,62 @@ const AllOrders = () => {
     navigate(`/delivery/order/${orderId}`);
   };
 
-  const getStatusColor = (status) => {
+  const handleStatusUpdate = async (orderId, newStatus) => {
+    try {
+      console.log(`Updating order ${orderId} status to: ${newStatus}`);
+
+      await dispatch(
+        updateOrderStatus({
+          id: orderId,
+          status: newStatus,
+        })
+      );
+
+      setEditingStatus(null);
+      setStatusInput("");
+    } catch (err) {
+      console.error("Error updating order status:", err);
+    }
+  };
+
+
+
+  const handleCancelEditStatus = () => {
+    setEditingStatus(null);
+    setStatusInput("");
+  };
+
+  const getStatusColor = (order) => {
+    const status = order.status || order.deliveryStatus;
     switch (status?.toLowerCase()) {
+      case "completed":
       case "delivered":
         return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+      case "pending":
       case "delivering":
         return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
+      case "cancelled":
+        return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
       default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300";
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
+    }
+  };
+
+  const getStatusText = (order) => {
+    const status = order.status || order.deliveryStatus;
+    switch (status?.toLowerCase()) {
+      case "completed":
+        return t("completed");
+      case "delivered":
+        return t("delivered");
+      case "pending":
+        return t("pending");
+      case "delivering":
+        return t("delivering");
+      case "cancelled":
+        return t("cancelled");
+      default:
+        return status || t("pending");
     }
   };
 
@@ -273,20 +326,46 @@ const AllOrders = () => {
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span
-                    className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(
-                      order.deliveryStatus
-                    )}`}
-                  >
-                    {t(order.deliveryStatus || "pending")}
-                  </span>
+                  {editingStatus === order.id ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={statusInput}
+                        onChange={(e) => setStatusInput(e.target.value)}
+                        className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                        placeholder="Enter status"
+                      />
+                      <button
+                        onClick={() =>
+                          handleStatusUpdate(order.id, statusInput)
+                        }
+                        className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                      >
+                        ✓
+                      </button>
+                      <button
+                        onClick={handleCancelEditStatus}
+                        className="px-2 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <span
+                      className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(
+                        order
+                      )}`}
+                    >
+                      {getStatusText(order)}
+                    </span>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                   {(order.total_amount || order.total || 0).toFixed(2)}{" "}
                   {t("currency")}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                  {new Date(order.createdAt).toLocaleString()}
+                  {new Date(order.date || order.createdAt).toLocaleString()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <button
