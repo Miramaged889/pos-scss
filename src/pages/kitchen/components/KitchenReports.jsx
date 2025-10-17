@@ -46,6 +46,7 @@ import {
 
 import StatsCard from "../../../components/Common/StatsCard";
 import { fetchOrders } from "../../../store/slices/ordersSlice";
+import { productService } from "../../../services";
 
 // Register ChartJS components
 ChartJS.register(
@@ -67,11 +68,38 @@ const KitchenReports = () => {
   const { theme } = useSelector((state) => state.language);
   const [dateRange, setDateRange] = useState("week");
   const [reportData, setReportData] = useState({});
+  const [products, setProducts] = useState([]);
 
   // Load orders from API
   useEffect(() => {
     dispatch(fetchOrders());
   }, [dispatch]);
+
+  // Load products from API - ONLY ONCE
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const response = await productService.getProducts();
+        setProducts(response);
+      } catch (error) {
+        console.error("Error fetching products:", error);
+      }
+    };
+
+    fetchProducts();
+  }, []); // Empty dependency array - only run once
+
+  // Helper function to get product name by ID
+  const getProductName = useCallback(
+    (productId) => {
+      const product = products.find((p) => p.id === productId);
+      if (product) {
+        return product.name || product.nameEn || `Product #${productId}`;
+      }
+      return `Product #${productId}`;
+    },
+    [products]
+  );
 
   const generateReportData = useCallback(() => {
     const now = new Date();
@@ -124,8 +152,9 @@ const KitchenReports = () => {
     const itemCounts = {};
     filteredOrders.forEach((order) => {
       order.products?.forEach((product) => {
-        itemCounts[product.name] =
-          (itemCounts[product.name] || 0) + product.quantity;
+        const productName = getProductName(product.id);
+        itemCounts[productName] =
+          (itemCounts[productName] || 0) + product.quantity;
       });
     });
 
@@ -162,7 +191,7 @@ const KitchenReports = () => {
     };
 
     setReportData(reportDataToStore);
-  }, [dateRange]);
+  }, [dateRange, orders, getProductName]);
 
   // Load report data from localStorage on mount and when date range changes
   useEffect(() => {
@@ -614,7 +643,7 @@ const KitchenReports = () => {
               </span>
             </div>
             <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-              {t("busiest")} 12:00 - 14:00 & 19:00 - 21:00
+              {t("busiest")} {t("peakHoursTime")}
             </p>
           </div>
 

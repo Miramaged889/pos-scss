@@ -30,9 +30,13 @@ const PaymentCollection = () => {
   // Process orders to create payment data
   useEffect(() => {
     if (orders && orders.length > 0) {
-      // Create payment data from orders (simplified approach)
+      // Create payment data from orders (simplified approach) - only delivery orders
       const processedPayments = orders
-        .filter((order) => order.status === "completed" || order.isPaid)
+        .filter(
+          (order) =>
+            order.delivery_option === "delivery" &&
+            (order.status === "completed" || order.isPaid)
+        )
         .map((order) => ({
           id: `${order.id}-${order.createdAt}`,
           orderId: order.id,
@@ -97,7 +101,7 @@ const PaymentCollection = () => {
                 {t("totalCollected")}
               </h3>
               <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-                {totalCollected.toFixed(2)} {t("currency")}
+                {(totalCollected || 0).toFixed(2)} {t("currency")}
               </p>
             </div>
           </div>
@@ -143,14 +147,14 @@ const PaymentCollection = () => {
                   {payment.customerName}
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  {t("commission")}: {payment.commission.toFixed(2)}{" "}
+                  {t("commission")}: {(payment.commission || 0).toFixed(2)}{" "}
                   {t("currency")}
                 </p>
               </div>
 
               <div className="flex flex-col items-end gap-2">
                 <span className="text-xl font-semibold text-gray-900 dark:text-white">
-                  {payment.amount.toFixed(2)} {t("currency")}
+                  {(payment.amount || 0).toFixed(2)} {t("currency")}
                 </span>
                 <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                   <Clock className="w-4 h-4" />

@@ -31,6 +31,7 @@ import {
   formatDateTimeEnglish,
 } from "../../../utils/formatters";
 import { fetchOrders } from "../../../store/slices/ordersSlice";
+import { customerService, tenantUsersService } from "../../../services";
 
 const InvoicesManagement = () => {
   const { t } = useTranslation();
@@ -39,6 +40,12 @@ const InvoicesManagement = () => {
 
   // Get data from Redux store
   const { orders, loading, error } = useSelector((state) => state.orders);
+
+  // Local state for API data
+  const [customers, setCustomers] = useState([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const [sellersData, setSellersData] = useState([]);
+  const [sellersLoading, setSellersLoading] = useState(false);
 
   // Local state for UI
   const [filteredInvoices, setFilteredInvoices] = useState([]);
@@ -51,9 +58,99 @@ const InvoicesManagement = () => {
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
 
+  // Fetch customers from API
+  const fetchCustomersData = async () => {
+    try {
+      setCustomersLoading(true);
+      const response = await customerService.getCustomers();
+      setCustomers(response);
+    } catch (error) {
+      console.error("Error fetching customers:", error);
+    } finally {
+      setCustomersLoading(false);
+    }
+  };
+
+  // Fetch sellers from API
+  const fetchSellersData = async () => {
+    try {
+      setSellersLoading(true);
+      const response = await tenantUsersService.getTenantUsers();
+      setSellersData(response);
+    } catch (error) {
+      console.error("Error fetching sellers:", error);
+    } finally {
+      setSellersLoading(false);
+    }
+  };
+
+  // Helper function to get customer name by ID
+  const getCustomerName = React.useCallback(
+    (customerId) => {
+      if (!customerId) return "Unknown Customer";
+
+      let actualId = customerId;
+      if (typeof customerId === "string" && customerId.includes("#")) {
+        const match = customerId.match(/#(\d+)/);
+        actualId = match ? parseInt(match[1]) : customerId;
+      }
+
+      const customer = customers.find(
+        (c) =>
+          c.id === actualId ||
+          c.id === parseInt(actualId) ||
+          c.id === actualId.toString() ||
+          c.id === customerId ||
+          c.id === parseInt(customerId) ||
+          c.id === customerId.toString()
+      );
+
+      if (customer) {
+        return (
+          customer.customer_name || customer.name || `Customer #${actualId}`
+        );
+      }
+      return `Customer #${actualId}`;
+    },
+    [customers]
+  );
+
+  // Helper function to get seller name by ID
+  const getSellerName = React.useCallback(
+    (sellerId) => {
+      if (!sellerId) return "Unknown Seller";
+
+      let actualId = sellerId;
+      if (typeof sellerId === "string" && sellerId.includes("#")) {
+        const match = sellerId.match(/#(\d+)/);
+        actualId = match ? parseInt(match[1]) : sellerId;
+      }
+
+      const seller = sellersData.find(
+        (s) =>
+          s.id === actualId ||
+          s.id === parseInt(actualId) ||
+          s.id === actualId.toString() ||
+          s.id === sellerId ||
+          s.id === parseInt(sellerId) ||
+          s.id === sellerId.toString()
+      );
+
+      return seller
+        ? seller.username ||
+            seller.name ||
+            seller.user_name ||
+            `Seller #${actualId}`
+        : `Seller #${actualId}`;
+    },
+    [sellersData]
+  );
+
   // Fetch orders on component mount
   useEffect(() => {
     dispatch(fetchOrders());
+    fetchCustomersData();
+    fetchSellersData();
   }, [dispatch]);
 
   // Generate invoices from orders data
@@ -63,16 +160,22 @@ const InvoicesManagement = () => {
     return orders.map((order) => ({
       id: order.id,
       invoiceNumber: `INV-${order.id}`,
-      customer:
-        order.customer?.name || order.customerName || "Unknown Customer",
-      customerName:
-        order.customer?.name || order.customerName || "Unknown Customer",
+      customer: customersLoading ? "..." : getCustomerName(order.customer),
+      customerName: customersLoading ? "..." : getCustomerName(order.customer),
       customerEmail: order.customer?.email || order.customerEmail || "",
-      seller: order.seller?.name || order.sellerName || "Unknown Seller",
-      sellerName: order.seller?.name || order.sellerName || "Unknown Seller",
+      seller: sellersLoading ? "..." : getSellerName(order.sellerId),
+      sellerName: sellersLoading ? "..." : getSellerName(order.sellerId),
       sellerEmail: order.seller?.email || order.sellerEmail || "",
-      amount: order.totalAmount || order.total || 0,
-      total: order.totalAmount || order.total || 0,
+      amount: (() => {
+        const amount =
+          order.total_amount || order.totalAmount || order.total || 0;
+        return typeof amount === "string" ? parseFloat(amount) : amount;
+      })(),
+      total: (() => {
+        const amount =
+          order.total_amount || order.totalAmount || order.total || 0;
+        return typeof amount === "string" ? parseFloat(amount) : amount;
+      })(),
       status: order.status || "pending",
       date:
         order.createdAt || order.date || new Date().toISOString().split("T")[0],
@@ -90,7 +193,13 @@ const InvoicesManagement = () => {
       description: order.description || "",
       notes: order.notes || "",
     }));
-  }, [orders]);
+  }, [
+    orders,
+    customersLoading,
+    sellersLoading,
+    getCustomerName,
+    getSellerName,
+  ]);
 
   // Compute unique sellers from orders
   const sellers = React.useMemo(() => {
@@ -98,14 +207,13 @@ const InvoicesManagement = () => {
 
     const uniqueSellers = new Set();
     orders.forEach((order) => {
-      const sellerEmail = order.seller?.email || order.sellerEmail;
-      const sellerName =
-        order.seller?.name || order.sellerName || "Unknown Seller";
-      if (sellerEmail && sellerName) {
+      const sellerId = order.sellerId;
+      if (sellerId) {
+        const sellerName = getSellerName(sellerId);
         uniqueSellers.add(
           JSON.stringify({
-            id: sellerEmail,
-            email: sellerEmail,
+            id: sellerId,
+            email: order.seller?.email || order.sellerEmail || "",
             name: sellerName,
           })
         );
@@ -113,7 +221,7 @@ const InvoicesManagement = () => {
     });
 
     return Array.from(uniqueSellers).map((seller) => JSON.parse(seller));
-  }, [orders]);
+  }, [orders, getSellerName]);
 
   const filterInvoices = useCallback(() => {
     if (!Array.isArray(invoices)) {
@@ -483,7 +591,7 @@ const InvoicesManagement = () => {
   ];
 
   // Show loading state
-  if (loading) {
+  if (loading || customersLoading || sellersLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>

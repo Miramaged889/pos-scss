@@ -10,22 +10,38 @@ import {
   Download,
 } from "lucide-react";
 import { fetchOrders } from "../../../store/slices/ordersSlice";
+import { productService } from "../../../services";
 import OrderCard from "./OrderCard";
 
 const AllOrders = () => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
   const { theme } = useSelector((state) => state.language);
-  const { orders, loading, error } = useSelector((state) => state.orders);
+  const { orders } = useSelector((state) => state.orders);
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateRange, setDateRange] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
+  const [products, setProducts] = useState([]);
 
   const loadOrders = useCallback(async () => {
     await dispatch(fetchOrders());
   }, [dispatch]);
+
+  // Load products from API - ONLY ONCE
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const response = await productService.getProducts();
+        setProducts(response);
+      } catch (error) {
+        console.error("Error fetching products:", error);
+      }
+    };
+
+    fetchProducts();
+  }, []); // Empty dependency array - only run once
 
   useEffect(() => {
     loadOrders();
@@ -230,6 +246,7 @@ const AllOrders = () => {
               order={order}
               theme={theme}
               showCustomerInfo={true}
+              products={products} // Pass products data to OrderCard
             />
           ))
         ) : (

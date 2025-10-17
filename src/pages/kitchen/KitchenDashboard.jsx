@@ -3,21 +3,14 @@ import { Routes, Route } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
 import {
-  ChefHat,
-  Clock,
-  Package,
   BarChart3,
-  Settings,
   ClipboardList,
   ListFilter,
 } from "lucide-react";
 
 import DashboardLayout from "../../components/Layout/DashboardLayout";
-import KitchenHome from "./components/KitchenHome";
 import ActiveOrders from "./components/ActiveOrders";
-
 import KitchenReports from "./components/KitchenReports";
-import KitchenSettings from "./components/KitchenSettings";
 import AllOrders from "./components/AllOrders";
 import { fetchOrders } from "../../store/slices/ordersSlice";
 
@@ -30,17 +23,11 @@ const KitchenDashboard = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       dispatch(fetchOrders());
-    }, 20000);
+    }, 50000);
     return () => clearInterval(interval);
   }, [dispatch]);
 
   const sidebarItems = [
-    {
-      name: t("dashboard"),
-      icon: ChefHat,
-      href: "/kitchen/home",
-      current: false,
-    },
     {
       name: t("activeOrders"),
       icon: ClipboardList,
@@ -60,12 +47,6 @@ const KitchenDashboard = () => {
       href: "/kitchen/reports",
       current: false,
     },
-    {
-      name: t("settings"),
-      icon: Settings,
-      href: "/kitchen/settings",
-      current: false,
-    },
   ];
 
   return (
@@ -75,12 +56,10 @@ const KitchenDashboard = () => {
       theme={theme}
     >
       <Routes>
-        <Route path="/home" element={<KitchenHome />} />
         <Route path="/active-orders" element={<ActiveOrders />} />
         <Route path="/all-orders" element={<AllOrders />} />
 
         <Route path="/reports" element={<KitchenReports />} />
-        <Route path="/settings" element={<KitchenSettings />} />
       </Routes>
     </DashboardLayout>
   );

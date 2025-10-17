@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { Search, Filter, ArrowUp, ArrowDown, Eye, Loader2 } from "lucide-react";
 import { fetchOrders } from "../../../store/slices/ordersSlice";
+import { customerService } from "../../../services";
 
 const AllOrders = () => {
   const { t } = useTranslation();
@@ -16,6 +17,76 @@ const AllOrders = () => {
     direction: "desc",
   });
 
+  // Customer data states
+  const [customers, setCustomers] = useState([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
+
+  // Fetch customers from API
+  const fetchCustomersData = async () => {
+    try {
+      setCustomersLoading(true);
+      const response = await customerService.getCustomers();
+      setCustomers(response);
+    } catch (error) {
+      console.error("Error fetching customers:", error);
+    } finally {
+      setCustomersLoading(false);
+    }
+  };
+
+  // Helper function to get customer name by ID
+  const getCustomerName = (customerId) => {
+    if (!customerId) return "Unknown Customer";
+
+    // Extract actual ID from strings like "Customer #1"
+    let actualId = customerId;
+    if (typeof customerId === "string" && customerId.includes("#")) {
+      const match = customerId.match(/#(\d+)/);
+      actualId = match ? parseInt(match[1]) : customerId;
+    }
+
+    // Try both string and number comparison
+    const customer = customers.find(
+      (c) =>
+        c.id === actualId ||
+        c.id === parseInt(actualId) ||
+        c.id === actualId.toString() ||
+        c.id === customerId ||
+        c.id === parseInt(customerId) ||
+        c.id === customerId.toString()
+    );
+
+    if (customer) {
+      return customer.customer_name || customer.name || `Customer #${actualId}`;
+    }
+    return `Customer #${actualId}`;
+  };
+
+  // Helper function to get customer address by ID
+  const getCustomerAddress = (customerId) => {
+    if (!customerId) return "N/A";
+
+    // Extract actual ID from strings like "Customer #1"
+    let actualId = customerId;
+    if (typeof customerId === "string" && customerId.includes("#")) {
+      const match = customerId.match(/#(\d+)/);
+      actualId = match ? parseInt(match[1]) : customerId;
+    }
+
+    // Try both string and number comparison
+    const customer = customers.find(
+      (c) =>
+        c.id === actualId ||
+        c.id === parseInt(actualId) ||
+        c.id === actualId.toString() ||
+        c.id === customerId ||
+        c.id === parseInt(customerId) ||
+        c.id === customerId.toString()
+    );
+
+    return customer ? customer.customer_address || customer.address : "N/A";
+  };
+
   // Load delivery orders from API
   useEffect(() => {
     const loadOrders = async () => {
@@ -27,14 +98,18 @@ const AllOrders = () => {
     };
 
     loadOrders();
+    fetchCustomersData();
     const interval = setInterval(loadOrders, 30000); // Refresh every 30 seconds
 
     return () => clearInterval(interval);
   }, [dispatch]);
 
-  // Filter and sort orders
+  // Filter and sort orders - only delivery orders
   const filteredOrders = useMemo(() => {
-    let result = [...(orders || [])];
+    // First filter to only include delivery orders
+    let result = [...(orders || [])].filter(
+      (order) => order.delivery_option === "delivery"
+    );
 
     // Filter by search term
     if (searchTerm) {
@@ -186,10 +261,14 @@ const AllOrders = () => {
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex flex-col">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">
-                      {order.customer}
+                      {customersLoading
+                        ? "..."
+                        : getCustomerName(order.customer)}
                     </span>
                     <span className="text-sm text-gray-500 dark:text-gray-400">
-                      {order.deliveryAddress}
+                      {customersLoading
+                        ? "..."
+                        : getCustomerAddress(order.customer)}
                     </span>
                   </div>
                 </td>
@@ -203,7 +282,8 @@ const AllOrders = () => {
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                  {order.total?.toFixed(2)} {t("currency")}
+                  {(order.total_amount || order.total || 0).toFixed(2)}{" "}
+                  {t("currency")}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                   {new Date(order.createdAt).toLocaleString()}

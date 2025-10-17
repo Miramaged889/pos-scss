@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useSelector, useDispatch } from "react-redux";
 import { ChefHat } from "lucide-react";
@@ -10,6 +10,7 @@ import {
   fetchOrders,
   updateOrderStatus,
 } from "../../../store/slices/ordersSlice";
+import { productService } from "../../../services";
 
 const ActiveOrders = ({ isHome = false }) => {
   const { t } = useTranslation();
@@ -20,19 +21,47 @@ const ActiveOrders = ({ isHome = false }) => {
     loading,
     error,
   } = useSelector((state) => state.orders);
+
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [statusUpdateModal, setStatusUpdateModal] = useState(false);
   const [notes, setNotes] = useState("");
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
 
-  // Load orders from API
-  useEffect(() => {
-    dispatch(fetchOrders());
+  const loadOrders = useCallback(async () => {
+    await dispatch(fetchOrders());
   }, [dispatch]);
 
-  // Filter only uncompleted orders and sort by creation time (newest first)
-  const activeOrders = (reduxOrders || [])
-    .filter((order) => order.status !== "completed")
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  // Load products from API - ONLY ONCE
+  useEffect(() => {
+    const fetchProducts = async () => {
+      setProductsLoading(true);
+      try {
+        const response = await productService.getProducts();
+        setProducts(response);
+      } catch (error) {
+        console.error("Error fetching products:", error);
+      } finally {
+        setProductsLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []); // Empty dependency array - only run once
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
+  // Memoized filtering to prevent unnecessary re-renders
+  const activeOrders = useMemo(() => {
+    if (!Array.isArray(reduxOrders) || reduxOrders.length === 0) {
+      return [];
+    }
+    return reduxOrders
+      .filter((order) => order.status !== "completed")
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }, [reduxOrders]);
 
   const displayOrders = isHome ? activeOrders.slice(0, 8) : activeOrders;
 
@@ -117,7 +146,7 @@ const ActiveOrders = ({ isHome = false }) => {
   };
 
   // Show loading state
-  if (loading) {
+  if (loading || productsLoading) {
     return (
       <div className={`space-y-6 ${theme === "dark" ? "dark" : ""}`}>
         <div className="flex items-center justify-center py-12">
@@ -176,6 +205,7 @@ const ActiveOrders = ({ isHome = false }) => {
             order={order}
             priority={getOrderPriority(order)}
             onStatusUpdate={handleStatusUpdate}
+            products={products} // Pass products data to OrderCard
           />
         ))}
       </div>

@@ -102,28 +102,47 @@ const UserManagement = () => {
     };
   }, [tenantInfo, users.length]);
 
+  // Role mapping function to convert display roles to API roles
+  const getApiRole = (displayRole) => {
+    const roleMapping = {
+      Seller: "Seller",
+      Manager: "Manager",
+      Kitchen: "Kitchen",
+      Delivery: "Delivery",
+    };
+    return roleMapping[displayRole] || displayRole;
+  };
+
   // Get available roles based on enabled modules
   const availableRoles = React.useMemo(() => {
     if (!tenantInfo?.modules_enabled) {
       return [
-        { value: "Seller", label: t("seller") },
-        { value: "Manager", label: t("manager") },
+        { value: "Seller", label: t("seller"), apiValue: "Seller" },
+        { value: "Manager", label: t("manager"), apiValue: "Manager" },
       ];
     }
 
     const roles = [
-      { value: "Seller", label: t("seller") },
-      { value: "Manager", label: t("manager") },
+      { value: "Seller", label: t("seller"), apiValue: "Seller" },
+      { value: "Manager", label: t("manager"), apiValue: "Manager" },
     ];
 
     // Add kitchen role if kitchen module is enabled
     if (tenantInfo.modules_enabled.kitchen === true) {
-      roles.push({ value: "Kitchen", label: t("kitchen") });
+      roles.push({
+        value: "Kitchen",
+        label: t("kitchen"),
+        apiValue: "Kitchen",
+      });
     }
 
     // Add delivery role if delivery module is enabled
     if (tenantInfo.modules_enabled.Delivery === true) {
-      roles.push({ value: "Delivery", label: t("delivery") });
+      roles.push({
+        value: "Delivery",
+        label: t("delivery"),
+        apiValue: "Delivery",
+      });
     }
 
     return roles;
@@ -185,11 +204,17 @@ const UserManagement = () => {
   };
 
   const handleEditUser = (user) => {
+    // Convert API role back to display role for the form
+    const displayRole =
+      availableRoles.find((role) => role.apiValue === user.role)?.value ||
+      user.role ||
+      "Seller";
+
     setFormData({
       username: user.username || "",
       email: user.email || "",
       password: "", // Don't show password in edit mode
-      role: user.role || "Seller", // Keep the exact role from API
+      role: displayRole, // Convert API role to display role
     });
     setSelectedUser(user);
     setShowEditModal(true);
@@ -226,16 +251,23 @@ const UserManagement = () => {
     }
 
     try {
+      // Convert display role to API role
+      const apiRole = getApiRole(formData.role);
+
       if (showCreateModal) {
-        // Create new user
-        await dispatch(createTenantUser(formData)).unwrap();
+        // Create new user with API role
+        const createData = {
+          ...formData,
+          role: apiRole,
+        };
+        await dispatch(createTenantUser(createData)).unwrap();
         toast.success(t("userCreated"));
       } else {
         // Update existing user - only send fields that should be updated
         const updateData = {
           username: formData.username,
           email: formData.email,
-          role: formData.role,
+          role: apiRole,
         };
 
         // Only include password if it's provided
@@ -468,7 +500,8 @@ const UserManagement = () => {
                 {t("userLimitReached")}
               </h3>
               <p className="text-sm text-red-600 dark:text-red-300 mt-1">
-                {t("userLimit")}: {userLimits.currentUsers}/{userLimits.maxUsers}
+                {t("userLimit")}: {userLimits.currentUsers}/
+                {userLimits.maxUsers}
               </p>
             </div>
           </div>

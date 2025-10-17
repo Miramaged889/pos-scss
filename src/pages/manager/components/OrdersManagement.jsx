@@ -28,6 +28,11 @@ import {
   updateOrder,
   deleteOrder,
 } from "../../../store/slices/ordersSlice";
+import {
+  productService,
+  customerService,
+  tenantUsersService,
+} from "../../../services";
 
 const OrdersManagement = () => {
   const { t } = useTranslation();
@@ -35,6 +40,7 @@ const OrdersManagement = () => {
 
   // Get data from Redux store
   const { orders, loading, error } = useSelector((state) => state.orders);
+  const { isRTL } = useSelector((state) => state.language);
 
   // Local state for UI
   const [filteredOrders, setFilteredOrders] = useState([]);
@@ -49,6 +55,246 @@ const OrdersManagement = () => {
   const [deleteModal, setDeleteModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [editForm, setEditForm] = useState({});
+
+  // Data states
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [customers, setCustomers] = useState([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const [sellersData, setSellersData] = useState([]);
+  const [sellersLoading, setSellersLoading] = useState(false);
+
+  // Fetch products from API
+  const fetchProducts = async () => {
+    try {
+      setProductsLoading(true);
+      const response = await productService.getProducts();
+      setProducts(response);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+    } finally {
+      setProductsLoading(false);
+    }
+  };
+
+  // Fetch customers from API
+  const fetchCustomersData = async () => {
+    try {
+      setCustomersLoading(true);
+      const response = await customerService.getCustomers();
+      setCustomers(response);
+    } catch (error) {
+      console.error("Error fetching customers:", error);
+    } finally {
+      setCustomersLoading(false);
+    }
+  };
+
+  // Fetch sellers from API
+  const fetchSellersData = async () => {
+    try {
+      setSellersLoading(true);
+      const response = await tenantUsersService.getTenantUsers();
+      setSellersData(response);
+    } catch (error) {
+      console.error("Error fetching sellers:", error);
+    } finally {
+      setSellersLoading(false);
+    }
+  };
+
+  // Helper function to get both English and Arabic product names
+  const getProductNameBothLanguages = (productId) => {
+    if (!productId)
+      return { english: "Unknown Product", arabic: "منتج غير معروف" };
+
+    // Extract actual ID from strings like "Product #3"
+    let actualId = productId;
+    if (typeof productId === "string" && productId.includes("#")) {
+      const match = productId.match(/#(\d+)/);
+      actualId = match ? parseInt(match[1]) : productId;
+    }
+
+    // Try both string and number comparison
+    const product = products.find(
+      (p) =>
+        p.id === actualId ||
+        p.id === parseInt(actualId) ||
+        p.id === actualId.toString() ||
+        p.id === productId ||
+        p.id === parseInt(productId) ||
+        p.id === productId.toString()
+    );
+
+    if (product) {
+      return {
+        english: product.nameEn || product.name || `Product #${actualId}`,
+        arabic: product.name || product.nameEn || `منتج #${actualId}`,
+      };
+    }
+    return {
+      english: `Product #${actualId}`,
+      arabic: `منتج #${actualId}`,
+    };
+  };
+
+  // Helper function to get product price by ID
+  const getProductPrice = (productId) => {
+    if (!productId) return 0;
+
+    // Extract actual ID from strings like "Product #3"
+    let actualId = productId;
+    if (typeof productId === "string" && productId.includes("#")) {
+      const match = productId.match(/#(\d+)/);
+      actualId = match ? parseInt(match[1]) : productId;
+    }
+
+    // Try both string and number comparison
+    const product = products.find(
+      (p) =>
+        p.id === actualId ||
+        p.id === parseInt(actualId) ||
+        p.id === actualId.toString() ||
+        p.id === productId ||
+        p.id === parseInt(productId) ||
+        p.id === productId.toString()
+    );
+
+    return product ? parseFloat(product.price) : 0;
+  };
+
+  // Helper function to get customer name by ID
+  const getCustomerName = (customerId) => {
+    if (!customerId) return "Unknown Customer";
+
+    // Extract actual ID from strings like "Customer #1"
+    let actualId = customerId;
+    if (typeof customerId === "string" && customerId.includes("#")) {
+      const match = customerId.match(/#(\d+)/);
+      actualId = match ? parseInt(match[1]) : customerId;
+    }
+
+    // Try both string and number comparison
+    const customer = customers.find(
+      (c) =>
+        c.id === actualId ||
+        c.id === parseInt(actualId) ||
+        c.id === actualId.toString() ||
+        c.id === customerId ||
+        c.id === parseInt(customerId) ||
+        c.id === customerId.toString()
+    );
+
+    if (customer) {
+      return customer.customer_name || customer.name || `Customer #${actualId}`;
+    }
+    return `Customer #${actualId}`;
+  };
+
+  // Helper function to get customer phone by ID
+  const getCustomerPhone = (customerId) => {
+    if (!customerId) return "N/A";
+
+    // Extract actual ID from strings like "Customer #1"
+    let actualId = customerId;
+    if (typeof customerId === "string" && customerId.includes("#")) {
+      const match = customerId.match(/#(\d+)/);
+      actualId = match ? parseInt(match[1]) : customerId;
+    }
+
+    // Try both string and number comparison
+    const customer = customers.find(
+      (c) =>
+        c.id === actualId ||
+        c.id === parseInt(actualId) ||
+        c.id === actualId.toString() ||
+        c.id === customerId ||
+        c.id === parseInt(customerId) ||
+        c.id === customerId.toString()
+    );
+
+    return customer ? customer.customer_phone || customer.phone : "N/A";
+  };
+
+  // Helper function to get customer address by ID
+  const getCustomerAddress = (customerId) => {
+    if (!customerId) return "N/A";
+
+    // Extract actual ID from strings like "Customer #1"
+    let actualId = customerId;
+    if (typeof customerId === "string" && customerId.includes("#")) {
+      const match = customerId.match(/#(\d+)/);
+      actualId = match ? parseInt(match[1]) : customerId;
+    }
+
+    // Try both string and number comparison
+    const customer = customers.find(
+      (c) =>
+        c.id === actualId ||
+        c.id === parseInt(actualId) ||
+        c.id === actualId.toString() ||
+        c.id === customerId ||
+        c.id === parseInt(customerId) ||
+        c.id === customerId.toString()
+    );
+
+    return customer ? customer.customer_address || customer.address : "N/A";
+  };
+
+  // Helper function to get seller name by ID
+  const getSellerName = (sellerId) => {
+    if (!sellerId) return "Unknown Seller";
+
+    // Extract actual ID from strings like "Seller #2"
+    let actualId = sellerId;
+    if (typeof sellerId === "string" && sellerId.includes("#")) {
+      const match = sellerId.match(/#(\d+)/);
+      actualId = match ? parseInt(match[1]) : sellerId;
+    }
+
+    // Try both string and number comparison
+    const seller = sellersData.find(
+      (s) =>
+        s.id === actualId ||
+        s.id === parseInt(actualId) ||
+        s.id === actualId.toString() ||
+        s.id === sellerId ||
+        s.id === parseInt(sellerId) ||
+        s.id === sellerId.toString()
+    );
+
+    return seller
+      ? seller.username ||
+          seller.name ||
+          seller.user_name ||
+          `Seller #${actualId}`
+      : `Seller #${actualId}`;
+  };
+
+  // Helper function to get seller email by ID
+  const getSellerEmail = (sellerId) => {
+    if (!sellerId) return "N/A";
+
+    // Extract actual ID from strings like "Seller #2"
+    let actualId = sellerId;
+    if (typeof sellerId === "string" && sellerId.includes("#")) {
+      const match = sellerId.match(/#(\d+)/);
+      actualId = match ? parseInt(match[1]) : sellerId;
+    }
+
+    // Try both string and number comparison
+    const seller = sellersData.find(
+      (s) =>
+        s.id === actualId ||
+        s.id === parseInt(actualId) ||
+        s.id === actualId.toString() ||
+        s.id === sellerId ||
+        s.id === parseInt(sellerId) ||
+        s.id === sellerId.toString()
+    );
+
+    return seller ? seller.email || seller.user_email : "N/A";
+  };
 
   const filterOrders = useCallback(() => {
     if (!Array.isArray(orders)) {
@@ -108,6 +354,9 @@ const OrdersManagement = () => {
 
   useEffect(() => {
     dispatch(fetchOrders());
+    fetchProducts();
+    fetchCustomersData();
+    fetchSellersData();
   }, [dispatch]);
 
   useEffect(() => {
@@ -211,30 +460,37 @@ const OrdersManagement = () => {
     {
       header: t("customer"),
       accessor: "customerName",
-      render: (item) => (
-        <div>
-          <p className="font-medium text-gray-900 dark:text-white">
-            {item.customer?.name || item.customerName || "Unknown Customer"}
-          </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {item.customer?.phone || item.customerPhone || "N/A"}
-          </p>
-        </div>
-      ),
+      render: (item) => {
+        const customerId = item.customer;
+
+        return (
+          <div>
+            <p className="font-medium text-gray-900 dark:text-white">
+              {customersLoading ? "..." : getCustomerName(customerId)}
+            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {customersLoading ? "..." : getCustomerPhone(customerId) || "N/A"}
+            </p>
+          </div>
+        );
+      },
     },
     {
       header: t("seller"),
       accessor: "sellerName",
-      render: (item) => (
-        <div>
-          <p className="font-medium text-gray-900 dark:text-white">
-            {item.seller?.name || item.sellerName || "Unknown Seller"}
-          </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {item.seller?.email || item.sellerEmail || "N/A"}
-          </p>
-        </div>
-      ),
+      render: (item) => {
+        const sellerId = item.sellerId;
+        return (
+          <div>
+            <p className="font-medium text-gray-900 dark:text-white">
+              {sellersLoading ? "..." : getSellerName(sellerId)}
+            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {sellersLoading ? "..." : getSellerEmail(sellerId) || "N/A"}
+            </p>
+          </div>
+        );
+      },
     },
     {
       header: t("items"),
@@ -246,13 +502,25 @@ const OrdersManagement = () => {
               <div key={index} className="text-sm">
                 <span className="text-gray-900 dark:text-white">
                   {orderItem.quantity || 1}x{" "}
-                  {orderItem.name || orderItem.product?.name || "Item"}
+                  {productsLoading
+                    ? "..."
+                    : orderItem.product_id
+                    ? (() => {
+                        const names = getProductNameBothLanguages(
+                          orderItem.product_id
+                        );
+                        return isRTL ? names.arabic : names.english;
+                      })()
+                    : orderItem.name || orderItem.product?.name || "Item"}
                 </span>
-                <span className="text-gray-500 dark:text-gray-400 ml-2">
+                <span className="text-gray-500 dark:text-gray-400">
                   $
-                  {(orderItem.price || orderItem.product?.price || 0).toFixed(
-                    2
-                  )}
+                  {productsLoading
+                    ? "..."
+                    : (orderItem.product_id
+                        ? getProductPrice(orderItem.product_id)
+                        : orderItem.price || orderItem.product?.price || 0
+                      ).toFixed(2)}
                 </span>
               </div>
             ))
@@ -261,10 +529,23 @@ const OrdersManagement = () => {
               <div key={index} className="text-sm">
                 <span className="text-gray-900 dark:text-white">
                   {product.quantity || 1}x{" "}
-                  {product.name || product.nameEn || "Item"}
+                  {productsLoading
+                    ? "..."
+                    : product.id
+                    ? (() => {
+                        const names = getProductNameBothLanguages(product.id);
+                        return isRTL ? names.arabic : names.english;
+                      })()
+                    : product.name || product.nameEn || "Item"}
                 </span>
-                <span className="text-gray-500 dark:text-gray-400 ml-2">
-                  ${(product.price || 0).toFixed(2)}
+                <span className="text-gray-500 dark:text-gray-400">
+                  $
+                  {productsLoading
+                    ? "..."
+                    : (product.id
+                        ? getProductPrice(product.id)
+                        : product.price || 0
+                      ).toFixed(2)}
                 </span>
               </div>
             ))
@@ -283,7 +564,7 @@ const OrdersManagement = () => {
       accessor: "totalAmount",
       render: (item) => (
         <span className="font-medium text-gray-900 dark:text-white">
-          ${(item.totalAmount || item.total || 0).toFixed(2)}
+          ${(item.total_amount || 0).toFixed(2)}
         </span>
       ),
     },
@@ -441,10 +722,11 @@ const OrdersManagement = () => {
     const completedOrders = orders.filter(
       (order) => order.status === "completed"
     ).length;
-    const totalRevenue = orders.reduce(
-      (sum, order) => sum + (order.totalAmount || order.total || 0),
-      0
-    );
+    const totalRevenue = orders.reduce((sum, order) => {
+      const amount =
+        order.total_amount || order.totalAmount || order.total || 0;
+      return sum + (typeof amount === "string" ? parseFloat(amount) : amount);
+    }, 0);
 
     return {
       totalOrders,
@@ -703,28 +985,46 @@ const OrdersManagement = () => {
             </div>
 
             <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
                     {t("customerInformation")}
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("name")}:</strong>{" "}
-                    {selectedOrder.customer?.name ||
-                      selectedOrder.customerName ||
-                      "Unknown"}
+                    {customersLoading
+                      ? "..."
+                      : getCustomerName(selectedOrder.customer)}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("phone")}:</strong>{" "}
-                    {selectedOrder.customer?.phone ||
-                      selectedOrder.customerPhone ||
-                      "N/A"}
+                    {customersLoading
+                      ? "..."
+                      : getCustomerPhone(selectedOrder.customer) || "N/A"}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("address")}:</strong>{" "}
-                    {selectedOrder.customer?.address ||
-                      selectedOrder.address ||
-                      "N/A"}
+                    {customersLoading
+                      ? "..."
+                      : getCustomerAddress(selectedOrder.customer) || "N/A"}
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                    {t("sellerInformation")}
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <strong>{t("name")}:</strong>{" "}
+                    {sellersLoading
+                      ? "..."
+                      : getSellerName(selectedOrder.sellerId)}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <strong>{t("email")}:</strong>{" "}
+                    {sellersLoading
+                      ? "..."
+                      : getSellerEmail(selectedOrder.sellerId) || "N/A"}
                   </p>
                 </div>
 
@@ -744,11 +1044,7 @@ const OrdersManagement = () => {
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("total")}:</strong> $
-                    {(
-                      selectedOrder.totalAmount ||
-                      selectedOrder.total ||
-                      0
-                    ).toFixed(2)}
+                    {(selectedOrder.total_amount || 0).toFixed(2)}
                   </p>
                 </div>
               </div>
@@ -758,17 +1054,60 @@ const OrdersManagement = () => {
                   {t("items")}
                 </h3>
                 <div className="space-y-2">
-                  {(selectedOrder.items || []).map((item, index) => (
+                  {(Array.isArray(selectedOrder.items)
+                    ? selectedOrder.items
+                    : Array.isArray(selectedOrder.products)
+                    ? selectedOrder.products.map((p) => ({
+                        product_id: p.id,
+                        quantity: p.quantity,
+                      }))
+                    : []
+                  ).map((item, index) => (
                     <div
                       key={index}
                       className="flex justify-between items-center p-2 bg-gray-50 dark:bg-gray-700 rounded"
                     >
                       <span className="text-sm text-gray-900 dark:text-white">
                         {item.quantity || 1}x{" "}
-                        {item.name || item.product?.name || "Item"}
+                        {productsLoading
+                          ? "..."
+                          : item.product_id
+                          ? (() => {
+                              const names = getProductNameBothLanguages(
+                                item.product_id
+                              );
+                              return (
+                                <span>
+                                  {isRTL ? (
+                                    <>
+                                      {names.arabic}
+                                      {names.english !== names.arabic && (
+                                        <span className="text-xs text-gray-500 ml-1">
+                                          ({names.english})
+                                        </span>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <>
+                                      {names.english}
+                                      {names.english !== names.arabic && (
+                                        <span className="text-xs text-gray-500 ml-1">
+                                          ({names.arabic})
+                                        </span>
+                                      )}
+                                    </>
+                                  )}
+                                </span>
+                              );
+                            })()
+                          : item.name || item.product?.name || "Item"}
                       </span>
                       <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        ${(item.price || item.product?.price || 0).toFixed(2)}
+                        $
+                        {(item.product_id
+                          ? getProductPrice(item.product_id)
+                          : item.price || item.product?.price || 0
+                        ).toFixed(2)}
                       </span>
                     </div>
                   ))}

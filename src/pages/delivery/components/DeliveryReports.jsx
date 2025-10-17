@@ -49,9 +49,11 @@ const DeliveryReports = () => {
   const [stats, setStats] = useState(null);
   const [dateRange, setDateRange] = useState("today");
 
-  // Get completed deliveries from orders
+  // Get completed deliveries from orders - only delivery orders
   const completedDeliveries = orders.filter(
-    (order) => order.status === "delivered" || order.status === "completed"
+    (order) =>
+      order.delivery_option === "delivery" &&
+      (order.status === "delivered" || order.status === "completed")
   );
 
   // Load orders from API
@@ -62,7 +64,11 @@ const DeliveryReports = () => {
   // Calculate stats from orders data
   useEffect(() => {
     if (orders.length > 0) {
-      const totalEarnings = orders.reduce(
+      // Only calculate earnings from delivery orders
+      const deliveryOrders = orders.filter(
+        (order) => order.delivery_option === "delivery"
+      );
+      const totalEarnings = deliveryOrders.reduce(
         (sum, order) => sum + (order.total || 0),
         0
       );
@@ -117,7 +123,9 @@ const DeliveryReports = () => {
       },
       {
         title: t("earnings"),
-        value: `${currentStats.totalEarnings.toFixed(2)} ${t("currency")}`,
+        value: `${(currentStats.totalEarnings || 0).toFixed(2)} ${t(
+          "currency"
+        )}`,
         icon: DollarSign,
         color: "green",
         trend: "+8%",
@@ -133,7 +141,7 @@ const DeliveryReports = () => {
       },
       {
         title: t("onTimeRate"),
-        value: `${currentStats.onTimeRate.toFixed(1)}%`,
+        value: `${(currentStats.onTimeRate || 0).toFixed(1)}%`,
         icon: CheckCircle,
         color: "purple",
         trend: "+3%",
@@ -179,7 +187,7 @@ const DeliveryReports = () => {
         100
       : 0;
 
-    return { labels, data, trend: deliveryTrend.toFixed(1) };
+    return { labels, data, trend: (deliveryTrend || 0).toFixed(1) };
   };
 
   const prepareEarningsTrendData = () => {
@@ -228,17 +236,24 @@ const DeliveryReports = () => {
         100
       : 0;
 
-    return { labels, data, trend: earningsTrend.toFixed(1) };
+    return { labels, data, trend: (earningsTrend || 0).toFixed(1) };
   };
 
   const prepareOrderStatusData = () => {
     const statusCounts = {
-      ready: orders.filter((order) => !order.deliveryStatus).length,
-      delivering: orders.filter(
-        (order) => order.deliveryStatus === "delivering"
+      ready: orders.filter(
+        (order) => order.delivery_option === "delivery" && !order.deliveryStatus
       ).length,
-      completed: orders.filter((order) => order.deliveryStatus === "delivered")
-        .length,
+      delivering: orders.filter(
+        (order) =>
+          order.delivery_option === "delivery" &&
+          order.deliveryStatus === "delivering"
+      ).length,
+      completed: orders.filter(
+        (order) =>
+          order.delivery_option === "delivery" &&
+          order.deliveryStatus === "delivered"
+      ).length,
     };
 
     return {

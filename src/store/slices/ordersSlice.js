@@ -40,9 +40,9 @@ export const updateOrder = createAsyncThunk(
 
 export const updateOrderStatus = createAsyncThunk(
   "orders/updateOrderStatus",
-  async ({ id, status }, { rejectWithValue }) => {
+  async ({ id, ...updateData }, { rejectWithValue }) => {
     try {
-      const response = await orderService.updateOrderStatus(id, status);
+      const response = await orderService.updateOrderStatus(id, updateData);
       return response;
     } catch (error) {
       return rejectWithValue(error.message);

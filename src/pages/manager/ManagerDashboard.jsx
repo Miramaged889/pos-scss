@@ -7,15 +7,16 @@ import {
   ShoppingCart,
   FileText,
   BarChart3,
-  Settings,
   Building,
   RotateCcw,
   Receipt,
+  CreditCard,
 } from "lucide-react";
 
 import DashboardLayout from "../../components/Layout/DashboardLayout";
 import ManagerHome from "./components/ManagerHome";
 import UserManagement from "./components/SellerManagement";
+import PaymentMethodsManagement from "./components/PaymentMethodsManagement";
 import OrdersManagement from "./components/OrdersManagement";
 import InvoicesManagement from "./components/InvoicesManagement";
 import ManagerReports from "./components/ManagerReports";
@@ -48,6 +49,12 @@ const ManagerDashboard = () => {
       title: t("branches"),
       href: "/manager/branches",
       icon: Building,
+    },
+    {
+      key: "payment-methods",
+      title: t("paymentMethods"),
+      href: "/manager/payment-methods",
+      icon: CreditCard,
     },
     {
       key: "orders",
@@ -105,6 +112,7 @@ const ManagerDashboard = () => {
         <Route index element={<ManagerHome />} />
         <Route path="/home" element={<ManagerHome />} />
         <Route path="users" element={<UserManagement />} />
+        <Route path="payment-methods" element={<PaymentMethodsManagement />} />
         <Route path="branches" element={<BranchesManagement />} />
         <Route path="orders" element={<OrdersManagement />} />
         <Route path="invoices" element={<InvoicesManagement />} />

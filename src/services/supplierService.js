@@ -183,6 +183,72 @@ export const supplierService = {
     });
     return await apiService.delete(endpoint);
   },
+
+  // Get purchase item by ID from purchases
+  getPurchaseItemById: async (itemId) => {
+    try {
+      // Get all purchase orders
+      const response = await apiService.get(
+        API_ENDPOINTS.SUPPLIER_PURCHASE.LIST
+      );
+      const purchaseOrders = response.results || response || [];
+
+      // Search through all purchase orders to find the item
+      for (const order of purchaseOrders) {
+        if (order.items && Array.isArray(order.items)) {
+          const item = order.items.find(
+            (item) => item.id === itemId || item.purchase_item_id === itemId
+          );
+          if (item) {
+            return {
+              id: item.id || item.purchase_item_id,
+              name: item.item_name || item.name,
+              price: item.unit_price || item.price,
+              quantity: item.quantity,
+              purchaseOrderId: order.id,
+            };
+          }
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error("Error fetching purchase item by ID:", error);
+      return null;
+    }
+  },
+
+  // Get all purchase items with their names
+  getAllPurchaseItems: async () => {
+    try {
+      const response = await apiService.get(
+        API_ENDPOINTS.SUPPLIER_PURCHASE.LIST
+      );
+      const purchaseOrders = response.results || response || [];
+
+      const allItems = [];
+
+      purchaseOrders.forEach((order) => {
+        if (order.items && Array.isArray(order.items)) {
+          order.items.forEach((item) => {
+            if (item.item_name && item.item_name.trim()) {
+              allItems.push({
+                id: item.id || item.purchase_item_id,
+                name: item.item_name,
+                price: item.unit_price || 0,
+                quantity: item.quantity || 1,
+                purchaseOrderId: order.id,
+              });
+            }
+          });
+        }
+      });
+
+      return allItems;
+    } catch (error) {
+      console.error("Error fetching all purchase items:", error);
+      return [];
+    }
+  },
 };
 
 export default supplierService;

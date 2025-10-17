@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
@@ -21,6 +21,7 @@ import {
   updateOrderStatus,
 } from "../../../store/slices/ordersSlice";
 import { paymentService } from "../../../services/paymentService";
+import { customerService, productService } from "../../../services";
 
 const MyOrders = ({ isHome = false }) => {
   const { t } = useTranslation();
@@ -40,22 +41,196 @@ const MyOrders = ({ isHome = false }) => {
   const [paymentError, setPaymentError] = useState("");
   const [isConfirming, setIsConfirming] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [startingDelivery, setStartingDelivery] = useState(null); // Track which order is being started
+
+  // Customer data states
+  const [customers, setCustomers] = useState([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
+
+  // Product data states
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+
+  // Fetch customers from API
+  const fetchCustomersData = async () => {
+    try {
+      setCustomersLoading(true);
+      const response = await customerService.getCustomers();
+      setCustomers(response);
+    } catch (error) {
+      console.error("Error fetching customers:", error);
+    } finally {
+      setCustomersLoading(false);
+    }
+  };
+
+  // Fetch products from API
+  const fetchProducts = async () => {
+    try {
+      setProductsLoading(true);
+      const response = await productService.getProducts();
+      setProducts(response);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+    } finally {
+      setProductsLoading(false);
+    }
+  };
+
+  // Helper function to get customer name by ID
+  const getCustomerName = (customerId) => {
+    if (!customerId) return "Unknown Customer";
+
+    // Extract actual ID from strings like "Customer #1"
+    let actualId = customerId;
+    if (typeof customerId === "string" && customerId.includes("#")) {
+      const match = customerId.match(/#(\d+)/);
+      actualId = match ? parseInt(match[1]) : customerId;
+    }
+
+    // Try both string and number comparison
+    const customer = customers.find(
+      (c) =>
+        c.id === actualId ||
+        c.id === parseInt(actualId) ||
+        c.id === actualId.toString() ||
+        c.id === customerId ||
+        c.id === parseInt(customerId) ||
+        c.id === customerId.toString()
+    );
+
+    if (customer) {
+      return customer.customer_name || customer.name || `Customer #${actualId}`;
+    }
+    return `Customer #${actualId}`;
+  };
+
+  // Helper function to get customer phone by ID
+  const getCustomerPhone = (customerId) => {
+    if (!customerId) return "N/A";
+
+    // Extract actual ID from strings like "Customer #1"
+    let actualId = customerId;
+    if (typeof customerId === "string" && customerId.includes("#")) {
+      const match = customerId.match(/#(\d+)/);
+      actualId = match ? parseInt(match[1]) : customerId;
+    }
+
+    // Try both string and number comparison
+    const customer = customers.find(
+      (c) =>
+        c.id === actualId ||
+        c.id === parseInt(actualId) ||
+        c.id === actualId.toString() ||
+        c.id === customerId ||
+        c.id === parseInt(customerId) ||
+        c.id === customerId.toString()
+    );
+
+    return customer ? customer.customer_phone || customer.phone : "N/A";
+  };
+
+  // Helper function to get customer address by ID
+  const getCustomerAddress = (customerId) => {
+    if (!customerId) return "N/A";
+
+    // Extract actual ID from strings like "Customer #1"
+    let actualId = customerId;
+    if (typeof customerId === "string" && customerId.includes("#")) {
+      const match = customerId.match(/#(\d+)/);
+      actualId = match ? parseInt(match[1]) : customerId;
+    }
+
+    // Try both string and number comparison
+    const customer = customers.find(
+      (c) =>
+        c.id === actualId ||
+        c.id === parseInt(actualId) ||
+        c.id === actualId.toString() ||
+        c.id === customerId ||
+        c.id === parseInt(customerId) ||
+        c.id === customerId.toString()
+    );
+
+    return customer ? customer.customer_address || customer.address : "N/A";
+  };
+
+  // Helper function to get product name by ID
+  const getProductName = (productId) => {
+    if (!productId) return "Unknown Product";
+
+    // Extract actual ID from strings like "Product #3"
+    let actualId = productId;
+    if (typeof productId === "string" && productId.includes("#")) {
+      const match = productId.match(/#(\d+)/);
+      actualId = match ? parseInt(match[1]) : productId;
+    }
+
+    // Try both string and number comparison
+    const product = products.find(
+      (p) =>
+        p.id === actualId ||
+        p.id === parseInt(actualId) ||
+        p.id === actualId.toString() ||
+        p.id === productId ||
+        p.id === parseInt(productId) ||
+        p.id === productId.toString()
+    );
+
+    if (product) {
+      return product.nameEn || product.name || `Product #${actualId}`;
+    }
+    return `Product #${actualId}`;
+  };
+
+  // Helper function to get product price by ID
+  const getProductPrice = (productId) => {
+    if (!productId) return 0;
+
+    // Extract actual ID from strings like "Product #3"
+    let actualId = productId;
+    if (typeof productId === "string" && productId.includes("#")) {
+      const match = productId.match(/#(\d+)/);
+      actualId = match ? parseInt(match[1]) : productId;
+    }
+
+    // Try both string and number comparison
+    const product = products.find(
+      (p) =>
+        p.id === actualId ||
+        p.id === parseInt(actualId) ||
+        p.id === actualId.toString() ||
+        p.id === productId ||
+        p.id === parseInt(productId) ||
+        p.id === productId.toString()
+    );
+
+    return product ? parseFloat(product.price) : 0;
+  };
 
   // Load orders from API
   useEffect(() => {
     dispatch(fetchOrders());
+    fetchCustomersData();
+    fetchProducts();
 
     // Refresh orders every 30 seconds
     const interval = setInterval(() => {
       dispatch(fetchOrders());
     }, 30000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      setStartingDelivery(null); // Clear loading state on unmount
+    };
   }, [dispatch]);
 
-  // Filter orders for this driver
+  // Filter orders for this driver - only delivery orders
   const filterOrders = () => {
-    let filteredOrders = orders.filter((order) => order && order.id); // Ensure valid orders
+    // First filter to only include delivery orders
+    let filteredOrders = orders.filter(
+      (order) => order && order.id && order.delivery_option === "delivery"
+    );
 
     switch (filter) {
       case "pending":
@@ -93,28 +268,47 @@ const MyOrders = ({ isHome = false }) => {
 
   const displayOrders = isHome ? filterOrders().slice(0, 4) : filterOrders();
 
-  const handleStartDelivery = async (orderId) => {
-    try {
-      // Update order status via API
-      await dispatch(
-        updateOrderStatus({
-          id: orderId,
-          status: "delivering",
-          assignedDriver: user?.name,
-          deliveryStartTime: new Date().toISOString(),
-        })
-      );
-    } catch (err) {
-      console.error("Error starting delivery:", err);
-    }
-  };
+  const handleStartDelivery = useCallback(
+    async (orderId) => {
+      // Use a simple flag to prevent multiple calls
+      if (startingDelivery === orderId) {
+        console.log("Already starting delivery for order:", orderId);
+        return;
+      }
+
+      try {
+        console.log("Starting delivery for order:", orderId);
+        setStartingDelivery(orderId);
+
+        // Update order status via API - set status to "pending" when starting delivery
+        await dispatch(
+          updateOrderStatus({
+            id: orderId,
+            status: "pending",
+            assignedDriver: user?.name,
+            deliveryStartTime: new Date().toISOString(),
+            deliveryStatus: "delivering",
+          })
+        );
+
+        // The Redux state will automatically update the UI, no need for immediate refresh
+        // The 30-second interval will handle regular updates
+      } catch (err) {
+        console.error("Error starting delivery:", err);
+        // You could add a toast notification here to show the error to the user
+      } finally {
+        setStartingDelivery(null);
+      }
+    },
+    [dispatch, user?.name, startingDelivery]
+  );
 
   const handleCompleteDelivery = (order) => {
-    if (!order.total) {
+    if (!order.total_amount && !order.total) {
       return;
     }
     setSelectedOrder(order);
-    setPaymentAmount(order.total.toString());
+    setPaymentAmount((order.total_amount || order.total || 0).toString());
     setPaymentError("");
     setShowPaymentModal(true);
   };
@@ -129,7 +323,11 @@ const MyOrders = ({ isHome = false }) => {
         return;
       }
 
-      if (Math.abs(amount - selectedOrder.total) > 0.01) {
+      if (
+        Math.abs(
+          amount - (selectedOrder.total_amount || selectedOrder.total || 0)
+        ) > 0.01
+      ) {
         setPaymentError(t("amountMismatch"));
         return;
       }
@@ -148,7 +346,7 @@ const MyOrders = ({ isHome = false }) => {
         amount: amount,
         collectedBy: user?.name,
         customerName: selectedOrder.customer,
-        orderTotal: selectedOrder.total,
+        orderTotal: selectedOrder.total_amount || selectedOrder.total || 0,
         method: "cash",
         status: "completed",
         collectedAt: new Date().toISOString(),
@@ -173,6 +371,7 @@ const MyOrders = ({ isHome = false }) => {
         })
       );
 
+      // The Redux state will automatically update the UI
       // Reset state
       setShowPaymentModal(false);
       setSelectedOrder(null);
@@ -308,24 +507,36 @@ const MyOrders = ({ isHome = false }) => {
                   <div className="flex items-center justify-between">
                     <div className="space-y-1">
                       <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                        {order.customer}
+                        {customersLoading
+                          ? "..."
+                          : getCustomerName(order.customer)}
                       </h3>
                       <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                         <MapPin className="w-4 h-4 flex-shrink-0" />
                         <span className="truncate max-w-xs">
-                          {order.deliveryAddress}
+                          {customersLoading
+                            ? "..."
+                            : getCustomerAddress(order.customer)}
                         </span>
                       </div>
                     </div>
-                    {order.customerPhone && (
-                      <a
-                        href={`tel:${order.customerPhone}`}
-                        className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-                        title={t("callCustomer")}
-                      >
-                        <Phone className="w-5 h-5" />
-                      </a>
-                    )}
+                    {getCustomerPhone(order.customer) !== "N/A" &&
+                      getCustomerPhone(order.customer) && (
+                        <div className="flex items-center gap-2">
+                          <Phone className="w-4 h-4 text-gray-400" />
+                          <span
+                            className="text-sm text-gray-600 dark:text-gray-400 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 select-all"
+                            onClick={() =>
+                              navigator.clipboard.writeText(
+                                getCustomerPhone(order.customer)
+                              )
+                            }
+                            title={t("clickToCopy")}
+                          >
+                            {getCustomerPhone(order.customer)}
+                          </span>
+                        </div>
+                      )}
                   </div>
                 </div>
 
@@ -335,28 +546,63 @@ const MyOrders = ({ isHome = false }) => {
                     {t("orderItems")}
                   </h4>
                   <div className="space-y-2">
-                    {order.products.slice(0, 2).map((product, index) => (
-                      <div
-                        key={index}
-                        className="flex justify-between items-center text-sm bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 flex items-center justify-center bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded">
-                            {product.quantity}x
-                          </span>
-                          <span className="text-gray-900 dark:text-white font-medium">
-                            {product.name}
+                    {(Array.isArray(order.products)
+                      ? order.products
+                      : Array.isArray(order.items)
+                      ? order.items.map((item) => ({
+                          id: item.product_id,
+                          quantity: item.quantity,
+                          name: item.product_name || item.name,
+                          price: item.price || item.product?.price,
+                        }))
+                      : []
+                    )
+                      .slice(0, 2)
+                      .map((product, index) => (
+                        <div
+                          key={index}
+                          className="flex justify-between items-center text-sm bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 flex items-center justify-center bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded">
+                              {product.quantity}x
+                            </span>
+                            <span className="text-gray-900 dark:text-white font-medium">
+                              {productsLoading
+                                ? "..."
+                                : getProductName(product.id) ||
+                                  product.name ||
+                                  product.product_name ||
+                                  `Product #${product.id}`}
+                            </span>
+                          </div>
+                          <span className="text-gray-600 dark:text-gray-400">
+                            {(
+                              (productsLoading
+                                ? 0
+                                : getProductPrice(product.id) ||
+                                  product.price ||
+                                  0) * (product.quantity || 1)
+                            ).toFixed(2)}{" "}
+                            {t("currency")}
                           </span>
                         </div>
-                        <span className="text-gray-600 dark:text-gray-400">
-                          {(product.price * product.quantity).toFixed(2)}{" "}
-                          {t("currency")}
-                        </span>
-                      </div>
-                    ))}
-                    {order.products.length > 2 && (
+                      ))}
+                    {(Array.isArray(order.products)
+                      ? order.products
+                      : Array.isArray(order.items)
+                      ? order.items
+                      : []
+                    ).length > 2 && (
                       <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-1">
-                        +{order.products.length - 2} {t("moreItems")}
+                        +
+                        {(Array.isArray(order.products)
+                          ? order.products
+                          : Array.isArray(order.items)
+                          ? order.items
+                          : []
+                        ).length - 2}{" "}
+                        {t("moreItems")}
                       </p>
                     )}
                   </div>
@@ -369,7 +615,8 @@ const MyOrders = ({ isHome = false }) => {
                       {t("total")}
                     </span>
                     <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                      {order.total.toFixed(2)} {t("currency")}
+                      {(order.total_amount || order.total || 0).toFixed(2)}{" "}
+                      {t("currency")}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
@@ -377,7 +624,10 @@ const MyOrders = ({ isHome = false }) => {
                       {t("commission")}
                     </span>
                     <span className="text-sm font-medium text-green-600 dark:text-green-400">
-                      {(order.total * 0.1).toFixed(2)} {t("currency")}
+                      {((order.total_amount || order.total || 0) * 0.1).toFixed(
+                        2
+                      )}{" "}
+                      {t("currency")}
                     </span>
                   </div>
                   {order.deliveryStartTime && (
@@ -405,12 +655,23 @@ const MyOrders = ({ isHome = false }) => {
 
                   {!order.assignedDriver && (
                     <button
-                      onClick={() => handleStartDelivery(order.id)}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleStartDelivery(order.id);
+                      }}
+                      disabled={startingDelivery === order.id}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       title={t("startDeliveryTooltip")}
                     >
-                      <Truck className="w-4 h-4" />
-                      {t("startDelivery")}
+                      {startingDelivery === order.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Truck className="w-4 h-4" />
+                      )}
+                      {startingDelivery === order.id
+                        ? t("starting")
+                        : t("startDelivery")}
                     </button>
                   )}
 
@@ -490,7 +751,12 @@ const MyOrders = ({ isHome = false }) => {
                         {t("orderTotal")}
                       </span>
                       <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {selectedOrder?.total.toFixed(2)} {t("currency")}
+                        {(
+                          selectedOrder?.total_amount ||
+                          selectedOrder?.total ||
+                          0
+                        ).toFixed(2)}{" "}
+                        {t("currency")}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
@@ -511,7 +777,12 @@ const MyOrders = ({ isHome = false }) => {
                         {t("orderTotal")}
                       </span>
                       <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {selectedOrder?.total.toFixed(2)} {t("currency")}
+                        {(
+                          selectedOrder?.total_amount ||
+                          selectedOrder?.total ||
+                          0
+                        ).toFixed(2)}{" "}
+                        {t("currency")}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
@@ -519,7 +790,11 @@ const MyOrders = ({ isHome = false }) => {
                         {t("commission")}
                       </span>
                       <span className="text-sm font-medium text-green-600 dark:text-green-400">
-                        {((selectedOrder?.total || 0) * 0.1).toFixed(2)}{" "}
+                        {(
+                          (selectedOrder?.total_amount ||
+                            selectedOrder?.total ||
+                            0) * 0.1
+                        ).toFixed(2)}{" "}
                         {t("currency")}
                       </span>
                     </div>

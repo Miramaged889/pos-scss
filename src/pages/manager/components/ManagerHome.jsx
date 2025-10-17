@@ -19,6 +19,11 @@ import DataTable from "../../../components/Common/DataTable";
 import { fetchOrders } from "../../../store/slices/ordersSlice";
 import { fetchProducts } from "../../../store/slices/inventorySlice";
 import { formatCurrencyEnglish, formatNumberEnglish } from "../../../utils";
+import {
+  productService,
+  customerService,
+  tenantUsersService,
+} from "../../../services";
 
 const ManagerHome = () => {
   const { t } = useTranslation();
@@ -32,14 +37,154 @@ const ManagerHome = () => {
     (state) => state.inventory
   );
 
-  // Local state for computed data
-  const [alerts, setAlerts] = useState([]);
+
+  // Data states for API fetched data
+  const [productsDataLoading, setProductsDataLoading] = useState(false);
+  const [customers, setCustomers] = useState([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const [sellersData, setSellersData] = useState([]);
+  const [sellersLoading, setSellersLoading] = useState(false);
+
+  // Fetch products from API
+  const fetchProductsData = async () => {
+    try {
+      setProductsDataLoading(true);
+      await productService.getProducts();
+    } catch (error) {
+      console.error("Error fetching products:", error);
+    } finally {
+      setProductsDataLoading(false);
+    }
+  };
+
+  // Fetch customers from API
+  const fetchCustomersData = async () => {
+    try {
+      setCustomersLoading(true);
+      const response = await customerService.getCustomers();
+      setCustomers(response);
+    } catch (error) {
+      console.error("Error fetching customers:", error);
+    } finally {
+      setCustomersLoading(false);
+    }
+  };
+
+  // Fetch sellers from API
+  const fetchSellersData = async () => {
+    try {
+      setSellersLoading(true);
+      const response = await tenantUsersService.getTenantUsers();
+      setSellersData(response);
+    } catch (error) {
+      console.error("Error fetching sellers:", error);
+    } finally {
+      setSellersLoading(false);
+    }
+  };
 
   useEffect(() => {
     // Fetch data from API
     dispatch(fetchOrders());
     dispatch(fetchProducts());
+    fetchProductsData();
+    fetchCustomersData();
+    fetchSellersData();
   }, [dispatch]);
+
+  // Helper function to get customer name by ID
+  const getCustomerName = React.useCallback(
+    (customerId) => {
+      if (!customerId) return "Unknown Customer";
+
+      // Extract actual ID from strings like "Customer #1"
+      let actualId = customerId;
+      if (typeof customerId === "string" && customerId.includes("#")) {
+        const match = customerId.match(/#(\d+)/);
+        actualId = match ? parseInt(match[1]) : customerId;
+      }
+
+      // Try both string and number comparison
+      const customer = customers.find(
+        (c) =>
+          c.id === actualId ||
+          c.id === parseInt(actualId) ||
+          c.id === actualId.toString() ||
+          c.id === customerId ||
+          c.id === parseInt(customerId) ||
+          c.id === customerId.toString()
+      );
+
+      if (customer) {
+        return (
+          customer.customer_name || customer.name || `Customer #${actualId}`
+        );
+      }
+      return `Customer #${actualId}`;
+    },
+    [customers]
+  );
+
+  // Helper function to get seller name by ID
+  const getSellerName = React.useCallback(
+    (sellerId) => {
+      if (!sellerId) return "Unknown Seller";
+
+      // Extract actual ID from strings like "Seller #2"
+      let actualId = sellerId;
+      if (typeof sellerId === "string" && sellerId.includes("#")) {
+        const match = sellerId.match(/#(\d+)/);
+        actualId = match ? parseInt(match[1]) : sellerId;
+      }
+
+      // Try both string and number comparison
+      const seller = sellersData.find(
+        (s) =>
+          s.id === actualId ||
+          s.id === parseInt(actualId) ||
+          s.id === actualId.toString() ||
+          s.id === sellerId ||
+          s.id === parseInt(sellerId) ||
+          s.id === sellerId.toString()
+      );
+
+      return seller
+        ? seller.username ||
+            seller.name ||
+            seller.user_name ||
+            `Seller #${actualId}`
+        : `Seller #${actualId}`;
+    },
+    [sellersData]
+  );
+
+  // Helper function to get seller email by ID
+  const getSellerEmail = React.useCallback(
+    (sellerId) => {
+      if (!sellerId) return "N/A";
+
+      // Extract actual ID from strings like "Seller #2"
+      let actualId = sellerId;
+      if (typeof sellerId === "string" && sellerId.includes("#")) {
+        const match = sellerId.match(/#(\d+)/);
+        actualId = match ? parseInt(match[1]) : sellerId;
+      }
+
+      // Try both string and number comparison
+      const seller = sellersData.find(
+        (s) =>
+          s.id === actualId ||
+          s.id === parseInt(actualId) ||
+          s.id === actualId.toString() ||
+          s.id === sellerId ||
+          s.id === parseInt(sellerId) ||
+          s.id === sellerId.toString()
+      );
+
+      return seller ? seller.email || seller.user_email : "N/A";
+    },
+    [sellersData]
+  );
 
   // Compute recent orders from Redux data
   const recentOrders = React.useMemo(() => {
@@ -53,17 +198,26 @@ const ManagerHome = () => {
       .slice(0, 5)
       .map((order) => ({
         id: order.id,
-        customer:
-          order.customer?.name || order.customerName || "Unknown Customer",
-        seller: order.seller?.name || order.sellerName || "Unknown Seller",
-        amount: order.totalAmount || order.total || 0,
+        customer: customersLoading ? "..." : getCustomerName(order.customer),
+        seller: sellersLoading ? "..." : getSellerName(order.sellerId),
+        amount: (() => {
+          const amount =
+            order.total_amount || order.totalAmount || order.total || 0;
+          return typeof amount === "string" ? parseFloat(amount) : amount;
+        })(),
         status: order.status || "pending",
         date:
           order.createdAt ||
           order.date ||
           new Date().toISOString().split("T")[0],
       }));
-  }, [orders]);
+  }, [
+    orders,
+    customersLoading,
+    sellersLoading,
+    getCustomerName,
+    getSellerName,
+  ]);
 
   // Compute top sellers from orders data
   const topSellers = React.useMemo(() => {
@@ -72,14 +226,13 @@ const ManagerHome = () => {
     const sellerStats = {};
 
     orders.forEach((order) => {
-      const sellerName =
-        order.seller?.name || order.sellerName || "Unknown Seller";
-      const sellerEmail =
-        order.seller?.email ||
-        `${sellerName.toLowerCase().replace(/\s+/g, ".")}@company.com`;
+      const sellerId = order.sellerId;
+      const sellerName = getSellerName(sellerId);
+      const sellerEmail = getSellerEmail(sellerId);
 
-      if (!sellerStats[sellerName]) {
-        sellerStats[sellerName] = {
+      if (!sellerStats[sellerId]) {
+        sellerStats[sellerId] = {
+          id: sellerId,
           name: sellerName,
           email: sellerEmail,
           sales: 0,
@@ -87,8 +240,11 @@ const ManagerHome = () => {
         };
       }
 
-      sellerStats[sellerName].sales += order.totalAmount || order.total || 0;
-      sellerStats[sellerName].orders += 1;
+      const amount =
+        order.total_amount || order.totalAmount || order.total || 0;
+      sellerStats[sellerId].sales +=
+        typeof amount === "string" ? parseFloat(amount) : amount;
+      sellerStats[sellerId].orders += 1;
     });
 
     return Object.values(sellerStats)
@@ -99,7 +255,7 @@ const ManagerHome = () => {
         ...seller,
         rating: 4.5 + Math.random() * 0.5, // Mock rating for now
       }));
-  }, [orders]);
+  }, [orders, getSellerName, getSellerEmail]);
 
   useEffect(() => {
     // Generate alerts based on real data
@@ -161,7 +317,6 @@ const ManagerHome = () => {
       }
     }
 
-    setAlerts(newAlerts);
   }, [orders, products, t]);
 
   // Compute statistics from Redux data
@@ -205,12 +360,13 @@ const ManagerHome = () => {
 
     const totalOrders = orders.length;
     const uniqueSellers = new Set(
-      orders.map((order) => order.seller?.name || order.sellerName || "Unknown")
+      orders.map((order) => order.sellerId).filter(Boolean)
     ).size;
-    const totalRevenue = orders.reduce(
-      (sum, order) => sum + (order.totalAmount || order.total || 0),
-      0
-    );
+    const totalRevenue = orders.reduce((sum, order) => {
+      const amount =
+        order.total_amount || order.totalAmount || order.total || 0;
+      return sum + (typeof amount === "string" ? parseFloat(amount) : amount);
+    }, 0);
     const pendingOrders = orders.filter(
       (order) => order.status === "pending"
     ).length;
@@ -287,21 +443,16 @@ const ManagerHome = () => {
     );
   };
 
-  const getAlertIcon = (type) => {
-    switch (type) {
-      case "warning":
-        return <AlertCircle className="w-4 h-4 text-yellow-500" />;
-      case "info":
-        return <Eye className="w-4 h-4 text-blue-500" />;
-      case "success":
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
-      default:
-        return <AlertCircle className="w-4 h-4 text-gray-500" />;
-    }
-  };
+ 
 
   // Show loading state
-  if (ordersLoading || productsLoading) {
+  if (
+    ordersLoading ||
+    productsLoading ||
+    productsDataLoading ||
+    customersLoading ||
+    sellersLoading
+  ) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -412,35 +563,6 @@ const ManagerHome = () => {
                 </div>
               ))}
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Alerts */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {t("recentAlerts")}
-          </h3>
-        </div>
-        <div className="p-6">
-          <div className="space-y-4">
-            {alerts.map((alert) => (
-              <div
-                key={alert.id}
-                className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"
-              >
-                {getAlertIcon(alert.type)}
-                <div className="flex-1">
-                  <p className="text-sm text-gray-900 dark:text-white">
-                    {alert.message}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {alert.time}
-                  </p>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </div>

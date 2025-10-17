@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
-import {
-  fetchFinancialReports,
-  clearManagerError,
-} from "../../../store/slices/managerSlice";
+import { clearManagerError } from "../../../store/slices/managerSlice";
+import { fetchOrders } from "../../../store/slices/ordersSlice";
+import { customerService, tenantUsersService } from "../../../services";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -60,14 +59,214 @@ const ManagerReports = () => {
   const dispatch = useDispatch();
   const { reports, loading, error } = useSelector((state) => state.manager);
 
-  const [selectedReport, setSelectedReport] = useState("sales");
+  // Get data from Redux store
+  const { orders, loading: ordersLoading } = useSelector(
+    (state) => state.orders
+  );
+
+  // Local state for API data
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const [sellersData, setSellersData] = useState([]);
+  const [sellersLoading, setSellersLoading] = useState(false);
+  const [realReportsData, setRealReportsData] = useState({});
+
+  const [selectedReport, setSelectedReport] = useState("orders");
   const [dateRange, setDateRange] = useState("month");
   const [viewMode, setViewMode] = useState("charts");
 
-  // Load reports data on component mount
+  // Fetch customers from API (for potential future use)
+  const fetchCustomersData = async () => {
+    try {
+      setCustomersLoading(true);
+      await customerService.getCustomers();
+    } catch (error) {
+      console.error("Error fetching customers:", error);
+    } finally {
+      setCustomersLoading(false);
+    }
+  };
+
+  // Fetch sellers from API
+  const fetchSellersData = async () => {
+    try {
+      setSellersLoading(true);
+      const response = await tenantUsersService.getTenantUsers();
+      setSellersData(response);
+    } catch (error) {
+      console.error("Error fetching sellers:", error);
+    } finally {
+      setSellersLoading(false);
+    }
+  };
+
+  // Helper function to get seller name by ID
+  const getSellerName = React.useCallback(
+    (sellerId) => {
+      if (!sellerId) return "Unknown Seller";
+
+      let actualId = sellerId;
+      if (typeof sellerId === "string" && sellerId.includes("#")) {
+        const match = sellerId.match(/#(\d+)/);
+        actualId = match ? parseInt(match[1]) : sellerId;
+      }
+
+      const seller = sellersData.find(
+        (s) =>
+          s.id === actualId ||
+          s.id === parseInt(actualId) ||
+          s.id === actualId.toString() ||
+          s.id === sellerId ||
+          s.id === parseInt(sellerId) ||
+          s.id === sellerId.toString()
+      );
+
+      return seller
+        ? seller.username ||
+            seller.name ||
+            seller.user_name ||
+            `Seller #${actualId}`
+        : `Seller #${actualId}`;
+    },
+    [sellersData]
+  );
+
+  // Calculate real reports data from API data
+  const calculateRealReportsData = React.useCallback(() => {
+    if (!Array.isArray(orders) || orders.length === 0) {
+      return {};
+    }
+
+    // Calculate total orders
+    const totalOrders = orders.length;
+
+    // Calculate active sellers (unique seller IDs)
+    const activeSellers = new Set(
+      orders.map((order) => order.sellerId).filter(Boolean)
+    ).size;
+
+    // Calculate order status counts
+    const orderStatusCounts = orders.reduce((acc, order) => {
+      const status = order.status || "pending";
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {});
+
+    // Calculate top sellers performance
+    const sellerStats = {};
+    orders.forEach((order) => {
+      const sellerId = order.sellerId;
+      if (!sellerId) return;
+
+      if (!sellerStats[sellerId]) {
+        sellerStats[sellerId] = {
+          id: sellerId,
+          name: getSellerName(sellerId),
+          sales: 0,
+          orders: 0,
+        };
+      }
+
+      const amount =
+        order.total_amount || order.totalAmount || order.total || 0;
+      const numericAmount =
+        typeof amount === "string" ? parseFloat(amount) : amount;
+      const validAmount = isNaN(numericAmount) ? 0 : numericAmount;
+      sellerStats[sellerId].sales += validAmount;
+      sellerStats[sellerId].orders += 1;
+    });
+
+    const topSellers = Object.values(sellerStats)
+      .sort((a, b) => b.sales - a.sales)
+      .slice(0, 5)
+      .map((seller) => ({
+        ...seller,
+        growth: Math.random() * 20 - 5, // Mock growth for now
+        rating: 4.0 + Math.random() * 1.0,
+      }));
+
+    // Calculate time-based data (last 7 days for demo)
+    const timeData = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split("T")[0];
+
+      const dayOrders = orders.filter((order) => {
+        const orderDate = order.createdAt || order.date || order.orderDate;
+        return orderDate && orderDate.startsWith(dateStr);
+      });
+
+      const dayRevenue = dayOrders.reduce((sum, order) => {
+        const amount =
+          order.total_amount || order.totalAmount || order.total || 0;
+        const numericAmount =
+          typeof amount === "string" ? parseFloat(amount) : amount;
+        const validAmount = isNaN(numericAmount) ? 0 : numericAmount;
+        return sum + validAmount;
+      }, 0);
+
+      timeData.push({
+        month: date.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        }),
+        revenue: dayRevenue,
+        orders: dayOrders.length,
+        completed: dayOrders.filter((o) => o.status === "completed").length,
+        pending: dayOrders.filter((o) => o.status === "pending").length,
+        processing: dayOrders.filter((o) => o.status === "processing").length,
+        active: activeSellers,
+        new: Math.floor(Math.random() * 3), // Mock new sellers
+        avgTime: Math.floor(Math.random() * 30) + 15, // Mock avg time
+      });
+    }
+
+    return {
+      orders: {
+        totalOrders,
+        completed: orderStatusCounts.completed || 0,
+        pending: orderStatusCounts.pending || 0,
+        processing: orderStatusCounts.processing || 0,
+        cancelled: orderStatusCounts.cancelled || 0,
+        timeData,
+        orderStatus: Object.entries(orderStatusCounts).map(
+          ([status, count]) => ({
+            status,
+            count,
+            percentage:
+              totalOrders > 0 ? Math.round((count / totalOrders) * 100) : 0,
+          })
+        ),
+      },
+      sellers: {
+        totalSellers: sellersData.filter((seller) => {
+          const role =
+            seller.role || seller.user_role || seller.role_type || "";
+          return role.toLowerCase().includes("seller");
+        }).length,
+        activeSellers,
+        newSellers: Math.floor(Math.random() * 5), // Mock new sellers
+        avgPerformance: Math.floor(Math.random() * 20) + 80, // Mock performance
+        timeData,
+        sellerPerformance: topSellers,
+      },
+    };
+  }, [orders, sellersData, getSellerName]);
+
+  // Update real reports data when orders or sellers data changes
   useEffect(() => {
-    dispatch(fetchFinancialReports({ reportType: selectedReport, dateRange }));
-  }, [dispatch, selectedReport, dateRange]);
+    const realData = calculateRealReportsData();
+    setRealReportsData(realData);
+  }, [calculateRealReportsData]);
+
+  // No need for fetchFinancialReports since we're using real data
+
+  // Load all data on component mount
+  useEffect(() => {
+    dispatch(fetchOrders());
+    fetchCustomersData();
+    fetchSellersData();
+  }, [dispatch]);
 
   // Clear error when component unmounts
   useEffect(() => {
@@ -84,30 +283,31 @@ const ManagerReports = () => {
     }
   }, [error]);
 
-  // Get current report data from Redux store
-  const currentData = reports[selectedReport] || {
-    // Default fallback data structure
-    totalRevenue: 0,
-    totalOrders: 0,
-    avgOrderValue: 0,
-    activeSellers: 0,
-    growth: 0,
-    timeData: [],
-    topSellers: [],
-    totalDeliveries: 0,
-    completedDeliveries: 0,
-    avgDeliveryTime: 0,
-    satisfaction: 0,
-    totalSellers: 0,
-    completed: 0,
-    pending: 0,
-    processing: 0,
-    cancelled: 0,
-    orderStatus: [],
-    sellerPerformance: [],
-    kitchenPerformance: [],
-    deliveryPerformance: [],
-  };
+  // Get current report data from real API data or fallback to Redux store
+  const currentData = realReportsData[selectedReport] ||
+    reports[selectedReport] || {
+      // Default fallback data structure
+      totalRevenue: 0,
+      totalOrders: 0,
+      avgOrderValue: 0,
+      activeSellers: 0,
+      growth: 0,
+      timeData: [],
+      topSellers: [],
+      totalDeliveries: 0,
+      completedDeliveries: 0,
+      avgDeliveryTime: 0,
+      satisfaction: 0,
+      totalSellers: 0,
+      completed: 0,
+      pending: 0,
+      processing: 0,
+      cancelled: 0,
+      orderStatus: [],
+      sellerPerformance: [],
+      kitchenPerformance: [],
+      deliveryPerformance: [],
+    };
 
   // Chart configuration
   const isDark = theme === "dark";
@@ -177,47 +377,6 @@ const ManagerReports = () => {
 
   const getStats = () => {
     switch (selectedReport) {
-      case "sales":
-        return [
-          {
-            title: t("totalRevenue"),
-            value: formatCurrencyEnglish(
-              currentData.totalRevenue,
-              t("currency")
-            ),
-            icon: DollarSign,
-            color: "green",
-            change: currentData.growth,
-            changeText: t("fromLastMonth"),
-          },
-          {
-            title: t("totalOrders"),
-            value: formatNumberEnglish(currentData.totalOrders),
-            icon: ShoppingCart,
-            color: "blue",
-            change: 8.3,
-            changeText: t("fromLastMonth"),
-          },
-          {
-            title: t("avgOrderValue"),
-            value: formatCurrencyEnglish(
-              currentData.avgOrderValue,
-              t("currency")
-            ),
-            icon: BarChart3,
-            color: "purple",
-            change: 3.8,
-            changeText: t("fromLastMonth"),
-          },
-          {
-            title: t("activeSellers"),
-            value: formatNumberEnglish(currentData.activeSellers),
-            icon: Users,
-            color: "orange",
-            change: 2,
-            changeText: t("fromLastMonth"),
-          },
-        ];
       case "orders":
         return [
           {
@@ -367,34 +526,6 @@ const ManagerReports = () => {
     const labels = currentData.timeData.map((item) => item.month);
 
     switch (selectedReport) {
-      case "sales":
-        return {
-          revenue: {
-            labels,
-            datasets: [
-              {
-                label: t("revenue"),
-                data: currentData.timeData.map((item) => item.revenue),
-                borderColor: chartColors.primary,
-                backgroundColor: chartColors.primary + "20",
-                fill: true,
-                tension: 0.4,
-              },
-            ],
-          },
-          orders: {
-            labels,
-            datasets: [
-              {
-                label: t("orders"),
-                data: currentData.timeData.map((item) => item.orders),
-                backgroundColor: chartColors.secondary,
-                borderColor: chartColors.secondary,
-                borderWidth: 1,
-              },
-            ],
-          },
-        };
       case "orders":
         return {
           status: {
@@ -576,7 +707,6 @@ const ManagerReports = () => {
               onChange={(e) => setSelectedReport(e.target.value)}
               className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-200"
             >
-              <option value="sales">{t("salesReport")}</option>
               <option value="orders">{t("ordersReport")}</option>
               <option value="sellers">{t("sellersReport")}</option>
               <option value="kitchen">{t("kitchenReport")}</option>
@@ -626,7 +756,6 @@ const ManagerReports = () => {
                     isRTL ? "text-right" : "text-left"
                   }`}
                 >
-                  {selectedReport === "sales" && t("revenueChart")}
                   {selectedReport === "orders" && t("orderStatusChart")}
                   {selectedReport === "sellers" && t("sellerPerformanceChart")}
                   {selectedReport === "kitchen" && t("kitchenEfficiencyChart")}
@@ -635,7 +764,10 @@ const ManagerReports = () => {
                 </h3>
               </div>
               <div className="h-80">
-                {loading ? (
+                {loading ||
+                ordersLoading ||
+                customersLoading ||
+                sellersLoading ? (
                   <div className="flex items-center justify-center h-full">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                     <p className="ml-2 text-gray-600 dark:text-gray-400">
@@ -644,9 +776,6 @@ const ManagerReports = () => {
                   </div>
                 ) : (
                   <>
-                    {selectedReport === "sales" && (
-                      <Line data={chartData.revenue} options={chartOptions} />
-                    )}
                     {selectedReport === "orders" && (
                       <Bar data={chartData.status} options={chartOptions} />
                     )}
@@ -683,7 +812,6 @@ const ManagerReports = () => {
                     isRTL ? "text-right" : "text-left"
                   }`}
                 >
-                  {selectedReport === "sales" && t("ordersChart")}
                   {selectedReport === "orders" && t("orderTrendsChart")}
                   {selectedReport === "sellers" && t("sellerGrowthChart")}
                   {selectedReport === "kitchen" && t("kitchenTrendsChart")}
@@ -691,7 +819,10 @@ const ManagerReports = () => {
                 </h3>
               </div>
               <div className="h-80">
-                {loading ? (
+                {loading ||
+                ordersLoading ||
+                customersLoading ||
+                sellersLoading ? (
                   <div className="flex items-center justify-center h-full">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
                     <p className="ml-2 text-gray-600 dark:text-gray-400">
@@ -700,9 +831,6 @@ const ManagerReports = () => {
                   </div>
                 ) : (
                   <>
-                    {selectedReport === "sales" && (
-                      <Bar data={chartData.orders} options={chartOptions} />
-                    )}
                     {selectedReport === "orders" && (
                       <Line data={chartData.status} options={chartOptions} />
                     )}
@@ -739,7 +867,6 @@ const ManagerReports = () => {
                   isRTL ? "text-right" : "text-left"
                 }`}
               >
-                {selectedReport === "sales" && t("topSellersTable")}
                 {selectedReport === "orders" && t("orderStatusTable")}
                 {selectedReport === "sellers" && t("sellerPerformanceTable")}
                 {selectedReport === "kitchen" && t("kitchenPerformanceTable")}
@@ -750,38 +877,6 @@ const ManagerReports = () => {
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
-                    {selectedReport === "sales" && (
-                      <>
-                        <th
-                          className={`px-6 py-3 ${
-                            isRTL ? "text-right" : "text-left"
-                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
-                        >
-                          {t("seller")}
-                        </th>
-                        <th
-                          className={`px-6 py-3 ${
-                            isRTL ? "text-right" : "text-left"
-                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
-                        >
-                          {t("revenue")}
-                        </th>
-                        <th
-                          className={`px-6 py-3 ${
-                            isRTL ? "text-right" : "text-left"
-                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
-                        >
-                          {t("orders")}
-                        </th>
-                        <th
-                          className={`px-6 py-3 ${
-                            isRTL ? "text-right" : "text-left"
-                          } text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider`}
-                        >
-                          {t("growth")}
-                        </th>
-                      </>
-                    )}
                     {selectedReport === "orders" && (
                       <>
                         <th
@@ -913,43 +1008,6 @@ const ManagerReports = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {selectedReport === "sales" &&
-                    currentData.topSellers.map((seller, index) => (
-                      <tr key={index}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">
-                            {seller.name}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 dark:text-white">
-                            {formatCurrencyEnglish(
-                              seller.revenue,
-                              t("currency")
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 dark:text-white">
-                            {formatNumberEnglish(seller.orders)}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <span
-                              className={`text-sm font-medium ${
-                                seller.growth > 0
-                                  ? "text-green-600 dark:text-green-400"
-                                  : "text-red-600 dark:text-red-400"
-                              }`}
-                            >
-                              {seller.growth > 0 ? "+" : ""}
-                              {seller.growth}%
-                            </span>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
                   {selectedReport === "orders" &&
                     currentData.orderStatus.map((status, index) => (
                       <tr key={index}>

@@ -107,9 +107,14 @@ export const orderService = {
   },
 
   // Update order status
-  updateOrderStatus: async (id, status) => {
+  updateOrderStatus: async (id, updateData) => {
     const endpoint = replaceUrlParams(API_ENDPOINTS.ORDERS.UPDATE, { id });
-    const response = await apiService.patch(endpoint, { status });
+
+    // Handle both old format (status string) and new format (updateData object)
+    const dataToSend =
+      typeof updateData === "string" ? { status: updateData } : updateData;
+
+    const response = await apiService.patch(endpoint, dataToSend);
     return mapDbToFrontend(response);
   },
 

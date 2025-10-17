@@ -22,7 +22,7 @@ const DeliveryHome = () => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
   const { isOnline } = useSelector((state) => state.delivery);
-  const { orders, loading, error } = useSelector((state) => state.orders);
+  const { orders } = useSelector((state) => state.orders);
   const [todaysStats, setTodaysStats] = useState({
     completedToday: 0,
     pendingDeliveries: 0,
@@ -45,13 +45,12 @@ const DeliveryHome = () => {
   // Calculate statistics when orders change
   useEffect(() => {
     if (orders && orders.length > 0) {
-      // Filter orders for this driver
+      // Filter orders for delivery only and this driver
       const driverOrders = orders.filter(
         (order) =>
-          order.assignedDriver === user?.name ||
-          (!order.assignedDriver &&
-            order.deliveryType === "delivery" &&
-            !order.isDelivered)
+          order.delivery_option === "delivery" &&
+          (order.assignedDriver === user?.name ||
+            (!order.assignedDriver && !order.isDelivered))
       );
 
       // Get today's orders
@@ -95,7 +94,7 @@ const DeliveryHome = () => {
     },
     {
       title: t("todaysEarnings"),
-      value: `${todaysStats.todaysEarnings.toFixed(2)} ${t("currency")}`,
+      value: `${(todaysStats.todaysEarnings || 0).toFixed(2)} ${t("currency")}`,
       icon: DollarSign,
       color: "blue",
     },

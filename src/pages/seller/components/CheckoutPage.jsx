@@ -312,12 +312,7 @@ const PhaseTwo = ({
         notes: "Created from checkout",
       };
 
-      console.log("Creating customer with payload:", newCustomer);
-
       const response = await api.post("/customer/customers/", newCustomer);
-
-      console.log("Customer creation response:", response);
-      console.log("Response data:", response.data);
 
       // Handle different response formats
       let customerData = null;
@@ -655,6 +650,8 @@ const PhaseThree = ({
   paymentMethod,
   customerInfo,
   orderData,
+  discount,
+  setDiscount,
   onSubmit,
   onBack,
   isSubmitting,
@@ -662,6 +659,7 @@ const PhaseThree = ({
   t,
 }) => {
   const subtotal = orderData?.total || 0;
+  const totalAmount = subtotal - discount;
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg dark:shadow-xl border border-gray-200 dark:border-gray-700 p-6">
@@ -755,15 +753,65 @@ const PhaseThree = ({
           </div>
         </div>
 
+        {/* Discount Field */}
+        <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+            <Receipt className="w-4 h-4" />
+            {t("discount")} ({t("optional")})
+          </h3>
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              max={subtotal}
+              value={discount}
+              onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+              placeholder="0.00"
+              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+            />
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              {t("sar")}
+            </span>
+          </div>
+          {discount > 0 && (
+            <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+              {t("discountApplied")}: -{discount.toFixed(2)} {t("sar")}
+            </p>
+          )}
+        </div>
+
         {/* Total */}
         <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-2 border-blue-200 dark:border-blue-800">
-          <div className="flex justify-between items-center">
-            <span className="text-lg font-semibold text-gray-900 dark:text-white">
-              {t("total")}
-            </span>
-            <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              {subtotal.toFixed(2)} {t("sar")}
-            </span>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                {t("subtotal")}
+              </span>
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                {subtotal.toFixed(2)} {t("sar")}
+              </span>
+            </div>
+            {discount > 0 && (
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-red-600 dark:text-red-400">
+                  {t("discount")}
+                </span>
+                <span className="text-sm text-red-600 dark:text-red-400">
+                  -{discount.toFixed(2)} {t("sar")}
+                </span>
+              </div>
+            )}
+            <div className="border-t border-blue-200 dark:border-blue-700 pt-2">
+              <div className="flex justify-between items-center">
+                <span className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {t("total")}
+                </span>
+                <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  {totalAmount.toFixed(2)} {t("sar")}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -837,6 +885,7 @@ const CheckoutPage = () => {
 
   // Phase 3 state
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [discount, setDiscount] = useState(0);
 
   useEffect(() => {
     if (!orderData) {
@@ -881,7 +930,6 @@ const CheckoutPage = () => {
           const currentUser = users.find((u) => u.email === user.email);
           if (currentUser) {
             sellerId = currentUser.id;
-            console.log("Found seller ID from tenantusers:", sellerId);
           }
         } catch (error) {
           console.error("Error fetching tenantusers:", error);
@@ -889,8 +937,7 @@ const CheckoutPage = () => {
       }
 
       // Calculate totals
-      const subtotal = orderData.total || 0;
-      const discount = 0; // You can add discount logic here if needed
+      const subtotal = orderData?.total || 0;
       const totalAmount = subtotal - discount;
 
       // Build the order payload according to API schema
@@ -898,10 +945,11 @@ const CheckoutPage = () => {
         status: "pending",
         payment_type: paymentMethod,
         delivery_option: deliveryType, // Add delivery option
-        items: orderData.products.map((product) => ({
-          product_id: product.id,
-          quantity: product.quantity,
-        })),
+        items:
+          orderData?.products?.map((product) => ({
+            product_id: product.id,
+            quantity: product.quantity,
+          })) || [],
         subtotal: subtotal.toFixed(2),
         discount: discount.toFixed(2),
         total_amount: totalAmount.toFixed(2),
@@ -917,25 +965,23 @@ const CheckoutPage = () => {
         orderPayload.seller = sellerId;
       }
 
-
       const response = await api.post("/seller/orders/", orderPayload);
 
-
       // Handle different response formats
-      let orderData = null;
+      let createdOrder = null;
       if (response.data) {
-        orderData = response.data;
+        createdOrder = response.data;
       } else if (response.id) {
         // API returns data directly in response object
-        orderData = response;
+        createdOrder = response;
       }
 
-      if (orderData) {
+      if (createdOrder) {
         toast.success(t("orderCreatedSuccessfully"));
         setIsSubmitting(false); // Reset loading state
         navigate("/seller/orders", {
           state: {
-            newOrder: orderData,
+            newOrder: createdOrder,
             showSuccessMessage: true,
           },
         });
@@ -1094,14 +1140,34 @@ const CheckoutPage = () => {
               </div>
 
               {/* Total */}
-              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4 space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {t("total")}
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    {t("subtotal")}
                   </span>
-                  <span className="text-xl font-bold text-gray-900 dark:text-white">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
                     {orderData.total?.toFixed(2)} {t("sar")}
                   </span>
+                </div>
+                {discount > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-red-600 dark:text-red-400">
+                      {t("discount")}
+                    </span>
+                    <span className="text-sm text-red-600 dark:text-red-400">
+                      -{discount.toFixed(2)} {t("sar")}
+                    </span>
+                  </div>
+                )}
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {t("total")}
+                    </span>
+                    <span className="text-xl font-bold text-gray-900 dark:text-white">
+                      {(orderData.total - discount).toFixed(2)} {t("sar")}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1146,6 +1212,8 @@ const CheckoutPage = () => {
                 customerId={selectedCustomerId}
                 customerInfo={customerInfo}
                 orderData={orderData}
+                discount={discount}
+                setDiscount={setDiscount}
                 onSubmit={handleSubmitOrder}
                 onBack={() => {
                   // Go back to Phase 2 if it was required, otherwise Phase 1

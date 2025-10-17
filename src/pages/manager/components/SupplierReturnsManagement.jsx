@@ -30,6 +30,8 @@ const SupplierReturnsManagement = () => {
   // Local state
   const [returns, setReturns] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
+  const [purchaseItems, setPurchaseItems] = useState([]);
+  const [purchaseItemsLoading, setPurchaseItemsLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [filteredReturns, setFilteredReturns] = useState([]);
@@ -62,6 +64,49 @@ const SupplierReturnsManagement = () => {
     }
   }, [t]);
 
+  // Load purchase items
+  const loadPurchaseItems = useCallback(async () => {
+    try {
+      setPurchaseItemsLoading(true);
+      const items = await supplierService.getAllPurchaseItems();
+      setPurchaseItems(items);
+    } catch (error) {
+      console.error("Error loading purchase items:", error);
+      setError(t("errorLoadingPurchaseItems"));
+    } finally {
+      setPurchaseItemsLoading(false);
+    }
+  }, [t]);
+
+  // Helper function to get purchase item name by ID
+  const getPurchaseItemName = React.useCallback(
+    (itemId) => {
+      if (!itemId) return "Unknown Item";
+
+      let actualId = itemId;
+      if (typeof itemId === "string" && itemId.includes("#")) {
+        const match = itemId.match(/#(\d+)/);
+        actualId = match ? parseInt(match[1]) : itemId;
+      }
+
+      const item = purchaseItems.find(
+        (item) =>
+          item.id === actualId ||
+          item.id === parseInt(actualId) ||
+          item.id === actualId.toString() ||
+          item.id === itemId ||
+          item.id === parseInt(itemId) ||
+          item.id === itemId.toString()
+      );
+
+      if (item) {
+        return item.name || `Item #${actualId}`;
+      }
+      return `Item #${actualId}`;
+    },
+    [purchaseItems]
+  );
+
   const loadReturns = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -78,8 +123,10 @@ const SupplierReturnsManagement = () => {
             supplierName:
               supplier?.supplier_name || supplier?.name || "Unknown",
             supplierEmail: supplier?.email || "",
-            // Manager dashboard: Show item ID instead of name (no access to seller endpoints)
-            purchaseItemName: `Item #${returnItem.purchase_item}`,
+            // Get real item name from purchase items
+            purchaseItemName: purchaseItemsLoading
+              ? "..."
+              : getPurchaseItemName(returnItem.purchase_item),
           };
         })
       );
@@ -91,18 +138,19 @@ const SupplierReturnsManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [suppliers, t]);
+  }, [suppliers, purchaseItems, purchaseItemsLoading, getPurchaseItemName, t]);
 
   useEffect(() => {
     loadSuppliers();
-  }, [loadSuppliers]);
+    loadPurchaseItems();
+  }, [loadSuppliers, loadPurchaseItems]);
 
   useEffect(() => {
-    // Load returns when suppliers are available
-    if (suppliers.length > 0) {
+    // Load returns when suppliers and purchase items are available
+    if (suppliers.length > 0 && purchaseItems.length > 0) {
       loadReturns();
     }
-  }, [suppliers, loadReturns]);
+  }, [suppliers, purchaseItems, loadReturns]);
 
   // Show error toast when there's an error
   useEffect(() => {
@@ -612,7 +660,7 @@ const SupplierReturnsManagement = () => {
         <DataTable
           data={filteredReturns}
           columns={columns}
-          loading={loading}
+          loading={loading || purchaseItemsLoading}
           searchable={false}
         />
       </div>
@@ -664,8 +712,10 @@ const SupplierReturnsManagement = () => {
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("purchaseItem")}:</strong>{" "}
-                    {selectedReturn.purchaseItemName ||
-                      selectedReturn.purchase_item}
+                    {purchaseItemsLoading
+                      ? "..."
+                      : selectedReturn.purchaseItemName ||
+                        getPurchaseItemName(selectedReturn.purchase_item)}
                   </p>
                 </div>
               </div>
