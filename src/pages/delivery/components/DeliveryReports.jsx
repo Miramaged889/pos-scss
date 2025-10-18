@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useSelector, useDispatch } from "react-redux";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import {
   TrendingUp,
   Clock,
@@ -44,10 +46,11 @@ ChartJS.register(
 const DeliveryReports = () => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
-  const { isRTL } = useSelector((state) => state.language);
+  const { isRTL, theme } = useSelector((state) => state.language);
   const { orders } = useSelector((state) => state.orders);
   const [stats, setStats] = useState(null);
   const [dateRange, setDateRange] = useState("today");
+  const reportRef = useRef(null);
 
   // Helper function to filter orders by date range
   const filterOrdersByDateRange = (orders, range) => {
@@ -110,10 +113,7 @@ const DeliveryReports = () => {
       // Get completed deliveries from filtered orders - only delivery orders
       const completedDeliveries = filteredOrders.filter(
         (order) =>
-          order.delivery_option === "delivery" &&
-          (order.status === "completed" ||
-            order.status === "delivered" ||
-            order.isDelivered)
+          order.delivery_option === "delivery" && order.status === "completed"
       );
 
       // Only calculate earnings from filtered delivery orders
@@ -225,10 +225,7 @@ const DeliveryReports = () => {
     // Get completed deliveries from filtered orders - only delivery orders
     const completedDeliveries = filteredOrders.filter(
       (order) =>
-        order.delivery_option === "delivery" &&
-        (order.status === "completed" ||
-          order.status === "delivered" ||
-          order.isDelivered)
+        order.delivery_option === "delivery" && order.status === "completed"
     );
 
     // Calculate previous period data for trend based on date range
@@ -252,9 +249,7 @@ const DeliveryReports = () => {
         return (
           orderDay.getTime() === yesterdayDay.getTime() &&
           order.delivery_option === "delivery" &&
-          (order.status === "completed" ||
-            order.status === "delivered" ||
-            order.isDelivered)
+          order.status === "completed"
         );
       }).length;
     } else if (dateRange === "week") {
@@ -271,9 +266,7 @@ const DeliveryReports = () => {
           orderDate >= weekStart &&
           orderDate <= weekEnd &&
           order.delivery_option === "delivery" &&
-          (order.status === "completed" ||
-            order.status === "delivered" ||
-            order.isDelivered)
+          order.status === "completed"
         );
       }).length;
     } else if (dateRange === "month") {
@@ -288,9 +281,7 @@ const DeliveryReports = () => {
           orderDate >= prevMonthStart &&
           orderDate <= prevMonthEnd &&
           order.delivery_option === "delivery" &&
-          (order.status === "completed" ||
-            order.status === "delivered" ||
-            order.isDelivered)
+          order.status === "completed"
         );
       }).length;
     }
@@ -363,8 +354,7 @@ const DeliveryReports = () => {
     // Get completed delivery orders for earnings calculation
     const completedOrders = filteredOrders.filter(
       (order) =>
-        order.delivery_option === "delivery" &&
-        (order.status === "completed" || order.isPaid)
+        order.delivery_option === "delivery" && order.status === "completed"
     );
 
     // Calculate previous period earnings for trend based on date range
@@ -389,7 +379,7 @@ const DeliveryReports = () => {
           return (
             orderDay.getTime() === yesterdayDay.getTime() &&
             order.delivery_option === "delivery" &&
-            (order.status === "completed" || order.isPaid)
+            order.status === "completed"
           );
         })
         .reduce(
@@ -411,7 +401,7 @@ const DeliveryReports = () => {
             orderDate >= weekStart &&
             orderDate <= weekEnd &&
             order.delivery_option === "delivery" &&
-            (order.status === "completed" || order.isPaid)
+            order.status === "completed"
           );
         })
         .reduce(
@@ -431,7 +421,7 @@ const DeliveryReports = () => {
             orderDate >= prevMonthStart &&
             orderDate <= prevMonthEnd &&
             order.delivery_option === "delivery" &&
-            (order.status === "completed" || order.isPaid)
+            order.status === "completed"
           );
         })
         .reduce(
@@ -495,22 +485,24 @@ const DeliveryReports = () => {
 
     const statusCounts = {
       ready: filteredOrders.filter(
-        (order) => order.delivery_option === "delivery" && !order.deliveryStatus
-      ).length,
-      delivering: filteredOrders.filter(
         (order) =>
           order.delivery_option === "delivery" &&
-          order.deliveryStatus === "delivering"
+          (order.status === "ready" || !order.status || !order.deliveryStatus)
+      ).length,
+      delivered: filteredOrders.filter(
+        (order) =>
+          order.delivery_option === "delivery" &&
+          (order.status === "delivered" || order.deliveryStatus === "delivered")
       ).length,
       completed: filteredOrders.filter(
         (order) =>
           order.delivery_option === "delivery" &&
-          order.deliveryStatus === "delivered"
+          (order.status === "completed" || order.deliveryStatus === "completed")
       ).length,
     };
 
     return {
-      labels: [t("ready"), t("delivering"), t("completed")],
+      labels: [t("readyForDelivery"), t("delivered"), t("completed")],
       data: Object.values(statusCounts),
     };
   };
@@ -558,6 +550,110 @@ const DeliveryReports = () => {
     },
   };
 
+  // Export report function
+  const exportReport = async () => {
+    if (!reportRef.current) {
+      console.error("Report content not found");
+      return;
+    }
+
+    // Store original button text
+    const exportBtn = document.querySelector("[data-export-btn]");
+    let originalText = "";
+    if (exportBtn) {
+      originalText = exportBtn.textContent;
+      exportBtn.textContent = t("generatingPDF") || "Generating PDF...";
+      exportBtn.disabled = true;
+    }
+
+    try {
+      // Create a new canvas from the report content
+      const canvas = await html2canvas(reportRef.current, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: theme === "dark" ? "#1f2937" : "#ffffff",
+        logging: false,
+        height: reportRef.current.scrollHeight,
+        width: reportRef.current.scrollWidth,
+      });
+
+      // Calculate PDF dimensions
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 295; // A4 height in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+
+      // Create PDF
+      const pdf = new jsPDF("p", "mm", "a4");
+      const imgData = canvas.toDataURL("image/png");
+
+      // Add title page
+      pdf.setFontSize(20);
+      pdf.setFont("helvetica", "bold");
+      pdf.text(t("deliveryReports") || "Delivery Reports", 105, 20, {
+        align: "center",
+      });
+
+      pdf.setFontSize(12);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(
+        `${
+          t("generatedOn") || "Generated on"
+        }: ${new Date().toLocaleDateString()}`,
+        105,
+        30,
+        { align: "center" }
+      );
+      pdf.text(
+        `${t("period") || "Period"}: ${t(
+          dateRange === "today"
+            ? "today"
+            : dateRange === "week"
+            ? "thisWeek"
+            : "thisMonth"
+        )}`,
+        105,
+        35,
+        { align: "center" }
+      );
+
+      // Add new page for the report content
+      pdf.addPage();
+
+      // Add the chart content
+      let position = 0;
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      // Add additional pages if content is longer than one page
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      // Save the PDF
+      const fileName = `delivery-report-${dateRange}-${
+        new Date().toISOString().split("T")[0]
+      }.pdf`;
+      pdf.save(fileName);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      alert(
+        t("errorGeneratingPDF") || "Error generating PDF. Please try again."
+      );
+    } finally {
+      // Reset button state
+      if (exportBtn) {
+        exportBtn.textContent =
+          originalText || t("exportReport") || "Export Report";
+        exportBtn.disabled = false;
+      }
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header with Date Range Selector */}
@@ -579,234 +675,258 @@ const DeliveryReports = () => {
               {t("viewDeliveryPerformance")}
             </p>
           </div>
-          <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2">
-            <Calendar className="w-5 h-5 text-gray-400" />
-            <select
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
-              className="bg-transparent border-none focus:ring-0 text-gray-700 dark:text-gray-300 font-medium"
-              dir={isRTL ? "rtl" : "ltr"}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2 border border-gray-200 dark:border-gray-600">
+              <Calendar className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+              <select
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value)}
+                className="bg-transparent border-none focus:ring-0 text-gray-700 dark:text-gray-300 font-medium cursor-pointer outline-none"
+                dir={isRTL ? "rtl" : "ltr"}
+              >
+                <option value="today" className="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300">{t("today")}</option>
+                <option value="week" className="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300">{t("thisWeek")}</option>
+                <option value="month" className="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300">{t("thisMonth")}</option>
+              </select>
+            </div>
+            <button
+              onClick={exportReport}
+              data-export-btn
+              className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 flex items-center gap-2 transition-all duration-200 hover:scale-105 shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
-              <option value="today">{t("today")}</option>
-              <option value="week">{t("thisWeek")}</option>
-              <option value="month">{t("thisMonth")}</option>
-            </select>
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+              {t("exportReport")}
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statsCards.map((stat, index) => (
-          <StatsCard key={index} {...stat} />
-        ))}
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Delivery Trend Chart */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-200 dark:border-gray-700 p-6 transition-colors duration-300">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-              {t("deliveryTrend")}
-            </h3>
-            <div
-              className={`flex items-center gap-2 text-sm ${
-                parseFloat(deliveryTrendData.trend) >= 0
-                  ? "text-green-600 dark:text-green-400"
-                  : "text-red-600 dark:text-red-400"
-              }`}
-            >
-              {parseFloat(deliveryTrendData.trend) >= 0 ? (
-                <TrendingUp className="w-4 h-4" />
-              ) : (
-                <TrendingDown className="w-4 h-4" />
-              )}
-              <span>{deliveryTrendData.trend}%</span>
-            </div>
-          </div>
-          <div className="h-80">
-            <Line
-              data={{
-                labels: deliveryTrendData.labels,
-                datasets: [
-                  {
-                    label: t("deliveries"),
-                    data: deliveryTrendData.data,
-                    borderColor: "rgb(59, 130, 246)",
-                    backgroundColor: "rgba(59, 130, 246, 0.1)",
-                    tension: 0.4,
-                    fill: true,
-                  },
-                ],
-              }}
-              options={chartOptions}
-            />
-          </div>
+      {/* Report Content - Main area to be converted to PDF */}
+      <div ref={reportRef} className="report-content">
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+          {statsCards.map((stat, index) => (
+            <StatsCard key={index} {...stat} />
+          ))}
         </div>
 
-        {/* Earnings Trend Chart */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-200 dark:border-gray-700 p-6 transition-colors duration-300">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-              {t("earningsTrend")}
-            </h3>
-            <div
-              className={`flex items-center gap-2 text-sm ${
-                parseFloat(earningsTrendData.trend) >= 0
-                  ? "text-green-600 dark:text-green-400"
-                  : "text-red-600 dark:text-red-400"
-              }`}
-            >
-              {parseFloat(earningsTrendData.trend) >= 0 ? (
-                <TrendingUp className="w-4 h-4" />
-              ) : (
-                <TrendingDown className="w-4 h-4" />
-              )}
-              <span>{earningsTrendData.trend}%</span>
+        {/* Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          {/* Delivery Trend Chart */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-200 dark:border-gray-700 p-6 transition-colors duration-300">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                {t("deliveryTrend")}
+              </h3>
+              <div
+                className={`flex items-center gap-2 text-sm ${
+                  parseFloat(deliveryTrendData.trend) >= 0
+                    ? "text-green-600 dark:text-green-400"
+                    : "text-red-600 dark:text-red-400"
+                }`}
+              >
+                {parseFloat(deliveryTrendData.trend) >= 0 ? (
+                  <TrendingUp className="w-4 h-4" />
+                ) : (
+                  <TrendingDown className="w-4 h-4" />
+                )}
+                <span>{deliveryTrendData.trend}%</span>
+              </div>
+            </div>
+            <div className="h-80">
+              <Line
+                data={{
+                  labels: deliveryTrendData.labels,
+                  datasets: [
+                    {
+                      label: t("deliveries"),
+                      data: deliveryTrendData.data,
+                      borderColor: "rgb(59, 130, 246)",
+                      backgroundColor: "rgba(59, 130, 246, 0.1)",
+                      tension: 0.4,
+                      fill: true,
+                    },
+                  ],
+                }}
+                options={chartOptions}
+              />
             </div>
           </div>
-          <div className="h-80">
-            <Bar
-              data={{
-                labels: earningsTrendData.labels,
-                datasets: [
-                  {
-                    label: t("earnings"),
-                    data: earningsTrendData.data,
-                    backgroundColor: "rgba(34, 197, 94, 0.2)",
-                    borderColor: "rgb(34, 197, 94)",
-                    borderWidth: 2,
-                    borderRadius: 4,
-                  },
-                ],
-              }}
-              options={chartOptions}
-            />
-          </div>
-        </div>
 
-        {/* Order Status Distribution */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-200 dark:border-gray-700 p-6 transition-colors duration-300">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-              {t("orderStatusDistribution")}
-            </h3>
-            <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
-              <Target className="w-4 h-4" />
-              <span>{t("current")}</span>
+          {/* Earnings Trend Chart */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-200 dark:border-gray-700 p-6 transition-colors duration-300">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                {t("earningsTrend")}
+              </h3>
+              <div
+                className={`flex items-center gap-2 text-sm ${
+                  parseFloat(earningsTrendData.trend) >= 0
+                    ? "text-green-600 dark:text-green-400"
+                    : "text-red-600 dark:text-red-400"
+                }`}
+              >
+                {parseFloat(earningsTrendData.trend) >= 0 ? (
+                  <TrendingUp className="w-4 h-4" />
+                ) : (
+                  <TrendingDown className="w-4 h-4" />
+                )}
+                <span>{earningsTrendData.trend}%</span>
+              </div>
+            </div>
+            <div className="h-80">
+              <Bar
+                data={{
+                  labels: earningsTrendData.labels,
+                  datasets: [
+                    {
+                      label: t("earnings"),
+                      data: earningsTrendData.data,
+                      backgroundColor: "rgba(34, 197, 94, 0.2)",
+                      borderColor: "rgb(34, 197, 94)",
+                      borderWidth: 2,
+                      borderRadius: 4,
+                    },
+                  ],
+                }}
+                options={chartOptions}
+              />
             </div>
           </div>
-          <div className="h-80">
-            <Doughnut
-              data={{
-                labels: orderStatusData.labels,
-                datasets: [
-                  {
-                    data: orderStatusData.data,
-                    backgroundColor: [
-                      "rgba(234, 179, 8, 0.8)",
-                      "rgba(59, 130, 246, 0.8)",
-                      "rgba(34, 197, 94, 0.8)",
-                    ],
-                    borderColor: [
-                      "rgb(234, 179, 8)",
-                      "rgb(59, 130, 246)",
-                      "rgb(34, 197, 94)",
-                    ],
-                    borderWidth: 2,
-                  },
-                ],
-              }}
-              options={{
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  legend: {
-                    position: "bottom",
-                    labels: {
-                      padding: 20,
-                      font: {
-                        size: 12,
+
+          {/* Order Status Distribution */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-200 dark:border-gray-700 p-6 transition-colors duration-300">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                {t("orderStatusDistribution")}
+              </h3>
+              <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
+                <Target className="w-4 h-4" />
+                <span>{t("current")}</span>
+              </div>
+            </div>
+            <div className="h-80">
+              <Doughnut
+                data={{
+                  labels: orderStatusData.labels,
+                  datasets: [
+                    {
+                      data: orderStatusData.data,
+                      backgroundColor: [
+                        "rgba(234, 179, 8, 0.8)",
+                        "rgba(59, 130, 246, 0.8)",
+                        "rgba(34, 197, 94, 0.8)",
+                      ],
+                      borderColor: [
+                        "rgb(234, 179, 8)",
+                        "rgb(59, 130, 246)",
+                        "rgb(34, 197, 94)",
+                      ],
+                      borderWidth: 2,
+                    },
+                  ],
+                }}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      position: "bottom",
+                      labels: {
+                        padding: 20,
+                        font: {
+                          size: 12,
+                        },
                       },
                     },
                   },
-                },
-                cutout: "70%",
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Performance Metrics */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-200 dark:border-gray-700 p-6 transition-colors duration-300">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-              {t("deliveryMetrics")}
-            </h3>
-            <div className="flex items-center gap-2 text-sm text-purple-600 dark:text-purple-400">
-              <Award className="w-4 h-4" />
-              <span>{t("topPerformer")}</span>
+                  cutout: "70%",
+                }}
+              />
             </div>
           </div>
-          <div className="space-y-6">
-            <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                  <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
-                </div>
-                <div>
-                  <span className="block text-sm font-medium text-gray-900 dark:text-white">
-                    {t("delayedDeliveries")}
-                  </span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {t("thisWeek")}
-                  </span>
-                </div>
-              </div>
-              <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                {(() => {
-                  const filteredOrders = filterOrdersByDateRange(
-                    orders,
-                    dateRange
-                  );
-                  const completedDeliveries = filteredOrders.filter(
-                    (order) =>
-                      order.delivery_option === "delivery" &&
-                      (order.status === "completed" ||
-                        order.status === "delivered" ||
-                        order.isDelivered)
-                  );
-                  return completedDeliveries.length > 0
-                    ? (
-                        (completedDeliveries.filter((order) => order.isDelayed)
-                          .length /
-                          completedDeliveries.length) *
-                        100
-                      ).toFixed(1)
-                    : "0";
-                })()}
-                %
-              </span>
-            </div>
 
-            <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                  <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                </div>
-                <div>
-                  <span className="block text-sm font-medium text-gray-900 dark:text-white">
-                    {t("avgResponseTime")}
-                  </span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {t("today")}
-                  </span>
-                </div>
+          {/* Performance Metrics */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-200 dark:border-gray-700 p-6 transition-colors duration-300">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                {t("deliveryMetrics")}
+              </h3>
+              <div className="flex items-center gap-2 text-sm text-purple-600 dark:text-purple-400">
+                <Award className="w-4 h-4" />
+                <span>{t("topPerformer")}</span>
               </div>
-              <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                {stats?.averageDeliveryTime || 0} {t("minutes")}
-              </span>
+            </div>
+            <div className="space-y-6">
+              <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                    <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                  </div>
+                  <div>
+                    <span className="block text-sm font-medium text-gray-900 dark:text-white">
+                      {t("delayedDeliveries")}
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {t("thisWeek")}
+                    </span>
+                  </div>
+                </div>
+                <span className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {(() => {
+                    const filteredOrders = filterOrdersByDateRange(
+                      orders,
+                      dateRange
+                    );
+                    const completedDeliveries = filteredOrders.filter(
+                      (order) =>
+                        order.delivery_option === "delivery" &&
+                        order.status === "completed"
+                    );
+                    return completedDeliveries.length > 0
+                      ? (
+                          (completedDeliveries.filter(
+                            (order) => order.isDelayed
+                          ).length /
+                            completedDeliveries.length) *
+                          100
+                        ).toFixed(1)
+                      : "0";
+                  })()}
+                  %
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                    <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <span className="block text-sm font-medium text-gray-900 dark:text-white">
+                      {t("avgResponseTime")}
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {t("today")}
+                    </span>
+                  </div>
+                </div>
+                <span className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {stats?.averageDeliveryTime || 0} {t("minutes")}
+                </span>
+              </div>
             </div>
           </div>
         </div>

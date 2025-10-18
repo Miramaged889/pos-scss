@@ -64,7 +64,8 @@ const mapDbToFrontend = (dbProduct) => {
     status: dbProduct.status,
     suspended: dbProduct.suspended,
     supplierId: dbProduct.Supplier,
-    supplier: dbProduct.Supplier, // Keep both for backward compatibility
+    supplier: dbProduct.Supplier,
+    Suspended: dbProduct.Suspended,
   };
 };
 

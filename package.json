@@ -12,8 +12,10 @@
   "dependencies": {
     "@reduxjs/toolkit": "^2.8.2",
     "chart.js": "^4.5.0",
+    "html2canvas": "^1.4.1",
     "i18next": "^25.2.1",
     "i18next-browser-languagedetector": "^8.2.0",
+    "jspdf": "^3.0.3",
     "lucide-react": "^0.523.0",
     "react": "^19.1.0",
     "react-chartjs-2": "^5.3.0",

@@ -1,7 +1,14 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
-import { Clock, ChefHat, CheckCircle, AlertTriangle } from "lucide-react";
+import {
+  Clock,
+  ChefHat,
+  CheckCircle,
+  AlertTriangle,
+  Truck,
+  Store,
+} from "lucide-react";
 
 const OrderCard = ({ order, priority, onStatusUpdate, products = [] }) => {
   const { t } = useTranslation();
@@ -51,14 +58,15 @@ const OrderCard = ({ order, priority, onStatusUpdate, products = [] }) => {
     }
   };
 
-  const getActionButtonText = (status) => {
+  const getActionButtonText = (status, deliveryOption) => {
     switch (status) {
       case "pending":
         return t("startPreparing");
       case "preparing":
         return t("markReady");
       case "ready":
-        return t("markCompleted");
+        // Only show "mark as completed" for pickup orders
+        return deliveryOption === "pickup" ? t("markCompleted") : "";
       default:
         return "";
     }
@@ -100,6 +108,26 @@ const OrderCard = ({ order, priority, onStatusUpdate, products = [] }) => {
           {priority === "high" && (
             <AlertTriangle className="w-4 h-4 text-red-500" />
           )}
+          {/* Delivery Option Indicator */}
+          <div
+            className={`flex items-center gap-1 px-2 py-1 text-xs rounded-full ${
+              order.delivery_option === "delivery"
+                ? "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-200"
+                : "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-200"
+            }`}
+          >
+            {order.delivery_option === "delivery" ? (
+              <>
+                <Truck className="w-3 h-3" />
+                {t("delivery")}
+              </>
+            ) : (
+              <>
+                <Store className="w-3 h-3" />
+                {t("pickup")}
+              </>
+            )}
+          </div>
         </div>
         <div className="text-right">
           <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -146,23 +174,34 @@ const OrderCard = ({ order, priority, onStatusUpdate, products = [] }) => {
 
       {/* Status and Action */}
       <div className="flex items-center justify-between">
-        <span
-          className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(
-            order.status
-          )}`}
-        >
-          {getStatusIcon(order.status)}
-          {t(order.status)}
-        </span>
-
-        {order.status !== "completed" && (
-          <button
-            onClick={() => onStatusUpdate(order.id)}
-            className="text-xs px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(
+              order.status
+            )}`}
           >
-            {getActionButtonText(order.status)}
-          </button>
-        )}
+            {getStatusIcon(order.status)}
+            {t(order.status)}
+          </span>
+
+          {/* Show "Ready for Delivery" status for delivery orders */}
+          {order.status === "ready" && order.delivery_option === "delivery" && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full border bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-200 dark:border-blue-800">
+              <Truck className="w-3 h-3" />
+              {t("readyForDelivery")}
+            </span>
+          )}
+        </div>
+
+        {order.status !== "completed" &&
+          getActionButtonText(order.status, order.delivery_option) && (
+            <button
+              onClick={() => onStatusUpdate(order.id)}
+              className="text-xs px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+            >
+              {getActionButtonText(order.status, order.delivery_option)}
+            </button>
+          )}
       </div>
 
       {/* Priority Indicator */}

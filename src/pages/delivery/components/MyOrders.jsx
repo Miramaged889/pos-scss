@@ -42,7 +42,6 @@ const MyOrders = ({ isHome = false }) => {
   const [processing, setProcessing] = useState(false);
   const [startingDelivery, setStartingDelivery] = useState(null); // Track which order is being started
 
-
   // Customer data states
   const [customers, setCustomers] = useState([]);
   const [customersLoading, setCustomersLoading] = useState(false);
@@ -233,22 +232,20 @@ const MyOrders = ({ isHome = false }) => {
     );
 
     switch (filter) {
-      case "pending":
+      case "ready":
         filteredOrders = filteredOrders.filter(
-          (order) => (order.status || order.deliveryStatus) === "pending"
-        );
-        break;
-      case "delivering":
-        filteredOrders = filteredOrders.filter(
-          (order) => (order.status || order.deliveryStatus) === "delivering"
+          (order) => (order.status || order.deliveryStatus) === "ready"
         );
         break;
       case "delivered":
         filteredOrders = filteredOrders.filter(
+          (order) => (order.status || order.deliveryStatus) === "delivered"
+        );
+        break;
+      case "completed":
+        filteredOrders = filteredOrders.filter(
           (order) =>
-            order.status === "completed" ||
-            order.status === "delivered" ||
-            order.deliveryStatus === "delivered"
+            order.status === "completed" || order.deliveryStatus === "completed"
         );
         break;
       default:
@@ -273,14 +270,14 @@ const MyOrders = ({ isHome = false }) => {
         console.log("Starting delivery for order:", orderId);
         setStartingDelivery(orderId);
 
-        // Update order status via API - set status to "delivering" when starting delivery
+        // Update order status via API - set status to "delivered" when starting delivery
         await dispatch(
           updateOrderStatus({
             id: orderId,
-            status: "delivering",
+            status: "delivered",
             assignedDriver: user?.name,
             deliveryStartTime: new Date().toISOString(),
-            deliveryStatus: "delivering",
+            deliveryStatus: "delivered",
           })
         );
 
@@ -356,7 +353,7 @@ const MyOrders = ({ isHome = false }) => {
           total_amount: amount.toString(), // Update the total amount
           isDelivered: true,
           deliveryEndTime: new Date().toISOString(),
-          deliveryStatus: "delivered",
+          deliveryStatus: "completed",
           isPaid: true,
           paidAt: new Date().toISOString(),
           paymentStatus: "completed",
@@ -385,22 +382,19 @@ const MyOrders = ({ isHome = false }) => {
     navigate(`/delivery/order/${orderId}`);
   };
 
-
-
-
   const getOrderStatusColor = (order) => {
     const status = order.status || order.deliveryStatus;
     switch (status) {
       case "completed":
-      case "delivered":
         return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
-      case "pending":
-      case "delivering":
+      case "delivered":
         return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
+      case "ready":
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
       case "cancelled":
         return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
       default:
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400";
+        return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400";
     }
   };
 
@@ -411,10 +405,8 @@ const MyOrders = ({ isHome = false }) => {
         return t("completed");
       case "delivered":
         return t("delivered");
-      case "pending":
-        return t("pending");
-      case "delivering":
-        return t("delivering");
+      case "ready":
+        return t("readyForDelivery");
       case "cancelled":
         return t("cancelled");
       default:
@@ -457,9 +449,9 @@ const MyOrders = ({ isHome = false }) => {
                 className="bg-transparent border-none focus:ring-0 text-gray-700 dark:text-gray-300 font-medium"
               >
                 <option value="all">{t("allOrders")}</option>
-                <option value="pending">{t("pendingDelivery")}</option>
-                <option value="delivering">{t("delivering")}</option>
+                <option value="ready">{t("readyForDelivery")}</option>
                 <option value="delivered">{t("delivered")}</option>
+                <option value="completed">{t("completed")}</option>
               </select>
             </div>
           )}
@@ -665,7 +657,7 @@ const MyOrders = ({ isHome = false }) => {
                     {t("viewDetails")}
                   </button>
 
-                  {(order.status === "pending" || !order.status) && (
+                  {(order.status === "ready" || !order.status) && (
                     <button
                       onClick={(e) => {
                         e.preventDefault();
@@ -687,15 +679,15 @@ const MyOrders = ({ isHome = false }) => {
                     </button>
                   )}
 
-                  {(order.status === "delivering" ||
-                    order.deliveryStatus === "delivering") && (
+                  {(order.status === "delivered" ||
+                    order.deliveryStatus === "delivered") && (
                     <button
                       onClick={() => handleCompleteDelivery(order)}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                      title={t("markAsDeliveredTooltip")}
+                      title={t("markAsCompletedTooltip")}
                     >
                       <CheckCircle className="w-4 h-4" />
-                      {t("markAsDelivered")}
+                      {t("markAsCompleted")}
                     </button>
                   )}
                 </div>
@@ -708,10 +700,12 @@ const MyOrders = ({ isHome = false }) => {
             <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-xl shadow-soft dark:shadow-soft-dark border border-gray-200 dark:border-gray-700">
               <Truck className="w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                {filter === "pending"
-                  ? t("noPendingDeliveries")
+                {filter === "ready"
+                  ? t("noReadyDeliveries")
                   : filter === "delivered"
                   ? t("noDeliveredOrders")
+                  : filter === "completed"
+                  ? t("noCompletedOrders")
                   : t("noOrdersToDeliver")}
               </h3>
               <p className="text-gray-600 dark:text-gray-400">

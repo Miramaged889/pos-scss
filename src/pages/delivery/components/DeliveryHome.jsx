@@ -62,11 +62,11 @@ const DeliveryHome = () => {
 
       // Calculate statistics
       const completed = todaysOrders.filter(
-        (order) => order.status === "completed" || order.isDelivered
+        (order) => order.status === "completed"
       ).length;
-      const pending = driverOrders.filter(
+      const ready = driverOrders.filter(
         (order) =>
-          order.status === "pending" || (!order.status && !order.isDelivered)
+          order.status === "ready" || (!order.status && !order.isDelivered)
       ).length;
 
       // Calculate earnings (simplified without payments data)
@@ -77,7 +77,7 @@ const DeliveryHome = () => {
 
       setTodaysStats({
         completedToday: completed,
-        pendingDeliveries: pending,
+        pendingDeliveries: ready,
         todaysEarnings: earnings,
       });
     }
@@ -91,7 +91,7 @@ const DeliveryHome = () => {
       color: "green",
     },
     {
-      title: t("pendingDeliveries"),
+      title: t("readyDeliveries"),
       value: todaysStats.pendingDeliveries,
       icon: Clock,
       color: "yellow",

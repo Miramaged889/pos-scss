@@ -246,23 +246,23 @@ const OrderDetails = () => {
     try {
       console.log("Starting delivery for order:", order.id);
 
-      // Update order status via Redux - set status to "delivering" when starting delivery
+      // Update order status via Redux - set status to "delivered" when starting delivery
       await dispatch(
         updateOrderStatus({
           id: order.id,
-          status: "delivering",
+          status: "delivered",
           assignedDriver: user?.name,
           deliveryStartTime: new Date().toISOString(),
-          deliveryStatus: "delivering",
+          deliveryStatus: "delivered",
         })
       );
 
       // Update local state
       setOrder((prev) => ({
         ...prev,
-        status: "delivering",
+        status: "delivered",
         deliveryStartTime: new Date().toISOString(),
-        deliveryStatus: "delivering",
+        deliveryStatus: "delivered",
         assignedDriver: user?.name,
       }));
     } catch (err) {
@@ -365,7 +365,7 @@ const OrderDetails = () => {
           total_amount: amount.toString(), // Update the total amount
           isDelivered: true,
           deliveryEndTime: new Date().toISOString(),
-          deliveryStatus: "delivered",
+          deliveryStatus: "completed",
           isPaid: true,
           paidAt: new Date().toISOString(),
           paymentStatus: "completed",
@@ -380,7 +380,7 @@ const OrderDetails = () => {
         status: "completed",
         total_amount: amount.toString(),
         deliveryEndTime: new Date().toISOString(),
-        deliveryStatus: "delivered",
+        deliveryStatus: "completed",
         isDelivered: true,
         isPaid: true,
         paidAt: new Date().toISOString(),
@@ -507,28 +507,28 @@ const OrderDetails = () => {
               <div className="flex items-center gap-2">
                 <span
                   className={`px-3 py-1 text-sm font-medium rounded-full ${
-                    order.status === "completed" || order.isDelivered
+                    order.status === "completed"
                       ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                      : order.status === "delivering" ||
-                        order.deliveryStatus === "delivering"
+                      : order.status === "delivered" ||
+                        order.deliveryStatus === "delivered"
                       ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
+                      : order.status === "ready"
+                      ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
                       : order.status === "cancelled"
                       ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-                      : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+                      : "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400"
                   }`}
                 >
                   {order.status === "completed"
                     ? t("completed")
-                    : order.status === "delivering"
-                    ? t("delivering")
-                    : order.status === "pending"
-                    ? t("pending")
+                    : order.status === "delivered"
+                    ? t("delivered")
+                    : order.status === "ready"
+                    ? t("readyForDelivery")
                     : order.status === "cancelled"
                     ? t("cancelled")
-                    : order.isDelivered
+                    : order.deliveryStatus === "delivered"
                     ? t("delivered")
-                    : order.deliveryStatus === "delivering"
-                    ? t("delivering")
                     : t("readyForDelivery")}
                 </span>
                 <button
@@ -645,7 +645,7 @@ const OrderDetails = () => {
           >
             {t("back")}
           </button>
-          {(order.status === "pending" || !order.status) && (
+          {(order.status === "ready" || !order.status) && (
             <button
               onClick={handleStartDelivery}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -653,13 +653,13 @@ const OrderDetails = () => {
               {t("startDelivery")}
             </button>
           )}
-          {(order.status === "delivering" ||
-            order.deliveryStatus === "delivering") && (
+          {(order.status === "delivered" ||
+            order.deliveryStatus === "delivered") && (
             <button
               onClick={handleCompleteDelivery}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
             >
-              {t("markAsDelivered")}
+              {t("markAsCompleted")}
             </button>
           )}
         </div>

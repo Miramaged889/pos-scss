@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useSelector, useDispatch } from "react-redux";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 // Utility functions for localStorage
 const getFromStorage = (key, defaultValue = null) => {
@@ -69,6 +71,7 @@ const KitchenReports = () => {
   const [dateRange, setDateRange] = useState("week");
   const [reportData, setReportData] = useState({});
   const [products, setProducts] = useState([]);
+  const reportRef = useRef(null);
 
   // Load orders from API
   useEffect(() => {
@@ -381,30 +384,108 @@ const KitchenReports = () => {
     }
   }, [reportData]);
 
-  const exportReport = () => {
-    const reportContent = {
-      dateRange,
-      generatedAt: new Date().toISOString(),
-      stats: reportData,
-      previousStats: getFromStorage("previousStats", {}),
-      orders: orders,
-      lastUpdated: new Date().toISOString(),
-    };
+  const exportReport = async () => {
+    if (!reportRef.current) {
+      console.error("Report content not found");
+      return;
+    }
 
-    const blob = new Blob([JSON.stringify(reportContent, null, 2)], {
-      type: "application/json",
-    });
+    // Show loading state
+    const exportBtn = document.querySelector("[data-export-btn]");
+    let originalText = "";
+    if (exportBtn) {
+      originalText = exportBtn.textContent;
+      exportBtn.textContent = t("generatingPDF") || "Generating PDF...";
+      exportBtn.disabled = true;
+    }
 
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `kitchen-report-${dateRange}-${
-      new Date().toISOString().split("T")[0]
-    }.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    try {
+      // Create a new canvas from the report content
+      const canvas = await html2canvas(reportRef.current, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: theme === "dark" ? "#1f2937" : "#ffffff",
+        logging: false,
+        height: reportRef.current.scrollHeight,
+        width: reportRef.current.scrollWidth,
+      });
+
+      // Calculate PDF dimensions
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 295; // A4 height in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+
+      // Create PDF
+      const pdf = new jsPDF("p", "mm", "a4");
+      const imgData = canvas.toDataURL("image/png");
+
+      // Add title page
+      pdf.setFontSize(20);
+      pdf.setFont("helvetica", "bold");
+      pdf.text(t("kitchenReports") || "Kitchen Reports", 105, 20, {
+        align: "center",
+      });
+
+      pdf.setFontSize(12);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(
+        `${
+          t("generatedOn") || "Generated on"
+        }: ${new Date().toLocaleDateString()}`,
+        105,
+        30,
+        { align: "center" }
+      );
+      pdf.text(
+        `${t("period") || "Period"}: ${t(
+          dateRange === "today"
+            ? "today"
+            : dateRange === "week"
+            ? "thisWeek"
+            : "thisMonth"
+        )}`,
+        105,
+        35,
+        { align: "center" }
+      );
+
+      // Add new page for the report content
+      pdf.addPage();
+
+      // Add the chart content
+      let position = 0;
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      // Add additional pages if content is longer than one page
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      // Save the PDF
+      const fileName = `kitchen-report-${dateRange}-${
+        new Date().toISOString().split("T")[0]
+      }.pdf`;
+      pdf.save(fileName);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      alert(
+        t("errorGeneratingPDF") || "Error generating PDF. Please try again."
+      );
+    } finally {
+      // Reset button state
+      const exportBtn = document.querySelector("[data-export-btn]");
+      if (exportBtn) {
+        exportBtn.textContent =
+          originalText || t("exportReport") || "Export Report";
+        exportBtn.disabled = false;
+      }
+    }
   };
 
   const isDark = theme === "dark";
@@ -437,7 +518,8 @@ const KitchenReports = () => {
 
           <button
             onClick={exportReport}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+            data-export-btn
+            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download className="w-4 h-4 mr-2" />
             {t("exportReport")}
@@ -445,92 +527,94 @@ const KitchenReports = () => {
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-        {stats.map((stat, index) => (
-          <StatsCard key={index} {...stat} theme={theme} />
-        ))}
-      </div>
-
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Order Status Distribution */}
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-            {t("orderStatusDistribution")}
-          </h3>
-          <div style={{ height: "300px" }}>
-            <Doughnut
-              data={orderStatusChartData}
-              options={{
-                ...getChartOptions(isDark),
-                maintainAspectRatio: false,
-              }}
-            />
-          </div>
+      {/* Report Content - Main area to be converted to PDF */}
+      <div ref={reportRef} className="report-content">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {stats.map((stat, index) => (
+            <StatsCard key={index} {...stat} theme={theme} />
+          ))}
         </div>
 
-        {/* Hourly Orders */}
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-            {t("ordersByHour")}
-          </h3>
-          <div style={{ height: "300px" }}>
-            <Bar
-              data={hourlyOrdersChartData}
-              options={{
-                ...getChartOptions(isDark),
-                maintainAspectRatio: false,
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Daily Trend */}
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-            {t("dailyOrderTrend")}
-          </h3>
-          <div style={{ height: "300px" }}>
-            <Line
-              data={dailyTrendData}
-              options={{
-                ...getChartOptions(isDark),
-                maintainAspectRatio: false,
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Popular Items */}
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-              {t("popularItems")}
+        {/* Charts Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          {/* Order Status Distribution */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+              {t("orderStatusDistribution")}
             </h3>
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              {dateRange === "today"
-                ? t("today")
-                : dateRange === "week"
-                ? t("thisWeek")
-                : t("thisMonth")}
+            <div style={{ height: "300px" }}>
+              <Doughnut
+                data={orderStatusChartData}
+                options={{
+                  ...getChartOptions(isDark),
+                  maintainAspectRatio: false,
+                }}
+              />
             </div>
           </div>
 
-          <div className="space-y-4">
-            {reportData.popularItems?.length > 0 ? (
-              reportData.popularItems.map(([item, count], index) => {
-                const maxCount = Math.max(
-                  ...reportData.popularItems.map(([, c]) => c)
-                );
-                const percentage = (count / maxCount) * 100;
+          {/* Hourly Orders */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+              {t("ordersByHour")}
+            </h3>
+            <div style={{ height: "300px" }}>
+              <Bar
+                data={hourlyOrdersChartData}
+                options={{
+                  ...getChartOptions(isDark),
+                  maintainAspectRatio: false,
+                }}
+              />
+            </div>
+          </div>
 
-                return (
-                  <div key={item} className="relative">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center space-x-3 rtl:space-x-reverse">
-                        <span
-                          className={`
+          {/* Daily Trend */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+              {t("dailyOrderTrend")}
+            </h3>
+            <div style={{ height: "300px" }}>
+              <Line
+                data={dailyTrendData}
+                options={{
+                  ...getChartOptions(isDark),
+                  maintainAspectRatio: false,
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Popular Items */}
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                {t("popularItems")}
+              </h3>
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                {dateRange === "today"
+                  ? t("today")
+                  : dateRange === "week"
+                  ? t("thisWeek")
+                  : t("thisMonth")}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {reportData.popularItems?.length > 0 ? (
+                reportData.popularItems.map(([item, count], index) => {
+                  const maxCount = Math.max(
+                    ...reportData.popularItems.map(([, c]) => c)
+                  );
+                  const percentage = (count / maxCount) * 100;
+
+                  return (
+                    <div key={item} className="relative">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-3 rtl:space-x-reverse">
+                          <span
+                            className={`
                           w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold
                           ${
                             index === 0
@@ -542,135 +626,136 @@ const KitchenReports = () => {
                               : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-500"
                           }
                         `}
-                        >
-                          #{index + 1}
-                        </span>
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900 dark:text-white">
-                            {item}
-                          </h4>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {t("orderedCount", { count })}
-                          </p>
+                          >
+                            #{index + 1}
+                          </span>
+                          <div>
+                            <h4 className="text-sm font-medium text-gray-900 dark:text-white">
+                              {item}
+                            </h4>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {t("orderedCount", { count })}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          {Math.round(percentage)}%
                         </div>
                       </div>
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        {Math.round(percentage)}%
+
+                      <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                        <div
+                          className={`h-2 rounded-full ${
+                            index === 0
+                              ? "bg-yellow-500"
+                              : index === 1
+                              ? "bg-gray-500"
+                              : index === 2
+                              ? "bg-orange-500"
+                              : "bg-blue-500"
+                          }`}
+                          style={{ width: `${percentage}%` }}
+                        />
                       </div>
                     </div>
-
-                    <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                      <div
-                        className={`h-2 rounded-full ${
-                          index === 0
-                            ? "bg-yellow-500"
-                            : index === 1
-                            ? "bg-gray-500"
-                            : index === 2
-                            ? "bg-orange-500"
-                            : "bg-blue-500"
-                        }`}
-                        style={{ width: `${percentage}%` }}
+                  );
+                })
+              ) : (
+                <div className="text-center py-8">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
+                    <svg
+                      className="w-8 h-8 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM7.5 15h9m-9-3h9m-9-3h9"
                       />
-                    </div>
+                    </svg>
                   </div>
-                );
-              })
-            ) : (
-              <div className="text-center py-8">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
-                  <svg
-                    className="w-8 h-8 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM7.5 15h9m-9-3h9m-9-3h9"
-                    />
-                  </svg>
+                  <h3 className="text-base font-medium text-gray-900 dark:text-white mb-1">
+                    {t("noPopularItems")}
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {t("noOrdersInPeriod")}
+                  </p>
                 </div>
-                <h3 className="text-base font-medium text-gray-900 dark:text-white mb-1">
-                  {t("noPopularItems")}
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {t("noOrdersInPeriod")}
-                </p>
+              )}
+            </div>
+
+            {reportData.popularItems?.length > 0 && (
+              <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500 dark:text-gray-400">
+                    {t("totalUniqueItems")}
+                  </span>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    {reportData.popularItems.length}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm mt-2">
+                  <span className="text-gray-500 dark:text-gray-400">
+                    {t("totalOrderedItems")}
+                  </span>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    {reportData.popularItems.reduce(
+                      (sum, [, count]) => sum + count,
+                      0
+                    )}
+                  </span>
+                </div>
               </div>
             )}
           </div>
-
-          {reportData.popularItems?.length > 0 && (
-            <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500 dark:text-gray-400">
-                  {t("totalUniqueItems")}
-                </span>
-                <span className="font-medium text-gray-900 dark:text-white">
-                  {reportData.popularItems.length}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm mt-2">
-                <span className="text-gray-500 dark:text-gray-400">
-                  {t("totalOrderedItems")}
-                </span>
-                <span className="font-medium text-gray-900 dark:text-white">
-                  {reportData.popularItems.reduce(
-                    (sum, [, count]) => sum + count,
-                    0
-                  )}
-                </span>
-              </div>
-            </div>
-          )}
         </div>
-      </div>
 
-      {/* Performance Insights */}
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-          {t("performanceInsights")}
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
-                {t("peakHours")}
-              </span>
+        {/* Performance Insights */}
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+            {t("performanceInsights")}
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                  {t("peakHours")}
+                </span>
+              </div>
+              <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                {t("busiest")} {t("peakHoursTime")}
+              </p>
             </div>
-            <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-              {t("busiest")} {t("peakHoursTime")}
-            </p>
-          </div>
 
-          <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-            <div className="flex items-center gap-2">
-              <Clock className="w-5 h-5 text-green-600 dark:text-green-400" />
-              <span className="text-sm font-medium text-green-900 dark:text-green-200">
-                {t("efficiency")}
-              </span>
+            <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-green-600 dark:text-green-400" />
+                <span className="text-sm font-medium text-green-900 dark:text-green-200">
+                  {t("efficiency")}
+                </span>
+              </div>
+              <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+                {reportData.avgPrepTime < 20
+                  ? t("goodPrepTime")
+                  : t("improvePrepTime")}
+              </p>
             </div>
-            <p className="text-xs text-green-700 dark:text-green-300 mt-1">
-              {reportData.avgPrepTime < 20
-                ? t("goodPrepTime")
-                : t("improvePrepTime")}
-            </p>
-          </div>
 
-          <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
-              <span className="text-sm font-medium text-yellow-900 dark:text-yellow-200">
-                {t("recommendations")}
-              </span>
+            <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+                <span className="text-sm font-medium text-yellow-900 dark:text-yellow-200">
+                  {t("recommendations")}
+                </span>
+              </div>
+              <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
+                {t("optimizeForPeakHours")}
+              </p>
             </div>
-            <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
-              {t("optimizeForPeakHours")}
-            </p>
           </div>
         </div>
       </div>
