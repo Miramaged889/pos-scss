@@ -1,13 +1,14 @@
 // 1. Get current hostname
 const hostname = window.location.hostname; // e.g. opp.almohasseb.com
-
+const parts = hostname.split(".");
 // 2. Extract subdomain if present
 let subdomain = null;
 
 // Detect subdomain dynamically (works for any domain)
-const parts = hostname.split(".");
+if (parts[0] === "www") parts.shift();
+
+// If there are 3 or more parts, the first part is the subdomain
 if (parts.length > 2) {
-  // e.g. ["opp", "almohasseb", "com"]
   subdomain = parts[0];
 }
 
