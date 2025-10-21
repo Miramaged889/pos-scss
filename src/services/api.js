@@ -1,38 +1,30 @@
-/**
- * API Service for Backend Integration
- * Handles multi-tenant API base URL detection
- */
+// 1. Get current hostname
+const hostname = window.location.hostname; // e.g. opp.almohasseb.com
 
-// 1. Get the current hostname (e.g., opp.almohasseb.com OR localhost)
-const hostname = window.location.hostname;
-
-// 2. Extract subdomain (first part before the first dot)
+// 2. Extract subdomain if present
 let subdomain = null;
 
-// Detect subdomain on any custom domain (almohasseb.com, posback.shop, etc.)
-if (
-  hostname.includes(".posback.shop") ||
-  hostname.includes(".almohasseb.com") ||
-  hostname.includes(".localhost")
-) {
-  subdomain = hostname.split(".")[0];
-} else {
-  subdomain = null;
+// Detect subdomain dynamically (works for any domain)
+const parts = hostname.split(".");
+if (parts.length > 2) {
+  // e.g. ["opp", "almohasseb", "com"]
+  subdomain = parts[0];
 }
 
-// 3. Base SaaS backend
-const SAAS_BASE_URL = "https://posback.shop"; // default backend (no tenant)
+// 3. Define backend root (always posback.shop)
+const SAAS_BASE_URL = "https://posback.shop";
 
-// 4. Build tenant base dynamically
+// 4. If subdomain exists, point to that tenant backend
 const TENANT_BASE_URL = subdomain
   ? `https://${subdomain}.posback.shop`
   : SAAS_BASE_URL;
 
-// 5. Final API base URL
+// 5. Export final base URL
 export const API_BASE_URL = TENANT_BASE_URL;
 
-// 6. Development mode detection 
-const isDevelopment = hostname.includes("localhost") || hostname.includes("127.0.0.1");
+// 6. Development mode detection
+const isDevelopment =
+  hostname.includes("localhost") || hostname.includes("127.0.0.1");
 
 // API endpoints
 export const API_ENDPOINTS = {
