@@ -8,8 +8,11 @@ let subdomain = null;
 if (parts[0] === "www") parts.shift();
 
 // If there are 3 or more parts, the first part is the subdomain
-if (parts.length > 2) {
+if (parts.length >= 2 && parts[0] !== "localhost") {
   subdomain = parts[0];
+} else if (hostname.includes(".localhost")) {
+  // For opp.localhost (local environment)
+  subdomain = hostname.split(".")[0];
 }
 
 // 3. Define backend root (always posback.shop)

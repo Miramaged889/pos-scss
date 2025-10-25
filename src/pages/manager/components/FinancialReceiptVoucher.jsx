@@ -576,6 +576,19 @@ const FinancialReceiptVoucher = () => {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
+                  {/* Date - Moved to top */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      {t("financialReceipt.date")}:
+                    </label>
+                    <input
+                      type="date"
+                      value={receiptDate}
+                      onChange={(e) => setReceiptDate(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
                   {/* Payer Name */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -727,19 +740,6 @@ const FinancialReceiptVoucher = () => {
                       value={receiver}
                       onChange={(e) => setReceiver(e.target.value)}
                       placeholder={t("financialReceipt.receiverName")}
-                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  {/* Date */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      {t("financialReceipt.date")}:
-                    </label>
-                    <input
-                      type="date"
-                      value={receiptDate}
-                      onChange={(e) => setReceiptDate(e.target.value)}
                       className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>

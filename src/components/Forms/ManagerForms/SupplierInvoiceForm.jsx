@@ -492,9 +492,9 @@ const SupplierInvoiceForm = ({
                           ? ` ${t("each")} ${(
                               parseFloat(item.unit_price) || 0
                             ).toFixed(2)} `
-                          : ` ${(
-                              parseFloat(item.unit_price) || 0
-                            ).toFixed(2)} ${t("each")}`}
+                          : ` ${(parseFloat(item.unit_price) || 0).toFixed(
+                              2
+                            )} ${t("each")}`}
                       </span>
                     </div>
                     <div className={`${isRTL ? "text-right" : "text-left"}`}>

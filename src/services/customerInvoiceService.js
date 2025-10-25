@@ -13,6 +13,7 @@ const mapDbToFrontend = (dbInvoice) => {
     notes: dbInvoice.notes,
     items: dbInvoice.items || [],
     status: dbInvoice.status || "pending",
+    payment_method: dbInvoice.payment_method, // Add payment method mapping
     createdAt: dbInvoice.created_at,
     updatedAt: dbInvoice.updated_at,
     issueDate: dbInvoice.issue_date,
@@ -67,14 +68,16 @@ const mapFrontendToDb = (
     frontendInvoice.items &&
     Array.isArray(frontendInvoice.items)
   ) {
+
     const validItems = frontendInvoice.items
-      .filter(
-        (item) =>
+      .filter((item) => {
+        const isValid =
           item &&
           (item.productId || item.product) &&
           (item.productId || item.product) !== "" &&
-          (item.productId || item.product) !== null
-      ) // Filter out invalid items
+          (item.productId || item.product) !== null;
+        return isValid;
+      }) // Filter out invalid items
       .map((item) => ({
         product_id: item.productId || item.product, // Backend expects product_id
         quantity: item.quantity || 1,
@@ -148,7 +151,6 @@ export const customerInvoiceService = {
 
   // Create new customer invoice
   createCustomerInvoice: async (invoiceData) => {
-
     const dbData = mapFrontendToDb(invoiceData);
 
     const response = await apiService.post(
@@ -191,8 +193,6 @@ export const customerInvoiceService = {
       if (invoiceData.total !== undefined) {
         basicFields.total = invoiceData.total;
       }
-
-      console.log("Basic fields being sent:", basicFields);
 
       try {
         // Try basic update first

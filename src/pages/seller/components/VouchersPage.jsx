@@ -37,7 +37,6 @@ import {
   fetchVouchers,
   createVoucher,
   updateVoucher,
-  deleteVoucher,
 } from "../../../store/slices/voucherSlice";
 
 const VouchersPage = () => {
@@ -150,30 +149,6 @@ const VouchersPage = () => {
   const handleViewVoucher = (voucher, type) => {
     setSelectedVoucher({ ...voucher, type });
     setViewModal(true);
-  };
-
-  const handleEditVoucher = (voucher, type) => {
-    setModalMode("edit");
-    setEditingVoucher(voucher);
-    if (type === "expense") {
-      setExpenseModal(true);
-    } else {
-      setPaymentModal(true);
-    }
-  };
-
-  const handleDeleteVoucher = async (voucher) => {
-    if (!window.confirm(t("confirmDeleteVoucher"))) {
-      return;
-    }
-
-    try {
-      await dispatch(deleteVoucher(voucher.id));
-      toast.success(t("voucherDeleted"));
-    } catch (error) {
-      console.error("Error deleting voucher:", error);
-      toast.error(t("errorDeletingVoucher"));
-    }
   };
 
   const handleExpenseSubmit = async (voucherData) => {
@@ -578,20 +553,6 @@ const VouchersPage = () => {
                         >
                           <Printer className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => handleEditVoucher(voucher, "expense")}
-                          className="p-1 text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300"
-                          title={t("edit")}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteVoucher(voucher)}
-                          className="p-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                          title={t("delete")}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4 text-sm">
@@ -701,20 +662,6 @@ const VouchersPage = () => {
                           title={t("print")}
                         >
                           <Printer className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleEditVoucher(voucher, "payment")}
-                          className="p-1 text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300"
-                          title={t("edit")}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteVoucher(voucher)}
-                          className="p-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                          title={t("delete")}
-                        >
-                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -881,16 +828,6 @@ const VouchersPage = () => {
                 >
                   <Printer className="w-4 h-4" />
                   {t("print")}
-                </button>
-                <button
-                  onClick={() => {
-                    setViewModal(false);
-                    handleEditVoucher(selectedVoucher, selectedVoucher.type);
-                  }}
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
-                >
-                  <Edit className="w-4 h-4" />
-                  {t("edit")}
                 </button>
               </div>
             </div>

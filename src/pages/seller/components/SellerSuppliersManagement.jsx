@@ -24,10 +24,7 @@ import DataTable from "../../../components/Common/DataTable";
 import StatsCard from "../../../components/Common/StatsCard";
 import { SellerSupplierForm } from "../../../components/Forms";
 import { formatCurrencyEnglish, formatNumberEnglish } from "../../../utils";
-import {
-  fetchSuppliers,
-  deleteSupplier,
-} from "../../../store/slices/supplierSlice";
+import { fetchSuppliers } from "../../../store/slices/supplierSlice";
 import { supplierService } from "../../../services/supplierService";
 
 const SuppliersManagement = () => {
@@ -42,8 +39,6 @@ const SuppliersManagement = () => {
   const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [formMode, setFormMode] = useState("add");
   const [viewModalOpen, setViewModalOpen] = useState(false);
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [supplierToDelete, setSupplierToDelete] = useState(null);
   const [supplierStats, setSupplierStats] = useState({});
   const [loadingStats, setLoadingStats] = useState(false);
 
@@ -155,32 +150,9 @@ const SuppliersManagement = () => {
     setIsFormOpen(true);
   };
 
-  const handleEditSupplier = (supplier) => {
-    setSelectedSupplier(supplier);
-    setFormMode("edit");
-    setIsFormOpen(true);
-  };
-
   const handleViewSupplier = (supplier) => {
     setSelectedSupplier(supplier);
     setViewModalOpen(true);
-  };
-
-  const handleDeleteSupplier = (supplier) => {
-    setSupplierToDelete(supplier);
-    setDeleteModalOpen(true);
-  };
-
-  const confirmDelete = async () => {
-    try {
-      await dispatch(deleteSupplier(supplierToDelete.id));
-      // Reload statistics after deletion
-      loadSupplierStatistics();
-      setDeleteModalOpen(false);
-      setSupplierToDelete(null);
-    } catch (error) {
-      console.error("Error deleting supplier:", error);
-    }
   };
 
   const handleFormSubmit = () => {
@@ -310,20 +282,6 @@ const SuppliersManagement = () => {
             title={t("viewDetails")}
           >
             <Eye className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleEditSupplier(supplier)}
-            className="p-1.5 text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
-            title={t("edit")}
-          >
-            <Edit className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleDeleteSupplier(supplier)}
-            className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-            title={t("delete")}
-          >
-            <Trash2 className="w-4 h-4" />
           </button>
         </div>
       ),
@@ -559,43 +517,6 @@ const SuppliersManagement = () => {
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {deleteModalOpen && supplierToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
-                  <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
-                </div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {t("confirmDelete")}
-                </h2>
-              </div>
-              <p className="text-gray-600 dark:text-gray-400 mb-6">
-                {t("areYouSureDeleteSupplier")}{" "}
-                <strong>{supplierToDelete.name}</strong>?
-                {t("thisActionCannotBeUndone")}
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setDeleteModalOpen(false)}
-                  className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-                >
-                  {t("cancel")}
-                </button>
-                <button
-                  onClick={confirmDelete}
-                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-                >
-                  {t("delete")}
-                </button>
               </div>
             </div>
           </div>

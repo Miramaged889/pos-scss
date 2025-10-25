@@ -17,6 +17,9 @@ import {
   X,
   Save,
   AlertCircle,
+  ChevronDown,
+  FileSpreadsheet,
+  FileText,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
@@ -41,15 +44,29 @@ const SupplierReturnsManagement = () => {
 
   // Modal states
   const [viewModal, setViewModal] = useState(false);
-  const [editModal, setEditModal] = useState(false);
-  const [deleteModal, setDeleteModal] = useState(false);
   const [selectedReturn, setSelectedReturn] = useState(null);
-  const [editForm, setEditForm] = useState({});
 
   // Form modal states
   const [formModal, setFormModal] = useState(false);
   const [formMode, setFormMode] = useState("add");
   const [selectedReturnForForm, setSelectedReturnForForm] = useState(null);
+
+  // Export dropdown state
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
+
+  // Close export dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showExportDropdown && !event.target.closest(".export-dropdown")) {
+        setShowExportDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showExportDropdown]);
 
   // Load suppliers and returns data
   const loadSuppliers = useCallback(async () => {
@@ -277,20 +294,6 @@ const SupplierReturnsManagement = () => {
           >
             <RotateCcw className="w-4 h-4" />
           </button>
-          <button
-            onClick={() => handleEditReturnForm(item)}
-            className="p-1 text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300"
-            title={t("edit")}
-          >
-            <Edit className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleDeleteReturn(item)}
-            className="p-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-            title={t("delete")}
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
         </div>
       ),
     },
@@ -305,60 +308,10 @@ const SupplierReturnsManagement = () => {
     toast.success(t("returnProcessed"));
   };
 
-  const handleDeleteReturn = (returnItem) => {
-    setSelectedReturn(returnItem);
-    setDeleteModal(true);
-  };
-
-  const handleSaveEdit = async () => {
-    if (!selectedReturn) return;
-
-    try {
-      const updateData = {
-        return_reason: editForm.return_reason || selectedReturn.return_reason,
-        quantity: editForm.quantity || selectedReturn.quantity,
-      };
-
-      await supplierService.updateSupplierReturn(selectedReturn.id, updateData);
-
-      setEditModal(false);
-      setSelectedReturn(null);
-      setEditForm({});
-      toast.success(t("returnUpdated"));
-      // Reload data
-      loadReturns();
-    } catch (error) {
-      console.error("Error updating return:", error);
-      toast.error(error?.message || t("updateFailed"));
-    }
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!selectedReturn) return;
-
-    try {
-      await supplierService.deleteSupplierReturn(selectedReturn.id);
-      setDeleteModal(false);
-      setSelectedReturn(null);
-      toast.success(t("returnDeleted"));
-      // Reload data
-      loadReturns();
-    } catch (error) {
-      console.error("Error deleting return:", error);
-      toast.error(error?.message || t("deleteFailed"));
-    }
-  };
-
   // Form handlers
   const handleAddReturn = () => {
     setFormMode("add");
     setSelectedReturnForForm(null);
-    setFormModal(true);
-  };
-
-  const handleEditReturnForm = (returnItem) => {
-    setFormMode("edit");
-    setSelectedReturnForForm(returnItem);
     setFormModal(true);
   };
 
@@ -388,9 +341,163 @@ const SupplierReturnsManagement = () => {
     setSelectedReturnForForm(null);
   };
 
-  const handleExportReturns = () => {
-    console.log("Export returns");
-    toast.success(t("returnsExported"));
+  const handleExportPDF = () => {
+    const pdfContent = `
+      <!DOCTYPE html>
+      <html dir="rtl">
+        <head>
+          <title>${t("supplierReturnsReport")}</title>
+          <style>
+            body { 
+              font-family: 'Arial', sans-serif; 
+              margin: 20px; 
+              direction: rtl;
+              text-align: right;
+            }
+            .header { 
+              text-align: center; 
+              border-bottom: 2px solid #333; 
+              padding-bottom: 20px; 
+              margin-bottom: 30px; 
+            }
+            .returns-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin: 20px 0;
+            }
+            .returns-table th,
+            .returns-table td {
+              border: 1px solid #333;
+              padding: 8px;
+              text-align: right;
+            }
+            .returns-table th {
+              background-color: #f5f5f5;
+              font-weight: bold;
+            }
+            .stats-section {
+              margin-top: 30px;
+              padding: 20px;
+              border: 2px solid #333;
+              border-radius: 8px;
+              text-align: center;
+            }
+            @media print {
+              body { margin: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${t("supplierReturnsReport")}</h1>
+            <h2>${new Date().toLocaleDateString()}</h2>
+          </div>
+          
+          <table class="returns-table">
+            <thead>
+              <tr>
+                <th>${t("returnId")}</th>
+                <th>${t("supplier")}</th>
+                <th>${t("purchaseItem")}</th>
+                <th>${t("quantity")}</th>
+                <th>${t("reason")}</th>
+                <th>${t("returnDate")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredReturns
+                .map(
+                  (returnItem) => `
+                <tr>
+                  <td>#${returnItem.id}</td>
+                  <td>${returnItem.supplierName}</td>
+                  <td>${returnItem.purchaseItemName}</td>
+                  <td>${returnItem.quantity}</td>
+                  <td>${returnItem.return_reason}</td>
+                  <td>${new Date(
+                    returnItem.created_at
+                  ).toLocaleDateString()}</td>
+                </tr>
+              `
+                )
+                .join("")}
+            </tbody>
+          </table>
+          
+          <div class="stats-section">
+            <h2>${t("totalReturns")}: ${filteredReturns.length}</h2>
+            <h2>${t("approvedReturns")}: ${stats.approvedReturns}</h2>
+            <h2>${t("pendingReturns")}: ${stats.pendingReturns}</h2>
+            <h2>${t("totalRefundAmount")}: $${stats.totalRefundAmount}</h2>
+          </div>
+          
+          <div class="no-print" style="margin-top: 50px; text-align: center;">
+            <button onclick="window.print()" style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+              ${t("print")}
+            </button>
+            <button onclick="window.close()" style="padding: 10px 20px; background-color: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px;">
+              ${t("close")}
+            </button>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open("", "_blank");
+    printWindow.document.write(pdfContent);
+    printWindow.document.close();
+
+    printWindow.onload = function () {
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+      }, 500);
+    };
+    toast.success(t("returnsExportedPDF"));
+  };
+
+  const handleExportExcel = () => {
+    // Create CSV content
+    const csvContent = [
+      // Header row
+      [
+        t("returnId"),
+        t("supplier"),
+        t("purchaseItem"),
+        t("quantity"),
+        t("reason"),
+        t("returnDate"),
+        t("status"),
+      ].join(","),
+      // Data rows
+      ...filteredReturns.map((returnItem) =>
+        [
+          returnItem.id,
+          `"${returnItem.supplierName}"`,
+          `"${returnItem.purchaseItemName}"`,
+          returnItem.quantity,
+          `"${returnItem.return_reason}"`,
+          `"${new Date(returnItem.created_at).toLocaleDateString()}"`,
+          `"${returnItem.status || "pending"}"`,
+        ].join(",")
+      ),
+    ].join("\n");
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `supplier_returns_${new Date().toISOString().split("T")[0]}.csv`
+    );
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(t("returnsExportedExcel"));
   };
 
   const clearFilters = () => {
@@ -448,13 +555,36 @@ const SupplierReturnsManagement = () => {
             <Plus className="w-4 h-4" />
             {t("addReturn")}
           </button>
-          <button
-            onClick={handleExportReturns}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            {t("export")}
-          </button>
+          {/* Export Dropdown */}
+          <div className="relative export-dropdown">
+            <button
+              onClick={() => setShowExportDropdown(!showExportDropdown)}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              {t("export")}
+              <ChevronDown className="w-4 h-4" />
+            </button>
+
+            {showExportDropdown && (
+              <div className="absolute top-full mt-2 right-0 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-2 z-50 min-w-48">
+                <button
+                  onClick={handleExportPDF}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600 dark:text-red-400 transition-colors duration-200"
+                >
+                  <FileText className="w-4 h-4 text-red-500 flex-shrink-0" />
+                  <span className="truncate">{t("exportPDF")}</span>
+                </button>
+                <button
+                  onClick={handleExportExcel}
+                  className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-green-600 dark:text-green-400 transition-colors duration-200"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  <span className="truncate">{t("exportExcel")}</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -757,162 +887,6 @@ const SupplierReturnsManagement = () => {
                   </p>
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Modal */}
-      {editModal && selectedReturn && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                {t("editReturn")} - {selectedReturn.id}
-              </h2>
-              <button
-                onClick={() => setEditModal(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t("status")}
-                </label>
-                <select
-                  value={editForm.status}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, status: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                >
-                  <option value="pending">{t("pending")}</option>
-                  <option value="approved">{t("approved")}</option>
-                  <option value="rejected">{t("rejected")}</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t("refundAmount")}
-                </label>
-                <input
-                  type="number"
-                  value={editForm.refundAmount}
-                  onChange={(e) =>
-                    setEditForm({
-                      ...editForm,
-                      refundAmount: parseFloat(e.target.value),
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t("refundMethod")}
-                </label>
-                <select
-                  value={editForm.refundMethod || ""}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, refundMethod: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                >
-                  <option value="">{t("selectMethod")}</option>
-                  <option value="bank_transfer">{t("bankTransfer")}</option>
-                  <option value="check">{t("check")}</option>
-                  <option value="cash">{t("cash")}</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t("notes")}
-                </label>
-                <textarea
-                  value={editForm.notes}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, notes: e.target.value })
-                  }
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setEditModal(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-              >
-                {t("cancel")}
-              </button>
-              <button
-                onClick={handleSaveEdit}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
-              >
-                <Save className="w-4 h-4" />
-                {t("saveChanges")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Modal */}
-      {deleteModal && selectedReturn && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                {t("deleteReturn")}
-              </h2>
-              <button
-                onClick={() => setDeleteModal(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                <AlertCircle className="w-6 h-6 text-red-500" />
-                <div>
-                  <p className="text-sm font-medium text-red-800 dark:text-red-200">
-                    {t("confirmDeleteReturn")}
-                  </p>
-                  <p className="text-sm text-red-600 dark:text-red-300">
-                    {t("returnId")}: {selectedReturn.id}
-                  </p>
-                </div>
-              </div>
-
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {t("deleteReturnWarning")}
-              </p>
-            </div>
-
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setDeleteModal(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-              >
-                {t("cancel")}
-              </button>
-              <button
-                onClick={handleConfirmDelete}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors flex items-center gap-2"
-              >
-                <Trash2 className="w-4 h-4" />
-                {t("delete")}
-              </button>
             </div>
           </div>
         </div>

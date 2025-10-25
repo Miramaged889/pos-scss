@@ -164,37 +164,12 @@ const FinancialReceiptVoucher = () => {
 
   // State for modals
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
-  const [editingReceipt, setEditingReceipt] = useState(null);
 
   // Receipt actions
   const handleViewReceipt = (receipt) => {
     setSelectedReceipt(receipt);
     setIsViewModalOpen(true);
-  };
-
-  const handleEditReceipt = (receipt) => {
-    setEditingReceipt(receipt);
-    setIsEditModalOpen(true);
-  };
-
-  const handleDeleteReceipt = async (receiptId) => {
-    if (window.confirm(t("financialReceipt.confirmDelete"))) {
-      try {
-        const result = await dispatch(deleteReceipt(receiptId));
-        if (result.type.endsWith("/fulfilled")) {
-          toast.success(t("financialReceipt.success.receiptDeleted"));
-        } else {
-          toast.error(
-            result.payload || t("financialReceipt.errors.deleteFailed")
-          );
-        }
-      } catch (error) {
-        console.error("Error deleting receipt:", error);
-        toast.error(t("financialReceipt.errors.deleteFailed"));
-      }
-    }
   };
 
   const handlePrintReceipt = (receipt) => {
@@ -283,7 +258,9 @@ const FinancialReceiptVoucher = () => {
             
             <div class="form-row">
               <label>استلمنا من السيد / السادة:</label>
-              <input type="text" value="${receipt.received_from || receipt.customerName || ''}" readonly>
+              <input type="text" value="${
+                receipt.received_from || receipt.customerName || ""
+              }" readonly>
             </div>
             
             <div class="form-row">
@@ -358,7 +335,6 @@ const FinancialReceiptVoucher = () => {
       receivedFrom = otherName;
     }
 
-
     if (!receivedFrom || receivedFrom.trim() === "") {
       toast.error(t("financialReceipt.errors.enterReceivedFrom"));
       return;
@@ -403,7 +379,6 @@ const FinancialReceiptVoucher = () => {
               ]
             : [],
       };
-
 
       const result = await dispatch(createReceipt(receiptData));
 
@@ -467,7 +442,12 @@ const FinancialReceiptVoucher = () => {
 
   // Helper function to get the received_from value consistently
   const getReceivedFromValue = (receipt) => {
-    return receipt.received_from || receipt.customerName || receipt.receivedFrom || '';
+    return (
+      receipt.received_from ||
+      receipt.customerName ||
+      receipt.receivedFrom ||
+      ""
+    );
   };
 
   // Show loading state
@@ -571,6 +551,19 @@ const FinancialReceiptVoucher = () => {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
+                  {/* Date - Moved to top */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      {t("financialReceipt.date")}:
+                    </label>
+                    <input
+                      type="date"
+                      value={receiptDate}
+                      onChange={(e) => setReceiptDate(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
                   {/* Payer Name */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -722,19 +715,6 @@ const FinancialReceiptVoucher = () => {
                       value={receiver}
                       onChange={(e) => setReceiver(e.target.value)}
                       placeholder={t("financialReceipt.receiverName")}
-                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  {/* Date */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      {t("financialReceipt.date")}:
-                    </label>
-                    <input
-                      type="date"
-                      value={receiptDate}
-                      onChange={(e) => setReceiptDate(e.target.value)}
                       className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -1190,25 +1170,11 @@ const FinancialReceiptVoucher = () => {
                             <Eye className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => handleEditReceipt(receipt)}
-                            className="p-1 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300"
-                            title={t("financialReceipt.editReceipt")}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
                             onClick={() => handlePrintReceipt(receipt)}
                             className="p-1 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300"
                             title="طباعة السند"
                           >
                             <Printer className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteReceipt(receipt.id)}
-                            className="p-1 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
-                            title="حذف السند"
-                          >
-                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
@@ -1338,208 +1304,6 @@ const FinancialReceiptVoucher = () => {
                 {t("close")}
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Receipt Modal */}
-      {isEditModalOpen && editingReceipt && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {t("financialReceipt.editReceipt")}
-              </h3>
-              <button
-                onClick={() => setIsEditModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (isSubmitting) return;
-
-                setIsSubmitting(true);
-                try {
-                  const result = await dispatch(
-                    updateReceipt({
-                      id: editingReceipt.id,
-                      updates: {
-                        receiptType: editingReceipt.receiptType,
-                        receivedFrom: getReceivedFromValue(editingReceipt),
-                        amount: parseFloat(editingReceipt.amount),
-                        paymentMethod: editingReceipt.paymentMethod,
-                        referenceNumber: editingReceipt.referenceNumber,
-                        bankName: editingReceipt.bankName,
-                        purpose: editingReceipt.purpose,
-                        receiver: editingReceipt.receiver,
-                        date: editingReceipt.date,
-                      },
-                    })
-                  );
-
-                  if (result.type.endsWith("/fulfilled")) {
-                    setIsEditModalOpen(false);
-                    setEditingReceipt(null);
-                    toast.success(t("financialReceipt.success.receiptUpdated"));
-                  } else {
-                    toast.error(
-                      result.payload ||
-                        t("financialReceipt.errors.updateFailed")
-                    );
-                  }
-                } catch (error) {
-                  console.error("Error updating receipt:", error);
-                  toast.error(t("financialReceipt.errors.updateFailed"));
-                } finally {
-                  setIsSubmitting(false);
-                }
-              }}
-              className="space-y-4"
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t("financialReceipt.weReceivedFrom")}:
-                  </label>
-                  <input
-                    type="text"
-                    value={getReceivedFromValue(editingReceipt)}
-                    onChange={(e) =>
-                      setEditingReceipt((prev) => ({
-                        ...prev,
-                        received_from: e.target.value,
-                        customerName: e.target.value,
-                        receivedFrom: e.target.value,
-                      }))
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t("amount")}:
-                  </label>
-                  <input
-                    type="number"
-                    value={editingReceipt.amount}
-                    onChange={(e) =>
-                      setEditingReceipt((prev) => ({
-                        ...prev,
-                        amount: parseFloat(e.target.value),
-                      }))
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t("financialReceipt.receiver")}:
-                  </label>
-                  <input
-                    type="text"
-                    value={editingReceipt.receiver}
-                    onChange={(e) =>
-                      setEditingReceipt((prev) => ({
-                        ...prev,
-                        receiver: e.target.value,
-                      }))
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t("bank")}:
-                  </label>
-                  <input
-                    type="text"
-                    value={editingReceipt.bankName || ""}
-                    onChange={(e) =>
-                      setEditingReceipt((prev) => ({
-                        ...prev,
-                        bankName: e.target.value,
-                      }))
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t("financialReceipt.paymentMethod")}:
-                  </label>
-                  <select
-                    value={editingReceipt.paymentMethod}
-                    onChange={(e) =>
-                      setEditingReceipt((prev) => ({
-                        ...prev,
-                        paymentMethod: e.target.value,
-                      }))
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="cash">{t("cash")}</option>
-                    <option value="check">{t("check")}</option>
-                    <option value="bank_transfer">{t("bankTransfer")}</option>
-                    <option value="card">{t("creditCard")}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {t("financialReceipt.referenceNumber")}:
-                  </label>
-                  <input
-                    type="text"
-                    value={editingReceipt.referenceNumber || ""}
-                    onChange={(e) =>
-                      setEditingReceipt((prev) => ({
-                        ...prev,
-                        referenceNumber: e.target.value,
-                      }))
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {t("financialReceipt.purpose")}:
-                </label>
-                <textarea
-                  value={editingReceipt.purpose}
-                  onChange={(e) =>
-                    setEditingReceipt((prev) => ({
-                      ...prev,
-                      purpose: e.target.value,
-                    }))
-                  }
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              <div className="flex items-center justify-end space-x-3 rtl:space-x-reverse mt-6">
-                <button
-                  type="button"
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300"
-                >
-                  {t("cancel")}
-                </button>
-                <button
-                  type="submit"
-                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <Edit className="w-4 h-4 ml-2 rtl:ml-0 rtl:mr-2" />
-                  {t("update")}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

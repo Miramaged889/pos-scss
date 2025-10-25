@@ -72,16 +72,6 @@ const PaymentMethodsManagement = () => {
   }, [dispatch]);
 
   // Show error toast when there's an error
-  useEffect(() => {
-    if (error) {
-      toast.error(error);
-    }
-  }, [error]);
-
-  useEffect(() => {
-    filterPaymentMethods();
-  }, [paymentMethods, searchTerm, statusFilter, filterPaymentMethods]);
-
   const filterPaymentMethods = useCallback(() => {
     let filtered = [...(paymentMethods || [])];
 
@@ -101,6 +91,17 @@ const PaymentMethodsManagement = () => {
 
     setFilteredPaymentMethods(filtered);
   }, [paymentMethods, searchTerm, statusFilter]);
+
+  // Show error toast when there's an error
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+    }
+  }, [error]);
+
+  useEffect(() => {
+    filterPaymentMethods();
+  }, [paymentMethods, searchTerm, statusFilter, filterPaymentMethods]);
 
   const handleCreatePaymentMethod = () => {
     setFormData({

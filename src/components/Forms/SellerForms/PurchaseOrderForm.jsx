@@ -202,7 +202,6 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
         }),
       };
 
-
       onSubmit(purchaseOrderData, editData?.id);
       handleClose();
     }

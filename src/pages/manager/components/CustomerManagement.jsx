@@ -48,6 +48,8 @@ const CustomerManagement = () => {
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [customerForInvoice, setCustomerForInvoice] = useState(null);
   const [orders, setOrders] = useState([]);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Load orders from API
   const loadOrders = async () => {
@@ -132,10 +134,26 @@ const CustomerManagement = () => {
     setViewModalOpen(true);
   };
 
-  const handleFormSubmit = (newCustomer) => {
-    // Update local state for new customer
-    setCustomers([newCustomer, ...customers]);
-    setIsFormOpen(false);
+  const handleFormSubmit = async (customerData) => {
+    try {
+      if (selectedCustomer) {
+        // Update existing customer
+        await customerService.updateCustomer(selectedCustomer.id, customerData);
+        toast.success(t("customerUpdatedSuccessfully"));
+      } else {
+        // Create new customer
+        const newCustomer = await customerService.createCustomer(customerData);
+        const transformedCustomer =
+          customerService.transformCustomerFromAPI(newCustomer);
+        setCustomers([transformedCustomer, ...customers]);
+        toast.success(t("customerCreatedSuccessfully"));
+      }
+      setIsFormOpen(false);
+      setSelectedCustomer(null);
+    } catch (error) {
+      console.error("Error saving customer:", error);
+      toast.error(t("errorSavingCustomer"));
+    }
   };
 
   const handleCreateInvoice = (customer) => {
@@ -149,6 +167,37 @@ const CustomerManagement = () => {
     setCustomerForInvoice(null);
     // Show success message
     toast.success(t("invoiceCreatedSuccessfully"));
+  };
+
+  const handleEditCustomer = (customer) => {
+    setSelectedCustomer(customer);
+    setIsFormOpen(true);
+  };
+
+  const handleDeleteCustomer = (customer) => {
+    setDeleteConfirm(customer);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+
+    setIsDeleting(true);
+    try {
+      await customerService.deleteCustomer(deleteConfirm.id);
+      setDeleteConfirm(null);
+      // Reload customers to reflect the deletion
+      await loadCustomers();
+      toast.success(t("customerDeletedSuccessfully"));
+    } catch (error) {
+      console.error("Error deleting customer:", error);
+      toast.error(t("errorDeletingCustomer"));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const cancelDelete = () => {
+    setDeleteConfirm(null);
   };
 
   // Calculate customer statistics from orders
@@ -274,6 +323,20 @@ const CustomerManagement = () => {
             <Eye className="w-4 h-4" />
           </button>
           <button
+            onClick={() => handleEditCustomer(customer)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition-colors"
+            title={t("editCustomer")}
+          >
+            <Edit className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => handleDeleteCustomer(customer)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+            title={t("deleteCustomer")}
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+          <button
             onClick={() => handleCreateInvoice(customer)}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg transition-colors"
             title={t("createInvoice")}
@@ -385,10 +448,13 @@ const CustomerManagement = () => {
       {/* Customer Form Modal */}
       <CustomerForm
         isOpen={isFormOpen}
-        onClose={() => setIsFormOpen(false)}
+        onClose={() => {
+          setIsFormOpen(false);
+          setSelectedCustomer(null);
+        }}
         onSubmit={handleFormSubmit}
         customer={selectedCustomer}
-        mode="add"
+        mode={selectedCustomer ? "edit" : "add"}
       />
 
       {/* View Customer Modal */}
@@ -514,6 +580,121 @@ const CustomerManagement = () => {
         customer={customerForInvoice}
         mode="add"
       />
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <div
+                className={`flex items-center gap-3 ${isRTL ? "flex-row" : ""}`}
+              >
+                <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                  <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+                </div>
+                <div className={isRTL ? "text-right" : "text-left"}>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    {t("deleteCustomer")}
+                  </h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {deleteConfirm.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={cancelDelete}
+                className="p-2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors duration-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                <div>
+                  <p className="text-sm font-medium text-red-800 dark:text-red-300">
+                    {t("deleteConfirmationMessage")}
+                  </p>
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                    {t("deleteConfirmationWarning")}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t("customerName")}
+                </label>
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-gray-500" />
+                  <span className="text-gray-900 dark:text-white">
+                    {deleteConfirm.name}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t("email")}
+                </label>
+                <div className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-gray-500" />
+                  <span className="text-gray-900 dark:text-white">
+                    {deleteConfirm.email}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t("phoneNumber")}
+                </label>
+                <div className="flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-gray-500" />
+                  <span className="text-gray-900 dark:text-white">
+                    {deleteConfirm.phone}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div
+              className={`flex gap-3 p-6 pt-4 border-t border-gray-200 dark:border-gray-700 ${
+                isRTL ? "flex-row" : ""
+              }`}
+            >
+              <button
+                onClick={cancelDelete}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {t("cancel")}
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-2 text-white bg-red-600 dark:bg-red-500 hover:bg-red-700 dark:hover:bg-red-600 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                    {t("deleting")}
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    {t("delete")}
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

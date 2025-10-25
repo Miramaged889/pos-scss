@@ -17,10 +17,7 @@ import {
   Calendar,
   User,
   Hash,
-  Edit,
-  Trash2,
 } from "lucide-react";
-import { toast } from "react-hot-toast";
 
 import DataTable from "../../../components/Common/DataTable";
 import StatsCard from "../../../components/Common/StatsCard";
@@ -30,11 +27,7 @@ import {
   formatDateTimeEnglish,
 } from "../../../utils/formatters";
 import { CustomerInvoiceForm } from "../../../components/Forms/SellerForms";
-import {
-  fetchCustomerInvoices,
-  updateCustomerInvoice,
-  deleteCustomerInvoice,
-} from "../../../store/slices/customerInvoiceSlice";
+import { fetchCustomerInvoices } from "../../../store/slices/customerInvoiceSlice";
 
 const PaymentManagement = () => {
   const { t } = useTranslation();
@@ -52,8 +45,6 @@ const PaymentManagement = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [isCustomerInvoiceOpen, setIsCustomerInvoiceOpen] = useState(false);
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [editingInvoice, setEditingInvoice] = useState(null);
 
   // Fetch customer invoices on component mount
   useEffect(() => {
@@ -69,7 +60,7 @@ const PaymentManagement = () => {
       customer: invoice.customer_name || invoice.customerName,
       customerPhone: invoice.customer_phone || invoice.customerPhone,
       amount: parseFloat(invoice.total || 0),
-      method: invoice.payment_method || "cash", // Default to cash instead of invoice
+      method: invoice.payment_method || "cash", // Use actual payment method from API
       status: invoice.status,
       paymentDate:
         invoice.issue_date || invoice.createdAt || invoice.created_at,
@@ -77,7 +68,7 @@ const PaymentManagement = () => {
       dueDate: invoice.due_date || invoice.dueDate,
       description: invoice.notes || t("customerInvoice"),
       items: invoice.items || [],
-      subtotal: parseFloat(invoice.subTotal || invoice.subtotal || 0), 
+      subtotal: parseFloat(invoice.subTotal || invoice.subtotal || 0),
       tax: parseFloat(invoice.tax || 0),
       total: parseFloat(invoice.total || 0),
     };
@@ -159,68 +150,13 @@ const PaymentManagement = () => {
     setIsCustomerInvoiceOpen(false);
   };
 
-  const handleEditInvoice = (payment) => {
-    // Find the original invoice data
-    const originalInvoice = customerInvoices.find(
-      (inv) => inv.id === payment.id
-    );
-    if (originalInvoice) {
-      setEditingInvoice(originalInvoice);
-      setEditModalOpen(true);
-    }
-  };
-
-  const handleDeleteInvoice = async (payment) => {
-    if (
-      window.confirm(
-        `${t("deleteInvoiceConfirmation")} ${payment.transactionId}?`
-      )
-    ) {
-      try {
-        const result = await dispatch(deleteCustomerInvoice(payment.id));
-        if (result.type.endsWith("/fulfilled")) {
-          toast.success(`${t("invoiceDeleted")} ${payment.transactionId}`);
-        } else {
-          toast.error(`${t("errorDeletingInvoice")}: ${result.payload}`);
-        }
-      } catch (error) {
-        toast.error(`${t("errorDeletingInvoice")}: ${error.message}`);
-      }
-    }
-  };
-
-  const handleEditModalClose = () => {
-    setEditModalOpen(false);
-    setEditingInvoice(null);
-  };
-
-  const handleEditSubmit = async (updatedInvoice) => {
-    try {
-      const result = await dispatch(
-        updateCustomerInvoice({
-          id: editingInvoice.id,
-          updates: updatedInvoice,
-        })
-      );
-
-      if (result.type.endsWith("/fulfilled")) {
-        handleEditModalClose();
-        toast.success(`${t("invoiceUpdated")} INV-${editingInvoice.id}`);
-      } else {
-        toast.error(`${t("errorUpdatingInvoice")}: ${result.payload}`);
-      }
-    } catch (error) {
-      toast.error(`${t("errorUpdatingInvoice")}: ${error.message}`);
-    }
-  };
-
   const getPaymentMethodIcon = (method) => {
     switch (method) {
       case "card":
         return <CreditCard className="w-4 h-4" />;
       case "cash":
         return <DollarSign className="w-4 h-4" />;
-      case "kent":
+      case "knet":
         return <CreditCard className="w-4 h-4" />;
       case "digital":
         return <CreditCard className="w-4 h-4" />;
@@ -263,8 +199,8 @@ const PaymentManagement = () => {
         ? t("cash")
         : payment.method === "card"
         ? t("card")
-        : payment.method === "kent"
-        ? t("kent")
+        : payment.method === "knet"
+        ? t("knet")
         : payment.method === "digital"
         ? t("digital")
         : payment.method
@@ -336,8 +272,8 @@ const PaymentManagement = () => {
               ? t("cash")
               : payment.method === "card"
               ? t("card")
-              : payment.method === "kent"
-              ? t("kent")
+              : payment.method === "knet"
+              ? t("knet")
               : payment.method === "digital"
               ? t("digital")
               : payment.method}
@@ -405,20 +341,6 @@ const PaymentManagement = () => {
             title={t("viewTransaction")}
           >
             <Eye className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleEditInvoice(payment)}
-            className="p-2 text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-all duration-200 hover:scale-110"
-            title={t("edit")}
-          >
-            <Edit className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleDeleteInvoice(payment)}
-            className="p-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200 hover:scale-110"
-            title={t("delete")}
-          >
-            <Trash2 className="w-4 h-4" />
           </button>
           <button
             onClick={() => handleDownloadReceipt(payment)}
@@ -755,8 +677,8 @@ const PaymentManagement = () => {
                           ? t("cash")
                           : selectedPayment.method === "card"
                           ? t("card")
-                          : selectedPayment.method === "kent"
-                          ? t("kent")
+                          : selectedPayment.method === "knet"
+                          ? t("knet")
                           : selectedPayment.method === "digital"
                           ? t("digital")
                           : selectedPayment.method}
@@ -949,17 +871,6 @@ const PaymentManagement = () => {
         onClose={() => setIsCustomerInvoiceOpen(false)}
         onSubmit={handleSubmitCustomerInvoice}
       />
-
-      {/* Edit Invoice Modal */}
-      {editModalOpen && editingInvoice && (
-        <CustomerInvoiceForm
-          isOpen={editModalOpen}
-          onClose={handleEditModalClose}
-          onSubmit={handleEditSubmit}
-          invoice={editingInvoice}
-          mode="edit"
-        />
-      )}
     </div>
   );
 };

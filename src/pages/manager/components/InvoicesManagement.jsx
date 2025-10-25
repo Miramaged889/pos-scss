@@ -1,26 +1,27 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import {
-  Search,
-  Filter,
-  Download,
-  Eye,
-  Edit,
-  Trash2,
-  FileText,
-  Printer,
-  Mail,
+  CreditCard,
   DollarSign,
-  Clock,
-  CheckCircle,
-  XCircle,
   TrendingUp,
   AlertCircle,
+  CheckCircle,
+  XCircle,
+  Eye,
+  Download,
+  Search,
+  Filter,
   X,
+  FileText,
   Calendar,
   User,
   Hash,
+  Edit,
+  Trash2,
+  Plus,
+  ChevronDown,
+  FileSpreadsheet,
 } from "lucide-react";
 
 import DataTable from "../../../components/Common/DataTable";
@@ -30,277 +31,123 @@ import {
   formatCurrencyEnglish,
   formatDateTimeEnglish,
 } from "../../../utils/formatters";
-import { fetchOrders } from "../../../store/slices/ordersSlice";
-import { customerService, tenantUsersService } from "../../../services";
+import { CustomerInvoiceForm } from "../../../components/Forms/SellerForms";
+import { fetchCustomerInvoices } from "../../../store/slices/customerInvoiceSlice";
+import { customerInvoiceService } from "../../../services";
 
 const InvoicesManagement = () => {
   const { t } = useTranslation();
-  const dispatch = useDispatch();
   const { isRTL } = useSelector((state) => state.language);
-
-  // Get data from Redux store
-  const { orders, loading, error } = useSelector((state) => state.orders);
-
-  // Local state for API data
-  const [customers, setCustomers] = useState([]);
-  const [customersLoading, setCustomersLoading] = useState(false);
-  const [sellersData, setSellersData] = useState([]);
-  const [sellersLoading, setSellersLoading] = useState(false);
-
-  // Local state for UI
-  const [filteredInvoices, setFilteredInvoices] = useState([]);
+  const { customerInvoices, loading, error } = useSelector(
+    (state) => state.customerInvoices
+  );
+  const dispatch = useDispatch();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [sellerFilter, setSellerFilter] = useState("all");
-  const [dateRange, setDateRange] = useState({ start: "", end: "" });
-  const [showFilters, setShowFilters] = useState(false);
   const [viewModalOpen, setViewModalOpen] = useState(false);
-  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [selectedPayment, setSelectedPayment] = useState(null);
+  const [dateRange, setDateRange] = useState("all"); // all | today | week | month | custom
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [isCustomerInvoiceOpen, setIsCustomerInvoiceOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedInvoiceForEdit, setSelectedInvoiceForEdit] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
 
-  // Fetch customers from API
-  const fetchCustomersData = async () => {
-    try {
-      setCustomersLoading(true);
-      const response = await customerService.getCustomers();
-      setCustomers(response);
-    } catch (error) {
-      console.error("Error fetching customers:", error);
-    } finally {
-      setCustomersLoading(false);
-    }
-  };
-
-  // Fetch sellers from API
-  const fetchSellersData = async () => {
-    try {
-      setSellersLoading(true);
-      const response = await tenantUsersService.getTenantUsers();
-      setSellersData(response);
-    } catch (error) {
-      console.error("Error fetching sellers:", error);
-    } finally {
-      setSellersLoading(false);
-    }
-  };
-
-  // Helper function to get customer name by ID
-  const getCustomerName = React.useCallback(
-    (customerId) => {
-      if (!customerId) return "Unknown Customer";
-
-      let actualId = customerId;
-      if (typeof customerId === "string" && customerId.includes("#")) {
-        const match = customerId.match(/#(\d+)/);
-        actualId = match ? parseInt(match[1]) : customerId;
-      }
-
-      const customer = customers.find(
-        (c) =>
-          c.id === actualId ||
-          c.id === parseInt(actualId) ||
-          c.id === actualId.toString() ||
-          c.id === customerId ||
-          c.id === parseInt(customerId) ||
-          c.id === customerId.toString()
-      );
-
-      if (customer) {
-        return (
-          customer.customer_name || customer.name || `Customer #${actualId}`
-        );
-      }
-      return `Customer #${actualId}`;
-    },
-    [customers]
-  );
-
-  // Helper function to get seller name by ID
-  const getSellerName = React.useCallback(
-    (sellerId) => {
-      if (!sellerId) return "Unknown Seller";
-
-      let actualId = sellerId;
-      if (typeof sellerId === "string" && sellerId.includes("#")) {
-        const match = sellerId.match(/#(\d+)/);
-        actualId = match ? parseInt(match[1]) : sellerId;
-      }
-
-      const seller = sellersData.find(
-        (s) =>
-          s.id === actualId ||
-          s.id === parseInt(actualId) ||
-          s.id === actualId.toString() ||
-          s.id === sellerId ||
-          s.id === parseInt(sellerId) ||
-          s.id === sellerId.toString()
-      );
-
-      return seller
-        ? seller.username ||
-            seller.name ||
-            seller.user_name ||
-            `Seller #${actualId}`
-        : `Seller #${actualId}`;
-    },
-    [sellersData]
-  );
-
-  // Fetch orders on component mount
+  // Fetch customer invoices on component mount
   useEffect(() => {
-    dispatch(fetchOrders());
-    fetchCustomersData();
-    fetchSellersData();
+    dispatch(fetchCustomerInvoices());
   }, [dispatch]);
 
-  // Generate invoices from orders data
-  const invoices = React.useMemo(() => {
-    if (!Array.isArray(orders)) return [];
-
-    return orders.map((order) => ({
-      id: order.id,
-      invoiceNumber: `INV-${order.id}`,
-      customer: customersLoading ? "..." : getCustomerName(order.customer),
-      customerName: customersLoading ? "..." : getCustomerName(order.customer),
-      customerEmail: order.customer?.email || order.customerEmail || "",
-      seller: sellersLoading ? "..." : getSellerName(order.sellerId),
-      sellerName: sellersLoading ? "..." : getSellerName(order.sellerId),
-      sellerEmail: order.seller?.email || order.sellerEmail || "",
-      amount: (() => {
-        const amount =
-          order.total_amount || order.totalAmount || order.total || 0;
-        return typeof amount === "string" ? parseFloat(amount) : amount;
-      })(),
-      total: (() => {
-        const amount =
-          order.total_amount || order.totalAmount || order.total || 0;
-        return typeof amount === "string" ? parseFloat(amount) : amount;
-      })(),
-      status: order.status || "pending",
-      date:
-        order.createdAt || order.date || new Date().toISOString().split("T")[0],
-      issueDate:
-        order.createdAt || order.date || new Date().toISOString().split("T")[0],
-      dueDate:
-        order.dueDate ||
-        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split("T")[0],
-      paymentStatus: order.paymentStatus || "pending",
-      paymentMethod: order.paymentMethod || "cash",
-      items: order.items || [],
-      orderId: order.id,
-      description: order.description || "",
-      notes: order.notes || "",
-    }));
-  }, [
-    orders,
-    customersLoading,
-    sellersLoading,
-    getCustomerName,
-    getSellerName,
-  ]);
-
-  // Compute unique sellers from orders
-  const sellers = React.useMemo(() => {
-    if (!Array.isArray(orders)) return [];
-
-    const uniqueSellers = new Set();
-    orders.forEach((order) => {
-      const sellerId = order.sellerId;
-      if (sellerId) {
-        const sellerName = getSellerName(sellerId);
-        uniqueSellers.add(
-          JSON.stringify({
-            id: sellerId,
-            email: order.seller?.email || order.sellerEmail || "",
-            name: sellerName,
-          })
-        );
-      }
-    });
-
-    return Array.from(uniqueSellers).map((seller) => JSON.parse(seller));
-  }, [orders, getSellerName]);
-
-  const filterInvoices = useCallback(() => {
-    if (!Array.isArray(invoices)) {
-      setFilteredInvoices([]);
-      return;
-    }
-
-    let filtered = [...invoices];
-
-    // Search filter
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (invoice) =>
-          (invoice.id || "")
-            .toString()
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          (invoice.orderId || "")
-            .toString()
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          (invoice.customerName || "")
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          (invoice.customerEmail || "")
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          (invoice.sellerName || "")
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase())
-      );
-    }
-
-    // Status filter
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((invoice) => invoice.status === statusFilter);
-    }
-
-    // Seller filter
-    if (sellerFilter !== "all") {
-      filtered = filtered.filter(
-        (invoice) => invoice.sellerEmail === sellerFilter
-      );
-    }
-
-    // Date range filter
-    if (dateRange.start && dateRange.end) {
-      filtered = filtered.filter((invoice) => {
-        const invoiceDate = new Date(invoice.issueDate);
-        const startDate = new Date(dateRange.start);
-        const endDate = new Date(dateRange.end);
-        return invoiceDate >= startDate && invoiceDate <= endDate;
-      });
-    }
-
-    setFilteredInvoices(filtered);
-  }, [invoices, searchTerm, statusFilter, sellerFilter, dateRange]);
-
+  // Close dropdown when clicking outside
   useEffect(() => {
-    filterInvoices();
-  }, [filterInvoices]);
+    const handleClickOutside = (event) => {
+      if (showExportDropdown && !event.target.closest(".export-dropdown")) {
+        setShowExportDropdown(false);
+      }
+    };
 
-  // Calculate stats
-  const totalInvoices = invoices.length;
-  const pendingInvoices = invoices.filter(
-    (inv) => inv.status === "pending"
-  ).length;
-  const overdueInvoices = invoices.filter(
-    (inv) => inv.status === "overdue"
-  ).length;
-  const totalRevenue = invoices
-    .filter((inv) => inv.status === "paid")
-    .reduce((sum, inv) => sum + inv.total, 0);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showExportDropdown]);
+
+  // Convert customer invoices to payment format for display
+  const payments = customerInvoices.map((invoice) => {
+    return {
+      id: invoice.id,
+      transactionId: `INV-${invoice.id}`,
+      orderId: invoice.orderId || `ORD-${invoice.id}`,
+      customer: invoice.customer_name || invoice.customerName,
+      customerPhone: invoice.customer_phone || invoice.customerPhone,
+      amount: parseFloat(invoice.total || 0),
+      method: invoice.payment_method || "cash", // Use actual payment method from API
+      status: invoice.status,
+      paymentDate:
+        invoice.issue_date || invoice.createdAt || invoice.created_at,
+      issueDate: invoice.issue_date || invoice.issueDate,
+      dueDate: invoice.due_date || invoice.dueDate,
+      description: invoice.notes || t("customerInvoice"),
+      items: invoice.items || [],
+      subtotal: parseFloat(invoice.subTotal || invoice.subtotal || 0),
+      tax: parseFloat(invoice.tax || 0),
+      total: parseFloat(invoice.total || 0),
+    };
+  });
+
+  const totalTransactions = payments.length;
+  const completedPayments = payments.filter((p) => p.status === "completed");
+  const pendingPayments = payments.filter((p) => p.status === "pending").length;
+  const totalRevenue = completedPayments.reduce(
+    (sum, p) => sum + (p.total || p.amount),
+    0
+  );
+  const totalTax = completedPayments.reduce((sum, p) => sum + (p.tax || 0), 0);
+
+  const filteredPayments = payments.filter((payment) => {
+    const matchesSearch =
+      payment.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      payment.transactionId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      payment.orderId.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus =
+      statusFilter === "all" || payment.status === statusFilter;
+    // Date filter
+    let matchesDate = true;
+    if (dateRange !== "all") {
+      const created = new Date(
+        payment.paymentDate || payment.collectedAt || payment.createdAt
+      );
+      const now = new Date();
+      if (dateRange === "today") {
+        matchesDate = created.toDateString() === new Date().toDateString();
+      } else if (dateRange === "week") {
+        const weekAgo = new Date(now);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        matchesDate = created >= weekAgo && created <= now;
+      } else if (dateRange === "month") {
+        const monthAgo = new Date(now);
+        monthAgo.setMonth(monthAgo.getMonth() - 1);
+        matchesDate = created >= monthAgo && created <= now;
+      } else if (dateRange === "custom") {
+        const fromOk = startDate ? created >= new Date(startDate) : true;
+        const toOk = endDate
+          ? created <= new Date(endDate + "T23:59:59")
+          : true;
+        matchesDate = fromOk && toOk;
+      }
+    }
+    return matchesSearch && matchesStatus && matchesDate;
+  });
 
   const stats = [
     {
-      title: t("totalInvoices"),
-      value: formatNumberEnglish(totalInvoices),
-      icon: FileText,
+      title: t("totalTransactions"),
+      value: formatNumberEnglish(totalTransactions),
+      icon: CreditCard,
       color: "blue",
     },
     {
@@ -310,280 +157,444 @@ const InvoicesManagement = () => {
       color: "green",
     },
     {
-      title: t("pendingInvoices"),
-      value: formatNumberEnglish(pendingInvoices),
+      title: t("totalTax"),
+      value: formatCurrencyEnglish(totalTax, t("currency")),
+      icon: TrendingUp,
+      color: "purple",
+    },
+    {
+      title: t("pendingPayments"),
+      value: formatNumberEnglish(pendingPayments),
       icon: AlertCircle,
       color: "yellow",
     },
-    {
-      title: t("overdueInvoices"),
-      value: formatNumberEnglish(overdueInvoices),
-      icon: Clock,
-      color: "red",
-    },
   ];
 
-  const getStatusBadge = (status) => {
-    const statusConfig = {
-      paid: {
-        color:
-          "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-        icon: CheckCircle,
-      },
-      pending: {
-        color:
-          "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
-        icon: Clock,
-      },
-      overdue: {
-        color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-        icon: XCircle,
-      },
-    };
-
-    const config = statusConfig[status] || statusConfig.pending;
-    const Icon = config.icon;
-
-    return (
-      <span
-        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${config.color}`}
-      >
-        <Icon className="w-3 h-3" />
-        {t(status)}
-      </span>
-    );
+  const handleSubmitCustomerInvoice = () => {
+    // Form already dispatches the action, just close the modal
+    setIsCustomerInvoiceOpen(false);
   };
 
-  const getPaymentMethodBadge = (method) => {
-    const methodConfig = {
-      cash: {
-        color:
-          "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-        text: t("cash"),
-      },
-      card: {
-        color:
-          "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-        text: t("card"),
-      },
-      online: {
-        color:
-          "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
-        text: t("online"),
-      },
-    };
-
-    const config = methodConfig[method] || methodConfig.cash;
-
-    return (
-      <span
-        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${config.color}`}
-      >
-        {config.text}
-      </span>
-    );
+  const handleEditInvoice = (invoice) => {
+    setSelectedInvoiceForEdit(invoice);
+    setIsEditModalOpen(true);
   };
 
-  const handleViewInvoice = (invoice) => {
-    setSelectedInvoice(invoice);
+  const handleDeleteInvoice = (invoice) => {
+    setDeleteConfirm(invoice);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+
+    setIsDeleting(true);
+    try {
+      await customerInvoiceService.deleteCustomerInvoice(deleteConfirm.id);
+      setDeleteConfirm(null);
+      // Refresh invoices list
+      dispatch(fetchCustomerInvoices());
+    } catch (error) {
+      console.error("Error deleting invoice:", error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const cancelDelete = () => {
+    setDeleteConfirm(null);
+  };
+
+  const handleInvoiceSubmit = async (invoiceData) => {
+    try {
+      if (selectedInvoiceForEdit) {
+        // Update existing invoice
+        await customerInvoiceService.updateCustomerInvoice(
+          selectedInvoiceForEdit.id,
+          invoiceData
+        );
+        setIsEditModalOpen(false);
+        setSelectedInvoiceForEdit(null);
+      } else {
+        // Create new invoice
+        await customerInvoiceService.createCustomerInvoice(invoiceData);
+        setIsCustomerInvoiceOpen(false);
+      }
+      // Refresh invoices list
+      dispatch(fetchCustomerInvoices());
+    } catch (error) {
+      console.error("Error saving invoice:", error);
+    }
+  };
+
+  const handleExportPDF = () => {
+    const pdfContent = `
+      <!DOCTYPE html>
+      <html dir="rtl">
+        <head>
+          <title>${t("invoicesReport")}</title>
+          <style>
+            body { 
+              font-family: 'Arial', sans-serif; 
+              margin: 20px; 
+              direction: rtl;
+              text-align: right;
+            }
+            .header { 
+              text-align: center; 
+              border-bottom: 2px solid #333; 
+              padding-bottom: 20px; 
+              margin-bottom: 30px; 
+            }
+            .invoice-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin: 20px 0;
+            }
+            .invoice-table th,
+            .invoice-table td {
+              border: 1px solid #333;
+              padding: 8px;
+              text-align: right;
+            }
+            .invoice-table th {
+              background-color: #f5f5f5;
+              font-weight: bold;
+            }
+            .total-section {
+              margin-top: 30px;
+              padding: 20px;
+              border: 2px solid #333;
+              border-radius: 8px;
+              text-align: center;
+            }
+            @media print {
+              body { margin: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${t("invoicesReport")}</h1>
+            <h2>${new Date().toLocaleDateString()}</h2>
+          </div>
+          
+          <table class="invoice-table">
+            <thead>
+              <tr>
+                <th>${t("transactionId")}</th>
+                <th>${t("customer")}</th>
+                <th>${t("amount")}</th>
+                <th>${t("status")}</th>
+                <th>${t("paymentDate")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredPayments
+                .map(
+                  (payment) => `
+                <tr>
+                  <td>${payment.transactionId}</td>
+                  <td>${payment.customer}</td>
+                  <td>${formatCurrencyEnglish(
+                    payment.amount,
+                    t("currency")
+                  )}</td>
+                  <td>${t(payment.status)}</td>
+                  <td>${formatDateTimeEnglish(payment.paymentDate)}</td>
+                </tr>
+              `
+                )
+                .join("")}
+            </tbody>
+          </table>
+          
+          <div class="total-section">
+            <h2>${t("totalInvoices")}: ${filteredPayments.length}</h2>
+            <h2>${t("totalRevenue")}: ${formatCurrencyEnglish(
+      filteredPayments.reduce((sum, payment) => sum + payment.amount, 0),
+      t("currency")
+    )}</h2>
+          </div>
+          
+          <div class="no-print" style="margin-top: 50px; text-align: center;">
+            <button onclick="window.print()" style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+              ${t("print")}
+            </button>
+            <button onclick="window.close()" style="padding: 10px 20px; background-color: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px;">
+              ${t("close")}
+            </button>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open("", "_blank");
+    printWindow.document.write(pdfContent);
+    printWindow.document.close();
+
+    printWindow.onload = function () {
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+      }, 500);
+    };
+    setShowExportDropdown(false);
+  };
+
+  const handleExportExcel = () => {
+    // Create CSV content
+    const csvContent = [
+      // Header row
+      [
+        t("transactionId"),
+        t("customer"),
+        t("amount"),
+        t("status"),
+        t("paymentDate"),
+        t("paymentMethod"),
+      ].join(","),
+      // Data rows
+      ...filteredPayments.map((payment) =>
+        [
+          payment.transactionId,
+          `"${payment.customer}"`,
+          payment.amount,
+          `"${t(payment.status)}"`,
+          `"${formatDateTimeEnglish(payment.paymentDate)}"`,
+          `"${t(payment.method)}"`,
+        ].join(",")
+      ),
+    ].join("\n");
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `invoices_${new Date().toISOString().split("T")[0]}.csv`
+    );
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setShowExportDropdown(false);
+  };
+
+  const getPaymentMethodIcon = (method) => {
+    switch (method) {
+      case "card":
+        return <CreditCard className="w-4 h-4" />;
+      case "cash":
+        return <DollarSign className="w-4 h-4" />;
+      case "knet":
+        return <CreditCard className="w-4 h-4" />;
+      case "digital":
+        return <CreditCard className="w-4 h-4" />;
+      default:
+        return <CreditCard className="w-4 h-4" />;
+    }
+  };
+
+  const handleViewPayment = (payment) => {
+    setSelectedPayment(payment);
     setViewModalOpen(true);
   };
 
-  const handlePrintInvoice = (invoice) => {
-    const printContent = `
+  const handleDownloadReceipt = (payment) => {
+    const subtotal = payment.subtotal || 0;
+    const tax = payment.tax || 0;
+    const total = payment.total || payment.amount;
+
+    const receiptContent = `
 =================================
-          فاتورة / INVOICE
+          فاتورة دفع / PAYMENT RECEIPT
 =================================
 
-رقم الفاتورة / Invoice ID: ${invoice.id}
-رقم الطلب / Order ID: ${invoice.orderId}
-التاريخ / Date: ${formatDateTimeEnglish(invoice.issueDate)}
-تاريخ الاستحقاق / Due Date: ${formatDateTimeEnglish(invoice.dueDate)}
+رقم المعاملة / Transaction ID: ${payment.transactionId}
+رقم الطلب / Order ID: ${payment.orderId}
+التاريخ / Date: ${formatDateTimeEnglish(payment.paymentDate)}
 
 ---------------------------------
-العميل / Customer: ${invoice.customerName}
-البريد الإلكتروني / Email: ${invoice.customerEmail}
-الهاتف / Phone: ${invoice.customerPhone || "غير متوفر"}
-
-البائع / Seller: ${invoice.sellerName}
-البريد الإلكتروني / Email: ${invoice.sellerEmail}
+العميل / Customer: ${payment.customer}
+الهاتف / Phone: ${payment.customerPhone || "غير متوفر"}
 
 ---------------------------------
- الوصف / Description: ${invoice.description || t("invoiceDescription")}
- الإجمالي / Total: ${formatCurrencyEnglish(invoice.total, t("currency"))}
+الوصف / Description: ${payment.description}
+المبلغ الفرعي / Subtotal: ${formatCurrencyEnglish(subtotal, t("currency"))}
+الضريبة / Tax: ${formatCurrencyEnglish(tax, t("currency"))}
+الإجمالي / Total: ${formatCurrencyEnglish(total, t("currency"))}
 
-طريقة الدفع / Payment Method: ${t(invoice.paymentMethod)}
-الحالة / Status: ${t(invoice.status)}
-
-الملاحظات / Notes: ${invoice.notes || t("noNotes")}
+طريقة الدفع / Payment Method: ${
+      payment.method === "cash"
+        ? t("cash")
+        : payment.method === "card"
+        ? t("card")
+        : payment.method === "knet"
+        ? t("knet")
+        : payment.method === "digital"
+        ? t("digital")
+        : payment.method
+    }
+الحالة / Status: ${t(payment.status)}
 
 =================================
 شكراً لك / Thank You!
 =================================
     `;
 
-    const printWindow = window.open("", "_blank");
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>${t("invoice")} - ${invoice.id}</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            .header { text-align: center; margin-bottom: 20px; }
-            .section { margin: 15px 0; }
-            .total { font-weight: bold; font-size: 18px; }
-          </style>
-        </head>
-        <body>
-          <pre>${printContent}</pre>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
+    const blob = new Blob([receiptContent], {
+      type: "text/plain;charset=utf-8",
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Receipt_${payment.transactionId}_${payment.orderId}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
   };
 
-  const handleEditInvoice = (invoice) => {
-    // For now, just show an alert. In a real app, you'd open an edit modal
-    alert(
-      `${t("editInvoice")} ${invoice.id}\n${t("editFunctionalityComingSoon")}`
-    );
-  };
-
-  const handleDeleteInvoice = (invoice) => {
-    if (window.confirm(`${t("deleteInvoiceConfirmation")} ${invoice.id}?`)) {
-      // For now, just show alert. In real app, you'd dispatch delete action
-      alert(`${t("invoiceDeleted")} ${invoice.id}`);
-    }
-  };
-
-  const handleExportInvoices = () => {
-    console.log("Export invoices");
-    // Implement export functionality
-  };
-
-  const clearFilters = () => {
-    setSearchTerm("");
-    setStatusFilter("all");
-    setSellerFilter("all");
-    setDateRange({ start: "", end: "" });
-  };
-
-  const invoiceColumns = [
+  const paymentColumns = [
     {
-      header: t("invoiceId"),
-      accessor: "id",
-      render: (invoice) => (
+      header: t("transactionId"),
+      accessor: "transactionId",
+      render: (payment) => (
         <span className="font-mono text-sm bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
-          {invoice.id}
+          {payment.transactionId}
         </span>
       ),
     },
     {
       header: t("orderId"),
       accessor: "orderId",
-      render: (invoice) => (
+      render: (payment) => (
         <span className="font-mono text-sm font-bold text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded border border-blue-200 dark:border-blue-800">
-          {invoice.orderId}
+          {payment.orderId}
         </span>
       ),
     },
     {
       header: t("customer"),
-      accessor: "customerName",
-      render: (invoice) => (
-        <div>
-          <p className="font-medium text-gray-900 dark:text-white">
-            {invoice.customerName}
-          </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {invoice.customerEmail}
-          </p>
-        </div>
-      ),
-    },
-    {
-      header: t("seller"),
-      accessor: "sellerName",
-      render: (invoice) => (
-        <div>
-          <p className="font-medium text-gray-900 dark:text-white">
-            {invoice.sellerName}
-          </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {invoice.sellerEmail}
-          </p>
-        </div>
-      ),
+      accessor: "customer",
     },
     {
       header: t("amount"),
-      accessor: "total",
-      render: (invoice) => (
-        <div>
-          <p className="font-semibold text-green-600 dark:text-green-400">
-            {formatCurrencyEnglish(invoice.total, t("currency"))}
-          </p>
+      accessor: "amount",
+      render: (payment) => {
+        return (
+          <span className="font-semibold text-green-600 dark:text-green-400">
+            {formatCurrencyEnglish(payment.amount, t("currency"))}
+          </span>
+        );
+      },
+    },
+    {
+      header: t("method"),
+      accessor: "method",
+      render: (payment) => (
+        <div className={`flex items-center gap-2 ${isRTL ? "flex-row" : ""}`}>
+          <div className="p-1 bg-gray-100 dark:bg-gray-700 rounded">
+            {getPaymentMethodIcon(payment.method)}
+          </div>
+          <span className="capitalize font-medium">
+            {payment.method === "cash"
+              ? t("cash")
+              : payment.method === "card"
+              ? t("card")
+              : payment.method === "knet"
+              ? t("knet")
+              : payment.method === "digital"
+              ? t("digital")
+              : payment.method}
+          </span>
         </div>
       ),
+    },
+    {
+      header: t("tax"),
+      accessor: "tax",
+      render: (payment) => {
+        return (
+          <span className="text-purple-600 dark:text-purple-400 font-medium">
+            {formatCurrencyEnglish(payment.tax || 0, t("currency"))}
+          </span>
+        );
+      },
     },
     {
       header: t("status"),
       accessor: "status",
-      render: (invoice) => getStatusBadge(invoice.status),
-    },
-    {
-      header: t("payment"),
-      accessor: "paymentMethod",
-      render: (invoice) => getPaymentMethodBadge(invoice.paymentMethod),
-    },
-    {
-      header: t("issueDate"),
-      accessor: "issueDate",
-      render: (invoice) => (
-        <div>
-          <p className="text-sm text-gray-900 dark:text-white">
-            {formatDateTimeEnglish(invoice.issueDate)}
-          </p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Due: {formatDateTimeEnglish(invoice.dueDate)}
-          </p>
-        </div>
+      render: (payment) => (
+        <span
+          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+            payment.status === "completed"
+              ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400"
+              : payment.status === "pending"
+              ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400"
+              : "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400"
+          }`}
+        >
+          {payment.status === "completed" && (
+            <CheckCircle className="w-3 h-3 mr-1" />
+          )}
+          {payment.status === "pending" && (
+            <AlertCircle className="w-3 h-3 mr-1" />
+          )}
+          {payment.status === "failed" && <XCircle className="w-3 h-3 mr-1" />}
+          {t(payment.status)}
+        </span>
       ),
     },
     {
+      header: t("dueDate"),
+      accessor: "dueDate",
+      render: (payment) => (
+        <span
+          className={`text-gray-600 dark:text-gray-400 ${
+            isRTL ? "text-right" : "text-left"
+          }`}
+        >
+          {formatDateTimeEnglish(payment.dueDate)}
+        </span>
+      ),
+    },
+
+    {
       header: t("actions"),
       accessor: "actions",
-      render: (invoice) => (
-        <div className="flex items-center gap-2">
+      render: (payment) => (
+        <div className={`flex items-center gap-2 ${isRTL ? "flex-row" : ""}`}>
           <button
-            onClick={() => handleViewInvoice(invoice)}
+            onClick={() => handleViewPayment(payment)}
             className="p-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all duration-200 hover:scale-110"
-            title={t("view")}
+            title={t("viewTransaction")}
           >
             <Eye className="w-4 h-4" />
           </button>
           <button
-            onClick={() => handlePrintInvoice(invoice)}
+            onClick={() => handleEditInvoice(payment)}
             className="p-2 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-all duration-200 hover:scale-110"
-            title={t("print")}
-          >
-            <Printer className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={() => handleEditInvoice(invoice)}
-            className="p-2 text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-all duration-200 hover:scale-110"
-            title={t("edit")}
+            title={t("editInvoice")}
           >
             <Edit className="w-4 h-4" />
           </button>
           <button
-            onClick={() => handleDeleteInvoice(invoice)}
+            onClick={() => handleDeleteInvoice(payment)}
             className="p-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200 hover:scale-110"
-            title={t("delete")}
+            title={t("deleteInvoice")}
           >
             <Trash2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => handleDownloadReceipt(payment)}
+            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-all duration-200 hover:scale-110"
+            title={t("downloadReceipt")}
+          >
+            <Download className="w-4 h-4" />
           </button>
         </div>
       ),
@@ -591,10 +602,15 @@ const InvoicesManagement = () => {
   ];
 
   // Show loading state
-  if (loading || customersLoading || sellersLoading) {
+  if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">
+            {t("loadingInvoices")}
+          </p>
+        </div>
       </div>
     );
   }
@@ -602,10 +618,16 @@ const InvoicesManagement = () => {
   // Show error state
   if (error) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center min-h-96">
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <p className="text-red-600 dark:text-red-400">{error}</p>
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+          <button
+            onClick={() => dispatch(fetchCustomerInvoices())}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            {t("retry")}
+          </button>
         </div>
       </div>
     );
@@ -613,7 +635,6 @@ const InvoicesManagement = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:shadow-xl border border-gray-200 dark:border-gray-700 p-6 transition-all duration-300">
         <div
           className={`flex items-center justify-between ${
@@ -622,32 +643,71 @@ const InvoicesManagement = () => {
         >
           <div className={isRTL ? "text-right" : "text-left"}>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              {t("invoicesManagement")}
+              {t("payments")}
             </h1>
             <p className="text-gray-600 dark:text-gray-400">
-              {t("manageAllInvoices")}
+              {t("managePaymentsAndTransactions")}
             </p>
           </div>
-          <button
-            onClick={handleExportInvoices}
-            className={`px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-all duration-200 hover:scale-105 flex items-center gap-2 ${
-              isRTL ? "flex-row" : ""
-            }`}
-          >
-            <Download className="w-4 h-4" />
-            {t("export")}
-          </button>
+          <div className={`flex items-center gap-3 ${isRTL ? "flex-row" : ""}`}>
+            <button
+              onClick={() => setIsCustomerInvoiceOpen(true)}
+              className={`px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-all duration-200 hover:scale-105 flex items-center gap-2 ${
+                isRTL ? "flex-row" : ""
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              {isRTL ? "إضافة فاتورة عميل" : "Add Customer Invoice"}
+            </button>
+
+            {/* Export Dropdown */}
+            <div className="relative export-dropdown">
+              <button
+                onClick={() => setShowExportDropdown(!showExportDropdown)}
+                className={`px-4 py-2 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 transition-all duration-200 hover:scale-105 flex items-center gap-2 ${
+                  isRTL ? "flex-row" : ""
+                }`}
+              >
+                <Download className="w-4 h-4" />
+                {t("export")}
+                <ChevronDown className="w-4 h-4" />
+              </button>
+
+              {showExportDropdown && (
+                <div className={`absolute top-full mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-2 z-50 min-w-48 ${
+                  isRTL ? "left-0" : "right-0"
+                } sm:${isRTL ? "left-0" : "right-0"} xs:left-1/2 xs:transform xs:-translate-x-1/2`}>
+                  <button
+                    onClick={handleExportPDF}
+                    className={`w-full px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600 dark:text-red-400 transition-colors duration-200 ${
+                      isRTL ? "text-right flex-row" : "text-left flex-row"
+                    } sm:${isRTL ? "text-right" : "text-left"}`}
+                  >
+                    <FileText className="w-4 h-4 text-red-500 flex-shrink-0" />
+                    <span className="truncate">{t("exportPDF")}</span>
+                  </button>
+                  <button
+                    onClick={handleExportExcel}
+                    className={`w-full px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-green-600 dark:text-green-400 transition-colors duration-200 ${
+                      isRTL ? "text-right flex-row" : "text-left flex-row"
+                    } sm:${isRTL ? "text-right" : "text-left"}`}
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    <span className="truncate">{t("exportExcel")}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, index) => (
           <StatsCard key={index} {...stat} />
         ))}
       </div>
 
-      {/* Filters */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:shadow-xl border border-gray-200 dark:border-gray-700 p-6 transition-all duration-300">
         <div
           className={`flex flex-col sm:flex-row gap-4 ${
@@ -663,7 +723,7 @@ const InvoicesManagement = () => {
               />
               <input
                 type="text"
-                placeholder={t("searchInvoices")}
+                placeholder={t("searchTransactions")}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className={`w-full py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-200 ${
@@ -684,110 +744,74 @@ const InvoicesManagement = () => {
               }`}
               dir={isRTL ? "rtl" : "ltr"}
             >
-              <option value="all">{t("allStatuses")}</option>
-              <option value="paid">{t("paid")}</option>
+              <option value="all">{t("allTransactions")}</option>
+              <option value="completed">{t("completed")}</option>
               <option value="pending">{t("pending")}</option>
-              <option value="overdue">{t("overdue")}</option>
+              <option value="failed">{t("failed")}</option>
             </select>
           </div>
 
+          {/* Date Range */}
           <div className={`flex items-center gap-2 ${isRTL ? "flex-row" : ""}`}>
-            <Filter className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+            <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
             <select
-              value={sellerFilter}
-              onChange={(e) => setSellerFilter(e.target.value)}
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value)}
               className={`px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-200 ${
                 isRTL ? "text-right" : "text-left"
               }`}
               dir={isRTL ? "rtl" : "ltr"}
             >
-              <option value="all">{t("allSellers")}</option>
-              {sellers.map((seller) => (
-                <option key={seller.id} value={seller.email}>
-                  {seller.name}
-                </option>
-              ))}
+              <option value="all">{t("allTime")}</option>
+              <option value="today">{t("today")}</option>
+              <option value="week">{t("thisWeek")}</option>
+              <option value="month">{t("thisMonth")}</option>
+              <option value="custom">{t("customRange")}</option>
             </select>
           </div>
         </div>
-
-        {/* Advanced Filters */}
-        <div className="mt-4">
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white ${
-              isRTL ? "flex-row" : ""
+        {dateRange === "custom" && (
+          <div
+            className={`mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 ${
+              isRTL ? "sm:flex-row-reverse" : ""
             }`}
           >
-            <Filter className="w-4 h-4" />
-            {showFilters ? t("hideFilters") : t("showFilters")}
-          </button>
-
-          {showFilters && (
-            <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label
-                    className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 ${
-                      isRTL ? "text-right" : "text-left"
-                    }`}
-                  >
-                    {t("dateRange")}
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="date"
-                      value={dateRange.start}
-                      onChange={(e) =>
-                        setDateRange({ ...dateRange, start: e.target.value })
-                      }
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                    />
-                    <input
-                      type="date"
-                      value={dateRange.end}
-                      onChange={(e) =>
-                        setDateRange({ ...dateRange, end: e.target.value })
-                      }
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                    />
-                  </div>
-                </div>
-                <div className="flex items-end">
-                  <button
-                    onClick={clearFilters}
-                    className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-                  >
-                    {t("clearFilters")}
-                  </button>
-                </div>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t("fromDate")}
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full py-2 px-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
             </div>
-          )}
-        </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t("toDate")}
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full py-2 px-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Results Summary */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-600 dark:text-gray-400">
-          {t("showing")} {filteredInvoices.length} {t("of")} {invoices.length}{" "}
-          {t("invoices")}
-        </p>
-      </div>
-
-      {/* Invoices Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:shadow-xl border border-gray-200 dark:border-gray-700 transition-all duration-300">
         <DataTable
-          data={filteredInvoices}
-          columns={invoiceColumns}
+          data={filteredPayments}
+          columns={paymentColumns}
           searchable={false}
           pageable={true}
-          pageSize={10}
         />
       </div>
 
-      {/* View Invoice Modal */}
-      {viewModalOpen && selectedInvoice && (
+      {viewModalOpen && selectedPayment && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
@@ -799,10 +823,10 @@ const InvoicesManagement = () => {
                 </div>
                 <div className={isRTL ? "text-right" : "text-left"}>
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    {t("viewInvoice")}
+                    {t("viewTransactions")}
                   </h2>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {selectedInvoice.id}
+                    {selectedPayment.transactionId}
                   </p>
                 </div>
               </div>
@@ -823,7 +847,7 @@ const InvoicesManagement = () => {
                         isRTL ? "text-right" : "text-left"
                       }`}
                     >
-                      {t("invoiceId")}
+                      {t("transactionId")}
                     </label>
                     <div
                       className={`flex items-center gap-2 ${
@@ -832,7 +856,7 @@ const InvoicesManagement = () => {
                     >
                       <Hash className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                       <span className="font-mono text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 px-2 py-1 rounded">
-                        {selectedInvoice.id}
+                        {selectedPayment.transactionId}
                       </span>
                     </div>
                   </div>
@@ -852,7 +876,7 @@ const InvoicesManagement = () => {
                     >
                       <Hash className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                       <span className="font-mono text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 px-2 py-1 rounded">
-                        {selectedInvoice.orderId}
+                        {selectedPayment.orderId}
                       </span>
                     </div>
                   </div>
@@ -872,7 +896,7 @@ const InvoicesManagement = () => {
                     >
                       <User className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                       <span className="text-gray-900 dark:text-white">
-                        {selectedInvoice.customerName}
+                        {selectedPayment.customer}
                       </span>
                     </div>
                   </div>
@@ -894,7 +918,10 @@ const InvoicesManagement = () => {
                     >
                       <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                       <span className="text-gray-900 dark:text-white">
-                        {formatDateTimeEnglish(selectedInvoice.issueDate)}
+                        {formatDateTimeEnglish(
+                          selectedPayment.issueDate ||
+                            selectedPayment.paymentDate
+                        )}
                       </span>
                     </div>
                   </div>
@@ -905,14 +932,45 @@ const InvoicesManagement = () => {
                         isRTL ? "text-right" : "text-left"
                       }`}
                     >
-                      {t("paymentMethod")}
+                      {t("dueDate")}
                     </label>
                     <div
                       className={`flex items-center gap-2 ${
                         isRTL ? "flex-row" : ""
                       }`}
                     >
-                      {getPaymentMethodBadge(selectedInvoice.paymentMethod)}
+                      <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                      <span className="text-gray-900 dark:text-white">
+                        {formatDateTimeEnglish(selectedPayment.dueDate)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label
+                      className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 ${
+                        isRTL ? "text-right" : "text-left"
+                      }`}
+                    >
+                      {t("method")}
+                    </label>
+                    <div
+                      className={`flex items-center gap-2 ${
+                        isRTL ? "flex-row" : ""
+                      }`}
+                    >
+                      {getPaymentMethodIcon(selectedPayment.method)}
+                      <span className="text-gray-900 dark:text-white capitalize">
+                        {selectedPayment.method === "cash"
+                          ? t("cash")
+                          : selectedPayment.method === "card"
+                          ? t("card")
+                          : selectedPayment.method === "knet"
+                          ? t("knet")
+                          : selectedPayment.method === "digital"
+                          ? t("digital")
+                          : selectedPayment.method}
+                      </span>
                     </div>
                   </div>
 
@@ -924,7 +982,26 @@ const InvoicesManagement = () => {
                     >
                       {t("status")}
                     </label>
-                    {getStatusBadge(selectedInvoice.status)}
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        selectedPayment.status === "completed"
+                          ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400"
+                          : selectedPayment.status === "pending"
+                          ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400"
+                          : "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400"
+                      }`}
+                    >
+                      {selectedPayment.status === "completed" && (
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                      )}
+                      {selectedPayment.status === "pending" && (
+                        <AlertCircle className="w-3 h-3 mr-1" />
+                      )}
+                      {selectedPayment.status === "failed" && (
+                        <XCircle className="w-3 h-3 mr-1" />
+                      )}
+                      {t(selectedPayment.status)}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -937,14 +1014,36 @@ const InvoicesManagement = () => {
                 >
                   {t("financialDetails")}
                 </h3>
-                <div className="grid grid-cols-1 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className={isRTL ? "text-right" : "text-left"}>
+                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      {t("subtotal")}
+                    </label>
+                    <span className="text-lg font-semibold text-green-600 dark:text-green-400">
+                      {formatCurrencyEnglish(
+                        selectedPayment.subtotal || 0,
+                        t("currency")
+                      )}
+                    </span>
+                  </div>
+                  <div className={isRTL ? "text-right" : "text-left"}>
+                    <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      {t("tax")}
+                    </label>
+                    <span className="text-lg font-semibold text-purple-600 dark:text-purple-400">
+                      {formatCurrencyEnglish(
+                        selectedPayment.tax || 0,
+                        t("currency")
+                      )}
+                    </span>
+                  </div>
                   <div className={isRTL ? "text-right" : "text-left"}>
                     <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
                       {t("total")}
                     </label>
-                    <span className="text-lg font-semibold text-blue-600 dark:text-blue-400">
+                    <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
                       {formatCurrencyEnglish(
-                        selectedInvoice.total,
+                        selectedPayment.total || selectedPayment.amount,
                         t("currency")
                       )}
                     </span>
@@ -952,7 +1051,64 @@ const InvoicesManagement = () => {
                 </div>
               </div>
 
-              {selectedInvoice.description && (
+              {/* Delivery Information */}
+              {selectedPayment.method === "cash" &&
+                selectedPayment.assignedDriver && (
+                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <h3
+                      className={`text-lg font-medium text-gray-900 dark:text-white mb-4 ${
+                        isRTL ? "text-right" : "text-left"
+                      }`}
+                    >
+                      {t("deliveryInformation")}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className={isRTL ? "text-right" : "text-left"}>
+                        <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          {t("assignedDriver")}
+                        </label>
+                        <span className="text-gray-900 dark:text-white">
+                          {selectedPayment.assignedDriver}
+                        </span>
+                      </div>
+                      <div className={isRTL ? "text-right" : "text-left"}>
+                        <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          {t("collectionStatus")}
+                        </label>
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            selectedPayment.status === "completed"
+                              ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400"
+                              : "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400"
+                          }`}
+                        >
+                          {selectedPayment.status === "completed" ? (
+                            <>
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              {t("collected")}
+                            </>
+                          ) : (
+                            <>
+                              <AlertCircle className="w-3 h-3 mr-1" />
+                              {t("pendingCollection")}
+                            </>
+                          )}
+                        </span>
+                        {selectedPayment.status === "completed" &&
+                          selectedPayment.collectedAt && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              {t("collectedAt")}:{" "}
+                              {formatDateTimeEnglish(
+                                selectedPayment.collectedAt
+                              )}
+                            </p>
+                          )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+              {selectedPayment.description && (
                 <div>
                   <label
                     className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 ${
@@ -966,26 +1122,7 @@ const InvoicesManagement = () => {
                       isRTL ? "text-right" : "text-left"
                     }`}
                   >
-                    {selectedInvoice.description}
-                  </p>
-                </div>
-              )}
-
-              {selectedInvoice.notes && (
-                <div>
-                  <label
-                    className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 ${
-                      isRTL ? "text-right" : "text-left"
-                    }`}
-                  >
-                    {t("notes")}
-                  </label>
-                  <p
-                    className={`text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 p-3 rounded-lg ${
-                      isRTL ? "text-right" : "text-left"
-                    }`}
-                  >
-                    {selectedInvoice.notes}
+                    {selectedPayment.description}
                   </p>
                 </div>
               )}
@@ -997,20 +1134,141 @@ const InvoicesManagement = () => {
               }`}
             >
               <button
-                onClick={() => handlePrintInvoice(selectedInvoice)}
+                onClick={() => handleDownloadReceipt(selectedPayment)}
                 className={`flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-all duration-200 hover:scale-105 ${
                   isRTL ? "flex-row" : ""
                 }`}
               >
-                <Printer className="w-4 h-4" />
-                {t("print")}
+                <Download className="w-4 h-4" />
+                {t("downloadReceipt")}
               </button>
-
               <button
                 onClick={() => setViewModalOpen(false)}
                 className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors duration-200"
               >
                 {t("close")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Customer Invoice Form Modal */}
+      <CustomerInvoiceForm
+        isOpen={isCustomerInvoiceOpen}
+        onClose={() => setIsCustomerInvoiceOpen(false)}
+        onSubmit={handleSubmitCustomerInvoice}
+      />
+
+      {/* Edit Invoice Modal */}
+      <CustomerInvoiceForm
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedInvoiceForEdit(null);
+        }}
+        onSubmit={handleInvoiceSubmit}
+        invoice={selectedInvoiceForEdit}
+        mode="edit"
+      />
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <div
+                className={`flex items-center gap-3 ${isRTL ? "flex-row" : ""}`}
+              >
+                <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                  <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+                </div>
+                <div className={isRTL ? "text-right" : "text-left"}>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    {t("deleteInvoice")}
+                  </h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {deleteConfirm.transactionId}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={cancelDelete}
+                className="p-2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors duration-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                <div>
+                  <p className="text-sm font-medium text-red-800 dark:text-red-300">
+                    {t("deleteConfirmationMessage")}
+                  </p>
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                    {t("deleteConfirmationWarning")}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t("customer")}
+                </label>
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-gray-500" />
+                  <span className="text-gray-900 dark:text-white">
+                    {deleteConfirm.customer}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t("amount")}
+                </label>
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-gray-500" />
+                  <span className="text-gray-900 dark:text-white font-semibold">
+                    {formatCurrencyEnglish(deleteConfirm.amount, t("currency"))}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div
+              className={`flex gap-3 p-6 pt-4 border-t border-gray-200 dark:border-gray-700 ${
+                isRTL ? "flex-row" : ""
+              }`}
+            >
+              <button
+                onClick={cancelDelete}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {t("cancel")}
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={isDeleting}
+                className="flex-1 px-4 py-2 text-white bg-red-600 dark:bg-red-500 hover:bg-red-700 dark:hover:bg-red-600 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                    {t("deleting")}
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    {t("delete")}
+                  </>
+                )}
               </button>
             </div>
           </div>

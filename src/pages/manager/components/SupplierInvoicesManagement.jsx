@@ -20,6 +20,8 @@ import {
   X,
   Save,
   AlertCircle,
+  ChevronDown,
+  FileSpreadsheet,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
@@ -37,6 +39,7 @@ import { SupplierInvoiceForm } from "../../../components/Forms";
 const SupplierInvoicesManagement = () => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
+  const { isRTL } = useSelector((state) => state.language);
 
   // Redux state
   const { invoices, loading, error } = useSelector((state) => state.manager);
@@ -60,6 +63,9 @@ const SupplierInvoicesManagement = () => {
   const [formMode, setFormMode] = useState("add");
   const [selectedInvoiceForForm, setSelectedInvoiceForForm] = useState(null);
 
+  // Export dropdown state
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
+
   useEffect(() => {
     dispatch(fetchSupplierInvoices());
     dispatch(fetchSuppliers());
@@ -78,6 +84,20 @@ const SupplierInvoicesManagement = () => {
       toast.error(error);
     }
   }, [error]);
+
+  // Close export dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showExportDropdown && !event.target.closest(".export-dropdown")) {
+        setShowExportDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showExportDropdown]);
 
   // Safe supplier data getter
   const getSafeSuppliers = useCallback(() => {
@@ -475,9 +495,187 @@ const SupplierInvoicesManagement = () => {
     setSelectedInvoiceForForm(null);
   };
 
-  const handleExportInvoices = () => {
-    console.log("Export invoices");
-    toast.success(t("invoicesExported"));
+  const handleExportPDF = () => {
+    const pdfContent = `
+      <!DOCTYPE html>
+      <html dir="rtl">
+        <head>
+          <title>${t("supplierInvoicesReport")}</title>
+          <style>
+            body { 
+              font-family: 'Arial', sans-serif; 
+              margin: 20px; 
+              direction: rtl;
+              text-align: right;
+            }
+            .header { 
+              text-align: center; 
+              border-bottom: 2px solid #333; 
+              padding-bottom: 20px; 
+              margin-bottom: 30px; 
+            }
+            .invoices-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin: 20px 0;
+            }
+            .invoices-table th,
+            .invoices-table td {
+              border: 1px solid #333;
+              padding: 8px;
+              text-align: right;
+            }
+            .invoices-table th {
+              background-color: #f5f5f5;
+              font-weight: bold;
+            }
+            .stats-section {
+              margin-top: 30px;
+              padding: 20px;
+              border: 2px solid #333;
+              border-radius: 8px;
+              text-align: center;
+            }
+            @media print {
+              body { margin: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${t("supplierInvoicesReport")}</h1>
+            <h2>${new Date().toLocaleDateString()}</h2>
+          </div>
+          
+          <table class="invoices-table">
+            <thead>
+              <tr>
+                <th>${t("invoiceId")}</th>
+                <th>${t("orderId")}</th>
+                <th>${t("supplier")}</th>
+                <th>${t("amount")}</th>
+                <th>${t("status")}</th>
+                <th>${t("issueDate")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredInvoices
+                .map(
+                  (invoice) => `
+                <tr>
+                  <td>#${invoice.id}</td>
+                  <td>${invoice.order_id}</td>
+                  <td>${getSupplierName(invoice.supplier)}</td>
+                  <td>$${(() => {
+                    try {
+                      const itemsTotal =
+                        invoice.items?.reduce((sum, item) => {
+                          return (
+                            sum + (parseFloat(item.subtotal || item.total) || 0)
+                          );
+                        }, 0) || 0;
+                      const tax = parseFloat(invoice.tax) || 0;
+                      return (itemsTotal + tax).toFixed(2);
+                    } catch {
+                      return "0.00";
+                    }
+                  })()}</td>
+                  <td>${invoice.status}</td>
+                  <td>${new Date(invoice.issue_date).toLocaleDateString()}</td>
+                </tr>
+              `
+                )
+                .join("")}
+            </tbody>
+          </table>
+          
+          <div class="stats-section">
+            <h2>${t("totalInvoices")}: ${filteredInvoices.length}</h2>
+            <h2>${t("paidInvoices")}: ${stats.paidInvoices}</h2>
+            <h2>${t("pendingInvoices")}: ${stats.pendingInvoices}</h2>
+            <h2>${t("totalAmount")}: $${stats.totalAmount}</h2>
+          </div>
+          
+          <div class="no-print" style="margin-top: 50px; text-align: center;">
+            <button onclick="window.print()" style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+              ${t("print")}
+            </button>
+            <button onclick="window.close()" style="padding: 10px 20px; background-color: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px;">
+              ${t("close")}
+            </button>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const printWindow = window.open("", "_blank");
+    printWindow.document.write(pdfContent);
+    printWindow.document.close();
+
+    printWindow.onload = function () {
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+      }, 500);
+    };
+    toast.success(t("invoicesExportedPDF"));
+  };
+
+  const handleExportExcel = () => {
+    // Create CSV content
+    const csvContent = [
+      // Header row
+      [
+        t("invoiceId"),
+        t("orderId"),
+        t("supplier"),
+        t("amount"),
+        t("status"),
+        t("paymentMethod"),
+        t("issueDate"),
+        t("dueDate"),
+      ].join(","),
+      // Data rows
+      ...filteredInvoices.map((invoice) =>
+        [
+          invoice.id,
+          invoice.order_id,
+          `"${getSupplierName(invoice.supplier)}"`,
+          (() => {
+            try {
+              const itemsTotal =
+                invoice.items?.reduce((sum, item) => {
+                  return sum + (parseFloat(item.subtotal || item.total) || 0);
+                }, 0) || 0;
+              const tax = parseFloat(invoice.tax) || 0;
+              return (itemsTotal + tax).toFixed(2);
+            } catch {
+              return "0.00";
+            }
+          })(),
+          `"${invoice.status}"`,
+          `"${invoice.payment_method}"`,
+          `"${new Date(invoice.issue_date).toLocaleDateString()}"`,
+          `"${new Date(invoice.due_date).toLocaleDateString()}"`,
+        ].join(",")
+      ),
+    ].join("\n");
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `supplier_invoices_${new Date().toISOString().split("T")[0]}.csv`
+    );
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(t("invoicesExportedExcel"));
   };
 
   const clearFilters = () => {
@@ -544,13 +742,49 @@ const SupplierInvoicesManagement = () => {
             <Plus className="w-4 h-4" />
             {t("addInvoice")}
           </button>
-          <button
-            onClick={handleExportInvoices}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            {t("export")}
-          </button>
+
+          {/* Export Dropdown */}
+          <div className="relative export-dropdown">
+            <button
+              onClick={() => setShowExportDropdown(!showExportDropdown)}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                isRTL ? "flex-row" : ""
+              }`}
+            >
+              <Download className="w-4 h-4" />
+              {t("export")}
+              <ChevronDown className="w-4 h-4" />
+            </button>
+
+            {showExportDropdown && (
+              <div
+                className={`absolute top-full mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-2 z-50 min-w-48 ${
+                  isRTL ? "left-0" : "right-0"
+                } sm:${
+                  isRTL ? "left-0" : "right-0"
+                } xs:left-1/2 xs:transform xs:-translate-x-1/2`}
+              >
+                <button
+                  onClick={handleExportPDF}
+                  className={`w-full px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600 dark:text-red-400 transition-colors duration-200 ${
+                    isRTL ? "text-right flex-row" : "text-left flex-row"
+                  } sm:${isRTL ? "text-right" : "text-left"}`}
+                >
+                  <FileText className="w-4 h-4 text-red-500 flex-shrink-0" />
+                  <span className="truncate">{t("exportPDF")}</span>
+                </button>
+                <button
+                  onClick={handleExportExcel}
+                  className={`w-full px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 text-green-600 dark:text-green-400 transition-colors duration-200 ${
+                    isRTL ? "text-right flex-row" : "text-left flex-row"
+                  } sm:${isRTL ? "text-right" : "text-left"}`}
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  <span className="truncate">{t("exportExcel")}</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

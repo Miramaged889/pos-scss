@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import {
@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import FormField from "../FormField";
 import { fetchOrders } from "../../../store/slices/ordersSlice";
-import { customerService } from "../../../services";
+import { customerService, productService } from "../../../services";
 
 const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const { t } = useTranslation();
@@ -22,6 +22,7 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const { orders } = useSelector((state) => state.orders);
   const [formData, setFormData] = useState({
     orderItemId: "",
+    actualItemId: "", // Store the actual item ID for API
     customerId: "",
     customerName: "",
     productId: "",
@@ -36,6 +37,7 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const [customers, setCustomers] = useState([]);
   const [customerOrders, setCustomerOrders] = useState([]);
   const [orderProducts, setOrderProducts] = useState([]);
+  const [products, setProducts] = useState([]);
 
   useEffect(() => {
     if (editData) {
@@ -45,11 +47,12 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
     }
   }, [editData, orders]);
 
-  // Load orders and customers when component mounts
+  // Load orders, customers, and products when component mounts
   useEffect(() => {
     if (isOpen) {
       dispatch(fetchOrders());
       loadCustomers();
+      loadProducts();
     }
   }, [isOpen, dispatch]);
 
@@ -66,6 +69,203 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
     }
   };
 
+  const loadProducts = async () => {
+    try {
+      const response = await productService.getProducts();
+      const productsList = Array.isArray(response)
+        ? response
+        : response.data || [];
+      setProducts(productsList);
+    } catch (error) {
+      console.error("Error loading products:", error);
+      setProducts([]);
+    }
+  };
+
+  const processOrderProducts = useCallback(
+    (order) => {
+      // Extract products from the order
+      let productsInOrder = [];
+
+      // Check if order has items array (multiple products in one order)
+      if (order.items && Array.isArray(order.items)) {
+        productsInOrder = order.items.map((item) => {
+          // Find the product details from the products list
+          const product = products.find((p) => p.id === item.product_id);
+
+          return {
+            id: item.product_id, // Use actual product ID
+            itemId: item.id, // Store the order item ID for API
+            name:
+              product?.name || product?.nameEn || `Product ${item.product_id}`, // Get product name
+            quantity: item.quantity,
+            price: product?.price || 0, // Get product price
+          };
+        });
+      }
+      // Check if order has products array (the actual structure we're seeing)
+      else if (order.products && Array.isArray(order.products)) {
+        productsInOrder = order.products.map((product) => {
+          // Find the full product details from the products list
+          const fullProduct = products.find((p) => p.id === product.id);
+
+          return {
+            id: product.id, // Use actual product ID
+            itemId: order.id, // Use order ID as item ID
+            name:
+              fullProduct?.name ||
+              fullProduct?.nameEn ||
+              product.name ||
+              product.nameEn ||
+              `Product ${product.id}`, // Get product name
+            quantity: product.quantity,
+            price: fullProduct?.price || product.price || 0, // Get product price
+          };
+        });
+      }
+      // Handle case where items is not an array but might be a single item or different structure
+      else if (order.items && !Array.isArray(order.items)) {
+        // Check if this is a single product order with direct product info
+        if (order.product_id || order.productId) {
+          const product = products.find(
+            (p) => p.id === (order.product_id || order.productId)
+          );
+
+          productsInOrder = [
+            {
+              id: order.product_id || order.productId,
+              itemId: order.id,
+              name:
+                product?.name ||
+                product?.nameEn ||
+                `Product ${order.product_id || order.productId}`,
+              quantity: order.quantity || 1,
+              price: product?.price || 0,
+            },
+          ];
+        }
+      }
+      // Check if order has direct product information (single product order)
+      else if (order.product_id || order.productId) {
+        const product = products.find(
+          (p) => p.id === (order.product_id || order.productId)
+        );
+        productsInOrder = [
+          {
+            id: order.product_id || order.productId, // Use actual product ID
+            itemId: order.id, // Use order ID as item ID for single-item orders
+            name:
+              product?.name ||
+              product?.nameEn ||
+              order.product_name ||
+              order.productName ||
+              `Product ${order.product_id || order.productId}`,
+            quantity: order.quantity,
+            price: product?.price || order.price || order.unitPrice || 0,
+          },
+        ];
+      }
+      // Check if order has product field that is a product object
+      else if (order.product) {
+        productsInOrder = [
+          {
+            id: order.product.id, // Use actual product ID
+            itemId: order.id, // Use order ID as item ID
+            name: order.product.name,
+            quantity: order.quantity,
+            price: order.product.price || 0,
+          },
+        ];
+      }
+
+      // If no products found, try to extract from any available fields
+      if (productsInOrder.length === 0) {
+
+        // Try to find any product-related fields in the order
+        const possibleProductFields = [
+          "products",
+          "product_id",
+          "productId",
+          "product",
+          "item",
+          "items",
+        ];
+
+        for (const field of possibleProductFields) {
+          if (order[field]) {
+            // If it's an array of products
+            if (Array.isArray(order[field])) {
+              productsInOrder = order[field].map((product) => {
+                const fullProduct = products.find((p) => p.id === product.id);
+                return {
+                  id: product.id,
+                  itemId: order.id,
+                  name:
+                    fullProduct?.name ||
+                    fullProduct?.nameEn ||
+                    product.name ||
+                    product.nameEn ||
+                    `Product ${product.id}`,
+                  quantity: product.quantity || 1,
+                  price: fullProduct?.price || product.price || 0,
+                };
+              });
+              break;
+            }
+            // If it's an object with product info
+            else if (typeof order[field] === "object" && order[field].id) {
+              const product = products.find((p) => p.id === order[field].id);
+              if (product) {
+                productsInOrder = [
+                  {
+                    id: order[field].id,
+                    itemId: order.id,
+                    name:
+                      product.name ||
+                      product.nameEn ||
+                      `Product ${order[field].id}`,
+                    quantity: order[field].quantity || order.quantity || 1,
+                    price: product.price || 0,
+                  },
+                ];
+                break;
+              }
+            }
+            // If it's just a product ID
+            else if (typeof order[field] === "number") {
+              const product = products.find((p) => p.id === order[field]);
+              if (product) {
+                productsInOrder = [
+                  {
+                    id: order[field],
+                    itemId: order.id,
+                    name:
+                      product.name ||
+                      product.nameEn ||
+                      `Product ${order[field]}`,
+                    quantity: order.quantity || 1,
+                    price: product.price || 0,
+                  },
+                ];
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      setOrderProducts(productsInOrder);
+    },
+    [products]
+  );
+
+  // Handle order selection when products are loaded
+  useEffect(() => {
+    if (selectedOrder && products.length > 0 && orderProducts.length === 0) {
+      processOrderProducts(selectedOrder);
+    }
+  }, [products, selectedOrder, orderProducts.length, processOrderProducts]);
+
   const returnReasons = [
     { value: "defective", label: t("defectiveProduct") },
     { value: "wrongOrder", label: t("wrongOrder") },
@@ -79,13 +279,17 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const handleCustomerSelect = (customerId) => {
     const customer = customers.find((c) => c.id === parseInt(customerId));
     if (customer) {
-      // Filter orders for this customer
-      const filteredOrders = orders.filter(
-        (o) =>
-          o.customer === parseInt(customerId) ||
-          o.customer === customer.customer_name ||
-          o.customer === customer.name
-      );
+      // Filter orders for this customer based on customer ID
+      // Try different possible field names for customer ID
+      const filteredOrders = orders.filter((o) => {
+        // Check customerId field (number)
+        if (o.customerId === parseInt(customerId)) return true;
+        // Check customer field (string like "Customer #7")
+        if (o.customer && o.customer.includes(`#${customerId}`)) return true;
+        // Check customer_id field
+        if (o.customer_id === parseInt(customerId)) return true;
+        return false;
+      });
       setCustomerOrders(filteredOrders);
       setFormData((prev) => ({
         ...prev,
@@ -107,48 +311,20 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
     if (order) {
       setSelectedOrder(order);
 
-      // Extract products from the order
-      // Assuming order has items array or product information
-      let productsInOrder = [];
-
-      // Check if order has items array
-      if (order.items && Array.isArray(order.items)) {
-        productsInOrder = order.items.map((item) => ({
-          id: item.product_id || item.productId || item.id,
-          name: item.product_name || item.productName || item.name,
-          quantity: item.quantity,
-          price: item.price || item.unitPrice || 0,
-        }));
-      }
-      // Check if order has direct product information
-      else if (order.product_id || order.productId) {
-        productsInOrder = [
-          {
-            id: order.product_id || order.productId,
-            name: order.product_name || order.productName,
-            quantity: order.quantity,
-            price: order.price || order.unitPrice || 0,
-          },
-        ];
-      }
-      // Check if order has product field that is a product object
-      else if (order.product) {
-        productsInOrder = [
-          {
-            id: order.product.id,
-            name: order.product.name,
-            quantity: order.quantity,
-            price: order.product.price || 0,
-          },
-        ];
+      // Check if products are loaded
+      if (products.length === 0) {
+        return;
       }
 
-      setOrderProducts(productsInOrder);
+      // Process the order products
+      processOrderProducts(order);
+
       setFormData((prev) => ({
         ...prev,
-        orderItemId: order.id,
+        orderItemId: order.id, // Keep order ID for reference
         productId: "",
         productName: "",
+        actualItemId: "", // Reset actual item ID
         quantity: 1,
         refundAmount: 0,
       }));
@@ -160,10 +336,11 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
     if (product) {
       setFormData((prev) => ({
         ...prev,
-        productId: product.id,
+        productId: product.id, // This is the actual product ID
         productName: product.name,
-        quantity: product.quantity || 1,
-        refundAmount: product.price * (product.quantity || 1),
+        actualItemId: product.itemId, // Store the order item ID for API
+        quantity: 1, // Reset to 1, user can adjust
+        refundAmount: product.price * 1, // Calculate based on single item price
       }));
     }
   };
@@ -197,6 +374,10 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
       newErrors.customerId = t("customerRequired");
     }
 
+    if (!formData.productId) {
+      newErrors.productId = t("productRequired");
+    }
+
     if (!formData.quantity || formData.quantity < 1) {
       newErrors.quantity = t("validQuantityRequired");
     }
@@ -216,6 +397,9 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
         ...formData,
         id: editData?.id || `RTN-${Date.now()}`,
         returnDate: editData?.returnDate || new Date().toISOString(),
+        // Ensure we're sending the product ID, not order ID
+        productId: formData.productId,
+        orderItemId: formData.actualItemId, // Use the order item ID for API
       };
 
       // Let the parent component handle API operations
@@ -227,6 +411,7 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const handleClose = () => {
     setFormData({
       orderItemId: "",
+      actualItemId: "",
       customerId: "",
       customerName: "",
       productId: "",
@@ -313,9 +498,9 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
                   { value: "", label: t("selectOrder") },
                   ...(customerOrders || []).map((order) => ({
                     value: order.id,
-                    label: `${t("order")} #${order.id} - ${new Date(
-                      order.createdAt
-                    ).toLocaleDateString()}`,
+                    label: `Order #${order.id} - Total: ${
+                      order.total_amount || order.total || "0.00"
+                    }`,
                   })),
                 ]}
               />
@@ -390,6 +575,20 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
                 icon={<Package className="w-4 h-4" />}
                 disabled={!formData.productId}
               />
+            </div>
+          )}
+
+
+          {/* Show message if no products found in order */}
+          {formData.orderItemId && orderProducts.length === 0 && (
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+              <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-300">
+                <AlertTriangle className="w-5 h-5" />
+                <p className="text-sm">
+                  {t("noProductsFoundInOrder")} (Debug: orderProducts.length ={" "}
+                  {orderProducts.length})
+                </p>
+              </div>
             </div>
           )}
 

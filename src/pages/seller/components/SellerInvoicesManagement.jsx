@@ -6,8 +6,6 @@ import {
   Filter,
   Download,
   Eye,
-  Edit,
-  Trash2,
   FileText,
   Printer,
   Mail,
@@ -18,15 +16,12 @@ import {
   Building,
   Plus,
   X,
-  Save,
-  AlertCircle,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
   fetchSupplierInvoices,
   createSupplierInvoice,
   updateSupplierInvoice,
-  deleteSupplierInvoice,
   clearManagerError,
 } from "../../../store/slices/managerSlice";
 import { fetchSuppliers } from "../../../store/slices/supplierSlice";
@@ -50,10 +45,7 @@ const SupplierInvoicesManagement = () => {
 
   // Modal states
   const [viewModal, setViewModal] = useState(false);
-  const [editModal, setEditModal] = useState(false);
-  const [deleteModal, setDeleteModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [editForm, setEditForm] = useState({});
 
   // Form modal states
   const [formModal, setFormModal] = useState(false);
@@ -355,20 +347,6 @@ const SupplierInvoicesManagement = () => {
           >
             <Mail className="w-4 h-4" />
           </button>
-          <button
-            onClick={() => handleEditInvoiceForm(item)}
-            className="p-1 text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300"
-            title={t("edit")}
-          >
-            <Edit className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleDeleteInvoice(item)}
-            className="p-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-            title={t("delete")}
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
         </div>
       ),
     },
@@ -389,64 +367,10 @@ const SupplierInvoicesManagement = () => {
     toast.success(t("invoiceSent"));
   };
 
-  const handleDeleteInvoice = (invoice) => {
-    setSelectedInvoice(invoice);
-    setDeleteModal(true);
-  };
-
-  const handleSaveEdit = async () => {
-    if (!selectedInvoice) return;
-
-    try {
-      const updateData = {
-        status: editForm.status,
-        notes: editForm.notes,
-        paymentDate: editForm.paymentDate
-          ? `${editForm.paymentDate}T${
-              selectedInvoice.paymentDate?.split("T")[1] || "00:00:00"
-            }`
-          : null,
-      };
-
-      await dispatch(
-        updateSupplierInvoice({
-          id: selectedInvoice.id,
-          invoiceData: updateData,
-        })
-      ).unwrap();
-
-      setEditModal(false);
-      setSelectedInvoice(null);
-      setEditForm({});
-      toast.success(t("invoiceUpdated"));
-    } catch (error) {
-      toast.error(error || t("updateFailed"));
-    }
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!selectedInvoice) return;
-
-    try {
-      await dispatch(deleteSupplierInvoice(selectedInvoice.id)).unwrap();
-      setDeleteModal(false);
-      setSelectedInvoice(null);
-      toast.success(t("invoiceDeleted"));
-    } catch (error) {
-      toast.error(error || t("deleteFailed"));
-    }
-  };
-
   // Form handlers
   const handleAddInvoice = () => {
     setFormMode("add");
     setSelectedInvoiceForForm(null);
-    setFormModal(true);
-  };
-
-  const handleEditInvoiceForm = (invoice) => {
-    setFormMode("edit");
-    setSelectedInvoiceForForm(invoice);
     setFormModal(true);
   };
 
@@ -867,141 +791,6 @@ const SupplierInvoicesManagement = () => {
                   </p>
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Modal */}
-      {editModal && selectedInvoice && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                {t("editInvoice")} - {selectedInvoice.id}
-              </h2>
-              <button
-                onClick={() => setEditModal(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t("status")}
-                </label>
-                <select
-                  value={editForm.status}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, status: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                >
-                  <option value="Pending">{t("pending")}</option>
-                  <option value="Paid">{t("paid")}</option>
-                  <option value="Overdue">{t("overdue")}</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t("paymentDate")}
-                </label>
-                <input
-                  type="date"
-                  value={editForm.paymentDate}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, paymentDate: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t("notes")}
-                </label>
-                <textarea
-                  value={editForm.notes}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, notes: e.target.value })
-                  }
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setEditModal(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-              >
-                {t("cancel")}
-              </button>
-              <button
-                onClick={handleSaveEdit}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
-              >
-                <Save className="w-4 h-4" />
-                {t("saveChanges")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Modal */}
-      {deleteModal && selectedInvoice && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                {t("deleteInvoice")}
-              </h2>
-              <button
-                onClick={() => setDeleteModal(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                <AlertCircle className="w-6 h-6 text-red-500" />
-                <div>
-                  <p className="text-sm font-medium text-red-800 dark:text-red-200">
-                    {t("confirmDeleteInvoice")}
-                  </p>
-                  <p className="text-sm text-red-600 dark:text-red-300">
-                    {t("invoiceId")}: {selectedInvoice.id}
-                  </p>
-                </div>
-              </div>
-
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {t("deleteInvoiceWarning")}
-              </p>
-            </div>
-
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setDeleteModal(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-              >
-                {t("cancel")}
-              </button>
-              <button
-                onClick={handleConfirmDelete}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors flex items-center gap-2"
-              >
-                <Trash2 className="w-4 h-4" />
-                {t("delete")}
-              </button>
             </div>
           </div>
         </div>

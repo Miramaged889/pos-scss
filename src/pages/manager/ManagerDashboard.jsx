@@ -11,22 +11,27 @@ import {
   RotateCcw,
   Receipt,
   CreditCard,
+  Truck,
+  Package,
 } from "lucide-react";
 
 import DashboardLayout from "../../components/Layout/DashboardLayout";
 import ManagerHome from "./components/ManagerHome";
 import UserManagement from "./components/SellerManagement";
-import PaymentMethodsManagement from "./components/PaymentMethodsManagement";
+// import PaymentMethodsManagement from "./components/PaymentMethodsManagement";
 import OrdersManagement from "./components/OrdersManagement";
 import InvoicesManagement from "./components/InvoicesManagement";
 import ManagerReports from "./components/ManagerReports";
+import CustomerManagement from "./components/CustomerManagement";
+import ReturnsManagement from "./components/ReturnsManagement";
 import SuppliersManagement from "./components/SuppliersManagement";
 import SupplierInvoicesManagement from "./components/SupplierInvoicesManagement";
 import SupplierReturnsManagement from "./components/SupplierReturnsManagement";
 import FinancialReceiptVoucher from "./components/FinancialReceiptVoucher";
 import VouchersPage from "./components/VouchersPage";
 import BranchesManagement from "./components/BranchesManagement";
-
+import SupplierPurchase from "./components/SupplierPurchase";
+import InventoryManagement from "./components/InventoryManagement";
 const ManagerDashboard = () => {
   const { t } = useTranslation();
 
@@ -50,11 +55,17 @@ const ManagerDashboard = () => {
       href: "/manager/branches",
       icon: Building,
     },
+    // {
+    //   key: "payment-methods",
+    //   title: t("paymentMethods"),
+    //   href: "/manager/payment-methods",
+    //   icon: CreditCard,
+    // },
     {
-      key: "payment-methods",
-      title: t("paymentMethods"),
-      href: "/manager/payment-methods",
-      icon: CreditCard,
+      key: "inventory",
+      title: t("inventory"),
+      href: "/manager/inventory",
+      icon: Package,
     },
     {
       key: "orders",
@@ -63,10 +74,22 @@ const ManagerDashboard = () => {
       icon: ShoppingCart,
     },
     {
+      key: "customers",
+      title: t("customers"),
+      href: "/manager/customers",
+      icon: Users,
+    },
+    {
       key: "invoices",
-      title: t("invoices"),
+      title: t("invoicesofcustomer"),
       href: "/manager/invoices",
       icon: FileText,
+    },
+    {
+      key: "returns",
+      title: t("returnsofcustomer"),
+      href: "/manager/returns",
+      icon: RotateCcw,
     },
     {
       key: "financial-receipt",
@@ -80,17 +103,18 @@ const ManagerDashboard = () => {
       href: "/manager/vouchers",
       icon: FileText,
     },
-    {
-      key: "reports",
-      title: t("reports"),
-      href: "/manager/reports",
-      icon: BarChart3,
-    },
+
     {
       key: "suppliers",
       title: t("suppliers"),
       href: "/manager/suppliers-management",
       icon: Building,
+    },
+    {
+      key: "supplier-purchase",
+      title: t("supplierPurchase"),
+      href: "/manager/supplier-purchase",
+      icon: Truck,
     },
     {
       key: "supplier-invoices",
@@ -104,6 +128,12 @@ const ManagerDashboard = () => {
       href: "/manager/supplier-returns",
       icon: RotateCcw,
     },
+    {
+      key: "reports",
+      title: t("reports"),
+      href: "/manager/reports",
+      icon: BarChart3,
+    },
   ];
 
   return (
@@ -112,7 +142,7 @@ const ManagerDashboard = () => {
         <Route index element={<ManagerHome />} />
         <Route path="/home" element={<ManagerHome />} />
         <Route path="users" element={<UserManagement />} />
-        <Route path="payment-methods" element={<PaymentMethodsManagement />} />
+        <Route path="inventory" element={<InventoryManagement />} />
         <Route path="branches" element={<BranchesManagement />} />
         <Route path="orders" element={<OrdersManagement />} />
         <Route path="invoices" element={<InvoicesManagement />} />
@@ -128,6 +158,9 @@ const ManagerDashboard = () => {
           path="supplier-returns"
           element={<SupplierReturnsManagement />}
         />
+        <Route path="supplier-purchase" element={<SupplierPurchase />} />
+        <Route path="customers" element={<CustomerManagement />} />
+        <Route path="returns" element={<ReturnsManagement />} />
       </Routes>
     </DashboardLayout>
   );

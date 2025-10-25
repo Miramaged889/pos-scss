@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation } from "react-router-dom";
-import { ShoppingCart, Search, Filter } from "lucide-react";
+import { ShoppingCart, Search, Filter, Barcode } from "lucide-react";
 import { productService } from "../../../services";
 
 const ProductSelectionPage = () => {
@@ -16,6 +16,7 @@ const ProductSelectionPage = () => {
   const [error, setError] = useState(null);
   const [selectedProducts, setSelectedProducts] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
+  const [barcodeSearch, setBarcodeSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [subcategoryFilter, setSubcategoryFilter] = useState("all");
 
@@ -90,11 +91,17 @@ const ProductSelectionPage = () => {
     const matchesSearch =
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.nameEn?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesBarcode =
+      !barcodeSearch ||
+      product.barcode?.toString().includes(barcodeSearch) ||
+      product.sku?.toLowerCase().includes(barcodeSearch.toLowerCase());
     const matchesCategory =
       categoryFilter === "all" || product.category === categoryFilter;
     const matchesSubcategory =
       subcategoryFilter === "all" || product.subcategory === subcategoryFilter;
-    return matchesSearch && matchesCategory && matchesSubcategory;
+    return (
+      matchesSearch && matchesBarcode && matchesCategory && matchesSubcategory
+    );
   });
 
   const handleAddToCart = (productId) => {
@@ -199,7 +206,7 @@ const ProductSelectionPage = () => {
         </h1>
 
         {/* Search and Filter */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {/* Search Input */}
           <div className="relative">
             <Search
@@ -212,6 +219,25 @@ const ProductSelectionPage = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder={t("searchProducts")}
+              className={`w-full py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 ${
+                isRTL ? "pr-10 pl-4 text-right" : "pl-10 pr-4 text-left"
+              }`}
+              dir={isRTL ? "rtl" : "ltr"}
+            />
+          </div>
+
+          {/* Barcode Search Input */}
+          <div className="relative">
+            <Barcode
+              className={`absolute top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 ${
+                isRTL ? "right-3" : "left-3"
+              }`}
+            />
+            <input
+              type="text"
+              value={barcodeSearch}
+              onChange={(e) => setBarcodeSearch(e.target.value)}
+              placeholder={t("searchByBarcode")}
               className={`w-full py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 ${
                 isRTL ? "pr-10 pl-4 text-right" : "pl-10 pr-4 text-left"
               }`}
