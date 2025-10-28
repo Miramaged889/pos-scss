@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "gcp-build": "npm run build"
+    "gcp-build": "npm run build",
+    "start": "serve -s dist -l ${PORT:-8080}"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.8.2",
@@ -25,7 +26,8 @@
     "react-i18next": "^15.5.3",
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.6.2",
-    "recharts": "^3.1.0"
+    "recharts": "^3.1.0",
+    "serve": "^14.2.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",
