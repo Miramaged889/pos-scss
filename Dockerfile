@@ -2,28 +2,30 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Install deps
+# Copy package files
 COPY package*.json ./
-RUN npm ci
 
-# Copy source and build
+# Install ALL dependencies (including dev dependencies for build)
+RUN npm ci --frozen-lockfile || npm install
+
+# Copy source code
 COPY . .
+
+# Build the application
 RUN npm run build
 
-# Runtime stage
-FROM node:20-alpine AS runner
+# Production stage
+FROM node:20-alpine AS production
 WORKDIR /app
-ENV NODE_ENV=production
 
-# Install only production deps (includes "serve")
-COPY --from=builder /app/package*.json ./
-RUN npm ci --omit=dev
+# Install serve globally
+RUN npm install -g serve
 
-# Copy built assets
+# Copy built application
 COPY --from=builder /app/dist ./dist
 
-# Expose default port
+# Expose port
 EXPOSE 8080
 
-# Start static server on provided PORT
+# Start the application
 CMD ["sh", "-c", "serve -s dist -l ${PORT:-8080}"]
