@@ -1,0 +1,35 @@
+# This file specifies files that are NOT uploaded to Google Cloud when running gcloud app deploy.
+# https://cloud.google.com/sdk/gcloud/reference/topic/gcloudignore
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+.pnpm-store/
+
+# Vite/Build cache
+.vite/
+.cache/
+
+# Git
+.git/
+.gitignore
+
+# IDE/editor
+.vscode/
+.idea/
+.DS_Store
+
+# Tests and local env
+coverage/
+*.local
+.env*
+
+# Source maps (optional, uncomment to exclude maps)
+# dist/**/*.map
+
+# Only dist is required for serving; keep source by default (App Engine will upload all unless ignored)
+# If you want to upload only dist and minimal files, ignore everything then whitelist. Example:
+# **
+# !app.yaml
+# !dist/**

@@ -1,0 +1,15 @@
+runtime: nodejs20
+
+handlers:
+  - url: /(.*)
+    static_files: dist/\1
+    upload: dist/(.*)
+
+  - url: /.*
+    static_files: dist/index.html
+    upload: dist/index.html
+    http_headers:
+      Cache-Control: "no-cache, no-store, must-revalidate"
+
+env_variables:
+  NODE_ENV: production
