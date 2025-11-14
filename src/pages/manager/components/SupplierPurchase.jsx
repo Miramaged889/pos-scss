@@ -295,6 +295,9 @@ const SupplierPurchase = () => {
               className="text-sm text-gray-600 dark:text-gray-400"
             >
               {item.item_name} × {item.quantity}
+              {item.barcode
+                ? ` • ${t("barcode")}: ${item.barcode}`
+                : ""}
             </div>
           ))}
           {(order.items || []).length > 2 && (
@@ -611,13 +614,21 @@ const SupplierPurchase = () => {
                         key={index}
                         className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4"
                       >
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                           <div>
                             <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
                               {t("itemName")}
                             </label>
                             <p className="text-sm font-medium text-gray-900 dark:text-white">
                               {item.item_name}
+                            </p>
+                          </div>
+                          <div>
+                            <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                              {t("barcode")}
+                            </label>
+                            <p className="text-sm text-gray-900 dark:text-white">
+                              {item.barcode || "-"}
                             </p>
                           </div>
                           <div>

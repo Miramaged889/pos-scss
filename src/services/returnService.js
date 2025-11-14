@@ -43,10 +43,19 @@ const mapDbToFrontend = (
 
 // Helper function to map frontend format to database schema
 const mapFrontendToDb = (frontendReturn) => {
+  const orderItemId =
+    frontendReturn.orderItemId ??
+    frontendReturn.orderId ??
+    frontendReturn.actualItemId ??
+    null;
+
+  if (orderItemId === null || orderItemId === undefined || orderItemId === "") {
+    throw new Error("order_item is required");
+  }
+
   const mappedData = {
     customer: parseInt(frontendReturn.customerId),
-    order_item: parseInt(frontendReturn.productId), // Use product ID instead of order ID
-    product: parseInt(frontendReturn.productId), // Add product ID
+    order_item: parseInt(orderItemId),
     quantity: parseInt(frontendReturn.quantity),
     return_reason:
       frontendReturn.reason ||
@@ -54,6 +63,14 @@ const mapFrontendToDb = (frontendReturn) => {
       frontendReturn.description ||
       "No reason provided",
   };
+
+  if (frontendReturn.productId) {
+    mappedData.product = parseInt(frontendReturn.productId);
+  }
+
+  if (Number.isNaN(mappedData.order_item)) {
+    throw new Error("order_item must be a valid integer");
+  }
 
   console.log("Mapping frontend data to DB schema:", {
     original: frontendReturn,

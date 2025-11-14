@@ -8,7 +8,6 @@ import {
   ArrowRight,
   User,
   Phone,
-  MapPin,
   Receipt,
   Truck,
   Store,
@@ -20,7 +19,6 @@ import {
   ChevronRight,
   Plus,
   Package,
-  Mail,
 } from "lucide-react";
 import FormField from "../../../components/Forms/FormField";
 import api from "../../../services/api";
@@ -279,19 +277,14 @@ const PhaseTwo = ({
   const validateNewCustomer = () => {
     const newErrors = {};
 
-    // If optional, no validation needed
-    if (isOptional) {
-      return true;
-    }
+    const phoneValue = (
+      customerInfo?.phone !== undefined && customerInfo?.phone !== null
+        ? customerInfo.phone.toString()
+        : ""
+    ).trim();
 
-    if (!customerInfo.name?.trim()) {
-      newErrors.name = t("customerNameRequired");
-    }
-    if (!customerInfo.phone?.trim()) {
+    if (!phoneValue) {
       newErrors.phone = t("phoneRequired");
-    }
-    if (!customerInfo.address?.trim()) {
-      newErrors.address = t("addressRequired");
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -304,11 +297,31 @@ const PhaseTwo = ({
 
     try {
       setIsCreatingCustomer(true);
+      const rawPhone = String(customerInfo.phone ?? "").trim();
+      const numericPhone = rawPhone.replace(/\D/g, "");
+
+      if (!numericPhone) {
+        throw new Error("Invalid phone number");
+      }
+
+      const fallbackName =
+        customerInfo.name?.trim() && customerInfo.name.trim().length > 0
+          ? customerInfo.name.trim()
+          : numericPhone;
+      const fallbackAddress =
+        customerInfo.address?.trim() && customerInfo.address.trim().length > 0
+          ? customerInfo.address.trim()
+          : "N/A";
+      const fallbackEmail =
+        customerInfo.email?.trim() && customerInfo.email.trim().length > 0
+          ? customerInfo.email.trim()
+          : `${numericPhone}@customer.local`;
+
       const newCustomer = {
-        customer_name: customerInfo.name.trim(),
-        customer_phone: customerInfo.phone.trim(),
-        customer_address: customerInfo.address?.trim() || "",
-        customer_email: customerInfo.email?.trim() || "",
+        customer_name: fallbackName,
+        customer_phone: numericPhone,
+        customer_address: fallbackAddress,
+        customer_email: fallbackEmail,
         notes: "Created from checkout",
       };
 
@@ -331,7 +344,10 @@ const PhaseTwo = ({
         // Update customer info with the created customer data
         setCustomerInfo({
           name: customerData.customer_name || customerInfo.name,
-          phone: customerData.customer_phone || customerInfo.phone,
+          phone:
+            customerData.customer_phone != null
+              ? String(customerData.customer_phone)
+              : customerInfo.phone,
           address: customerData.customer_address || customerInfo.address,
           email: customerData.customer_email || customerInfo.email,
         });
@@ -378,7 +394,10 @@ const PhaseTwo = ({
     if (customer) {
       setCustomerInfo({
         name: customer.customer_name || "",
-        phone: customer.customer_phone || "",
+        phone:
+          customer.customer_phone != null
+            ? String(customer.customer_phone)
+            : "",
         address: customer.customer_address || "",
         email: customer.customer_email || "",
       });
@@ -402,13 +421,13 @@ const PhaseTwo = ({
     }
   };
 
+  const phoneValueRaw = customerInfo.phone ?? "";
+  const phoneString = String(phoneValueRaw);
+  const phoneTrimmed = phoneString.trim();
+
   const canProceed =
-    isOptional || // If optional, can always proceed
-    (customerMode === "existing" && selectedCustomerId) ||
-    (customerMode === "new" &&
-      customerInfo.name &&
-      customerInfo.phone &&
-      (deliveryType !== "delivery" || customerInfo.address));
+    (customerMode === "existing" && (selectedCustomerId || isOptional)) ||
+    (customerMode === "new" && phoneTrimmed.length > 0);
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg dark:shadow-xl border border-gray-200 dark:border-gray-700 p-6">
@@ -543,44 +562,14 @@ const PhaseTwo = ({
       {customerMode === "new" && (
         <div className="space-y-4">
           <FormField
-            label={t("customerName")}
-            value={customerInfo.name}
-            onChange={(e) =>
-              setCustomerInfo((prev) => ({ ...prev, name: e.target.value }))
-            }
-            error={errors.name}
-            required
-            icon={<User className="w-4 h-4" />}
-          />
-
-          <FormField
             label={t("phoneNumber")}
-            value={customerInfo.phone}
+            value={phoneString}
             onChange={(e) =>
               setCustomerInfo((prev) => ({ ...prev, phone: e.target.value }))
             }
             error={errors.phone}
             required
             icon={<Phone className="w-4 h-4" />}
-          />
-
-          <FormField
-            label={t("email")}
-            type="email"
-            value={customerInfo.email}
-            onChange={(e) =>
-              setCustomerInfo((prev) => ({ ...prev, email: e.target.value }))
-            }
-            icon={<Mail className="w-4 h-4" />}
-          />
-
-          <FormField
-            label={t("customerAddress")}
-            value={customerInfo.address}
-            onChange={(e) =>
-              setCustomerInfo((prev) => ({ ...prev, address: e.target.value }))
-            }
-            icon={<MapPin className="w-4 h-4" />}
           />
         </div>
       )}

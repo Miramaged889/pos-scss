@@ -21,8 +21,8 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const { isRTL } = useSelector((state) => state.language);
   const { orders } = useSelector((state) => state.orders);
   const [formData, setFormData] = useState({
-    orderItemId: "",
-    actualItemId: "", // Store the actual item ID for API
+    orderId: "",
+    orderItemId: "", // Store the actual order item ID for API
     customerId: "",
     customerName: "",
     productId: "",
@@ -41,9 +41,26 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
 
   useEffect(() => {
     if (editData) {
-      setFormData(editData);
-      const order = orders.find((o) => o.id === editData.orderItemId);
-      setSelectedOrder(order);
+      setFormData((prev) => ({
+        ...prev,
+        ...editData,
+        orderId: editData.orderId || "",
+        orderItemId: editData.orderItemId || "",
+        customerId: editData.customerId || "",
+        customerName: editData.customerName || "",
+        productId: editData.productId || "",
+        productName: editData.productName || "",
+        quantity: editData.quantity || 1,
+        reason: editData.reason || editData.returnReason || "",
+        description: editData.description || "",
+        refundAmount: editData.refundAmount || 0,
+      }));
+
+      const relatedOrder =
+        orders.find(
+          (o) => o.id === (editData.orderId || editData.orderItemId)
+        ) || null;
+      setSelectedOrder(relatedOrder);
     }
   }, [editData, orders]);
 
@@ -180,7 +197,6 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
 
       // If no products found, try to extract from any available fields
       if (productsInOrder.length === 0) {
-
         // Try to find any product-related fields in the order
         const possibleProductFields = [
           "products",
@@ -295,6 +311,7 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
         ...prev,
         customerId: customer.id,
         customerName: customer.customer_name || customer.name || "",
+        orderId: "",
         orderItemId: "",
         productId: "",
         productName: "",
@@ -321,10 +338,10 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
 
       setFormData((prev) => ({
         ...prev,
-        orderItemId: order.id, // Keep order ID for reference
+        orderId: order.id, // Store order ID for reference
+        orderItemId: "", // Reset order item ID until product is selected
         productId: "",
         productName: "",
-        actualItemId: "", // Reset actual item ID
         quantity: 1,
         refundAmount: 0,
       }));
@@ -334,11 +351,18 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const handleProductSelect = (productId) => {
     const product = orderProducts.find((p) => p.id === parseInt(productId));
     if (product) {
+      const orderItemIdentifier =
+        product.itemId ??
+        product.orderItemId ??
+        product.order_item_id ??
+        product.order_item ??
+        product.id;
+
       setFormData((prev) => ({
         ...prev,
         productId: product.id, // This is the actual product ID
         productName: product.name,
-        actualItemId: product.itemId, // Store the order item ID for API
+        orderItemId: orderItemIdentifier, // Store the order item ID for API
         quantity: 1, // Reset to 1, user can adjust
         refundAmount: product.price * 1, // Calculate based on single item price
       }));
@@ -366,8 +390,8 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.orderItemId) {
-      newErrors.orderItemId = t("orderIdRequired");
+    if (!formData.orderId) {
+      newErrors.orderId = t("orderIdRequired");
     }
 
     if (!formData.customerId) {
@@ -397,9 +421,10 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
         ...formData,
         id: editData?.id || `RTN-${Date.now()}`,
         returnDate: editData?.returnDate || new Date().toISOString(),
-        // Ensure we're sending the product ID, not order ID
+        // Ensure we're sending the correct identifiers
+        orderId: formData.orderId,
+        orderItemId: formData.orderItemId,
         productId: formData.productId,
-        orderItemId: formData.actualItemId, // Use the order item ID for API
       };
 
       // Let the parent component handle API operations
@@ -410,8 +435,8 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
 
   const handleClose = () => {
     setFormData({
+      orderId: "",
       orderItemId: "",
-      actualItemId: "",
       customerId: "",
       customerName: "",
       productId: "",
@@ -487,11 +512,11 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField
                 label={t("selectOrder")}
-                name="orderItemId"
+                name="orderId"
                 type="select"
-                value={formData.orderItemId}
+                value={formData.orderId}
                 onChange={(e) => handleOrderSelect(e.target.value)}
-                error={errors.orderItemId}
+                error={errors.orderId}
                 required
                 icon={<FileText className="w-4 h-4" />}
                 options={[
@@ -538,7 +563,7 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
           )}
 
           {/* Product Selection - Third Step (shown after order selected) */}
-          {formData.orderItemId && orderProducts.length > 0 && (
+          {formData.orderId && orderProducts.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField
                 label={t("selectProduct")}
@@ -578,9 +603,8 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
             </div>
           )}
 
-
           {/* Show message if no products found in order */}
-          {formData.orderItemId && orderProducts.length === 0 && (
+          {formData.orderId && orderProducts.length === 0 && (
             <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
               <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-300">
                 <AlertTriangle className="w-5 h-5" />

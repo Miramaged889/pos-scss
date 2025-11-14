@@ -9,9 +9,4 @@ export default defineConfig({
     sourcemap: false,
     minify: true,
   },
-  base: "./",
-  server: {
-    port: 3000,
-    host: true,
-  },
 });

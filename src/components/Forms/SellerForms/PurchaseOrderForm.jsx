@@ -21,7 +21,15 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const { products } = useSelector((state) => state.inventory);
   const [formData, setFormData] = useState({
     supplier: "",
-    items: [{ item_name: "", customName: "", quantity: 1, unit_price: 0 }],
+    items: [
+      {
+        item_name: "",
+        customName: "",
+        quantity: 1,
+        unit_price: 0,
+        barcode: "",
+      },
+    ],
     expected_delivery: "",
     notes: "",
     status: "Pending",
@@ -97,7 +105,16 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
           customName: item.customName || "",
           quantity: item.quantity || 1,
           unit_price: item.unit_price || item.price || 0,
-        })) || [{ item_name: "", customName: "", quantity: 1, unit_price: 0 }],
+          barcode: item.barcode || item.Barcode || item.product_barcode || "",
+        })) || [
+          {
+            item_name: "",
+            customName: "",
+            quantity: 1,
+            unit_price: 0,
+            barcode: "",
+          },
+        ],
       });
     }
   }, [editData]);
@@ -114,7 +131,13 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
       ...prev,
       items: [
         ...prev.items,
-        { item_name: "", customName: "", quantity: 1, unit_price: 0 },
+        {
+          item_name: "",
+          customName: "",
+          quantity: 1,
+          unit_price: 0,
+          barcode: "",
+        },
       ],
     }));
   };
@@ -193,6 +216,10 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
             subtotal: subtotal.toFixed(2), // Add subtotal field
           };
 
+          if (item.barcode) {
+            itemData.barcode = item.barcode.toString();
+          }
+
           // Include item ID if it exists (for updates)
           if (item.id) {
             itemData.id = item.id;
@@ -219,6 +246,7 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
       item_name: selectedName,
       customName:
         selectedName === "other" ? updatedItems[index].customName : "",
+      barcode: "",
     };
 
     // Auto-fill price if it's an existing item
@@ -230,6 +258,11 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
       if (supplierItem) {
         updatedItems[index].unit_price = supplierItem.lastPrice || 0;
         updatedItems[index].quantity = supplierItem.lastQuantity || 1;
+        updatedItems[index].barcode =
+          supplierItem.barcode ||
+          supplierItem.product_barcode ||
+          supplierItem.Barcode ||
+          "";
       } else {
         // Fallback to inventory items
         const selectedProduct = (products || []).find(
@@ -237,6 +270,11 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
         );
         if (selectedProduct) {
           updatedItems[index].unit_price = selectedProduct.price || 0;
+          updatedItems[index].barcode =
+            selectedProduct.barcode ||
+            selectedProduct.product_barcode ||
+            selectedProduct.Barcode ||
+            "";
         }
       }
     }
@@ -247,7 +285,15 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const handleClose = () => {
     setFormData({
       supplier: "",
-      items: [{ item_name: "", customName: "", quantity: 1, unit_price: 0 }],
+      items: [
+        {
+          item_name: "",
+          customName: "",
+          quantity: 1,
+          unit_price: 0,
+          barcode: "",
+        },
+      ],
       expected_delivery: "",
       notes: "",
       status: "Pending",
@@ -308,6 +354,7 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
                             customName: "",
                             quantity: 1,
                             unit_price: 0,
+                            barcode: "",
                           },
                         ]
                       : prev.items,
@@ -392,7 +439,7 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="space-y-2">
                       <FormField
                         label={t("itemName")}
@@ -489,6 +536,19 @@ const PurchaseOrderForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
                       min="0"
                       step="0.01"
                       icon={<DollarSign className="w-4 h-4" />}
+                    />
+
+                    <FormField
+                      label={t("barcode")}
+                      name={`item_${index}_barcode`}
+                      type="text"
+                      value={item.barcode}
+                      onChange={(e) =>
+                        updateItem(index, "barcode", e.target.value)
+                      }
+                      placeholder={t("enterBarcode")}
+                      helperText={t("barcodeOptional")}
+                      icon={<FileText className="w-4 h-4" />}
                     />
                   </div>
 

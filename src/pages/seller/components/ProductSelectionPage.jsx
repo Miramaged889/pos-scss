@@ -88,13 +88,26 @@ const ProductSelectionPage = () => {
   };
 
   const filteredProducts = products.filter((product) => {
+    const searchValue = searchTerm?.toString().toLowerCase() || "";
+    const productName = product.name ? product.name.toString() : "";
+    const productNameEn = product.nameEn ? product.nameEn.toString() : "";
     const matchesSearch =
-      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.nameEn?.toLowerCase().includes(searchTerm.toLowerCase());
+      productName.toLowerCase().includes(searchValue) ||
+      productNameEn.toLowerCase().includes(searchValue);
+
+    const barcodeValue = barcodeSearch?.toString().toLowerCase() || "";
+    const productBarcode =
+      product.barcode !== undefined && product.barcode !== null
+        ? product.barcode.toString().toLowerCase()
+        : "";
+    const productSku =
+      product.sku !== undefined && product.sku !== null
+        ? product.sku.toString().toLowerCase()
+        : "";
     const matchesBarcode =
-      !barcodeSearch ||
-      product.barcode?.toString().includes(barcodeSearch) ||
-      product.sku?.toLowerCase().includes(barcodeSearch.toLowerCase());
+      !barcodeValue ||
+      productBarcode.includes(barcodeValue) ||
+      productSku.includes(barcodeValue);
     const matchesCategory =
       categoryFilter === "all" || product.category === categoryFilter;
     const matchesSubcategory =

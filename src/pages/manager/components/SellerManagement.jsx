@@ -130,9 +130,9 @@ const UserManagement = () => {
     // Add kitchen role if kitchen module is enabled
     if (tenantInfo.modules_enabled.kitchen === true) {
       roles.push({
-        value: "Kitchen",
+        value: "kitchen",
         label: t("kitchen"),
-        apiValue: "Kitchen",
+        apiValue: "kitchen",
       });
     }
 

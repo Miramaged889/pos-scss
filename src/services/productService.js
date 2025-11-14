@@ -90,6 +90,14 @@ const mapFrontendToDb = (frontendProduct) => {
     min_stock: parseInt(frontendProduct.minStock) || 0,
   };
 
+  if (frontendProduct?.Suspended !== undefined) {
+    dbData.Suspended = frontendProduct.Suspended;
+  } else if (frontendProduct?.suspended !== undefined) {
+    dbData.Suspended = frontendProduct.suspended;
+  } else {
+    dbData.Suspended = "no";
+  }
+
   // Only add optional fields if they have values
   if (frontendProduct.sku?.trim()) {
     dbData.product_no = frontendProduct.sku.trim();
