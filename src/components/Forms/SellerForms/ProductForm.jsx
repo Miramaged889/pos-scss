@@ -8,7 +8,7 @@ import {
   updateProduct,
   fetchProducts,
 } from "../../../store/slices/inventorySlice";
-import { supplierService } from "../../../services";
+import { supplierService, categoriesService, subcategoriesService, measureUnitsService } from "../../../services";
 
 const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
   const { t } = useTranslation();
@@ -19,6 +19,7 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
     name: "",
     nameEn: "",
     category: "",
+    subcategory: "",
     stock: "",
     minStock: "",
     price: "",
@@ -28,7 +29,7 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
     description: "",
     imageUrl: "",
     unitSize: "",
-    unitType: "",
+    measureUnit: "",
   });
 
   const [imagePreview, setImagePreview] = useState(null);
@@ -36,6 +37,12 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [suppliers, setSuppliers] = useState([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+  const [subcategories, setSubcategories] = useState([]);
+  const [loadingSubcategories, setLoadingSubcategories] = useState(false);
+  const [measureUnits, setMeasureUnits] = useState([]);
+  const [loadingMeasureUnits, setLoadingMeasureUnits] = useState(false);
 
   // Fetch suppliers on component mount
   useEffect(() => {
@@ -60,31 +67,99 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
     }
   }, [isOpen]);
 
+  // Fetch categories on component mount
+  useEffect(() => {
+    const fetchCategories = async () => {
+      setLoadingCategories(true);
+      try {
+        const response = await categoriesService.getCategories();
+        const categoriesList = Array.isArray(response) ? response : [];
+        setCategories(categoriesList);
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+        setCategories([]);
+      } finally {
+        setLoadingCategories(false);
+      }
+    };
+
+    if (isOpen) {
+      fetchCategories();
+    }
+  }, [isOpen]);
+
+  // Fetch subcategories when category changes
+  useEffect(() => {
+    const fetchSubcategories = async () => {
+      if (!formData.category) {
+        setSubcategories([]);
+        return;
+      }
+      
+      setLoadingSubcategories(true);
+      try {
+        const response = await subcategoriesService.getSubcategories({ category: formData.category });
+        const subcategoriesList = Array.isArray(response) ? response : [];
+        setSubcategories(subcategoriesList);
+      } catch (error) {
+        console.error("Error fetching subcategories:", error);
+        setSubcategories([]);
+      } finally {
+        setLoadingSubcategories(false);
+      }
+    };
+
+    fetchSubcategories();
+  }, [formData.category]);
+
+  // Fetch measure units on component mount
+  useEffect(() => {
+    const fetchMeasureUnits = async () => {
+      setLoadingMeasureUnits(true);
+      try {
+        const response = await measureUnitsService.getMeasureUnits();
+        const measureUnitsList = Array.isArray(response) ? response : [];
+        setMeasureUnits(measureUnitsList);
+      } catch (error) {
+        console.error("Error fetching measure units:", error);
+        setMeasureUnits([]);
+      } finally {
+        setLoadingMeasureUnits(false);
+      }
+    };
+
+    if (isOpen) {
+      fetchMeasureUnits();
+    }
+  }, [isOpen]);
+
   // Load product data when component mounts
   useEffect(() => {
     if (product && mode === "edit") {
       setFormData({
-        name: product.name || "",
-        nameEn: product.nameEn || "",
-        category: product.category || "",
-        stock: product.stock?.toString() || "",
-        minStock: product.minStock?.toString() || "",
+        name: product.arabic_name || product.name || "",
+        nameEn: product.english_name || product.nameEn || "",
+        category: product.category?.id?.toString() || product.category?.toString() || "",
+        subcategory: product.subcategory?.id?.toString() || product.subcategory?.toString() || "",
+        stock: product.current_stock?.toString() || product.stock?.toString() || "",
+        minStock: product.min_stock?.toString() || product.minStock?.toString() || "",
         price: product.price?.toString() || "",
-        supplier: product.supplierId || "",
-        sku: product.sku || "",
+        supplier: product.supplier_detail?.id?.toString() || product.supplierId?.toString() || product.supplier?.toString() || "",
+        sku: product.product_no || product.sku || "",
         barcode: product.barcode || "",
         description: product.description || "",
-        imageUrl: product.imageUrl || "",
-        unitSize: product.unitSize?.toString() || "",
-        unitType: product.unitType || "",
+        imageUrl: product.image || product.imageUrl || "",
+        unitSize: product.unit_size?.toString() || product.unitSize?.toString() || "",
+        measureUnit: product.unit_type?.id?.toString() || product.measure_unit?.toString() || "",
       });
-      setImagePreview(product.imageUrl || null);
+      setImagePreview(product.image || product.imageUrl || null);
     } else if (mode === "create") {
       // Reset form for new product
       setFormData({
         name: "",
         nameEn: "",
         category: "",
+        subcategory: "",
         stock: "",
         minStock: "",
         price: "",
@@ -94,32 +169,30 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
         description: "",
         imageUrl: "",
         unitSize: "",
-        unitType: "",
+        measureUnit: "",
       });
       setImagePreview(null);
     }
     setErrors({});
   }, [product, mode, isOpen]);
 
-  const categoryOptions = [
-    { value: "main", label: t("mainCourse") },
-    { value: "side", label: t("sideDish") },
-    { value: "beverages", label: t("beverages") },
-    { value: "desserts", label: t("desserts") },
-  ];
+  // Map categories from API to dropdown options format
+  const categoryOptions = categories.map((category) => ({
+    value: category.id?.toString() || category.id,
+    label: category.name || t("category"),
+  }));
 
-  const unitTypeOptions = [
-    { value: "gram", label: t("gram") },
-    { value: "kilogram", label: t("kilogram") },
-    { value: "liter", label: t("liter") },
-    { value: "milliliter", label: t("milliliter") },
-    { value: "piece", label: t("piece") },
-    { value: "box", label: t("box") },
-    { value: "carton", label: t("carton") },
-    { value: "bottle", label: t("bottle") },
-    { value: "can", label: t("can") },
-    { value: "pack", label: t("pack") },
-  ];
+  // Map subcategories from API to dropdown options format
+  const subcategoryOptions = subcategories.map((subcategory) => ({
+    value: subcategory.id?.toString() || subcategory.id,
+    label: subcategory.name || t("subcategory"),
+  }));
+
+  // Map measure units from API to dropdown options format
+  const measureUnitOptions = measureUnits.map((unit) => ({
+    value: unit.id?.toString() || unit.id,
+    label: unit.name || unit.unit_name || t("unit"),
+  }));
 
   const handleInputChange = (field) => (e) => {
     const value = e.target.value;
@@ -147,11 +220,15 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.name.trim()) {
+    // Safely check name fields
+    const arabicName = (formData.name || "").trim();
+    const englishName = (formData.nameEn || "").trim();
+
+    if (!arabicName) {
       newErrors.name = t("productNameRequired");
     }
 
-    if (!formData.nameEn.trim()) {
+    if (!englishName) {
       newErrors.nameEn = t("englishNameRequired");
     }
 
@@ -159,7 +236,8 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
       newErrors.category = t("categoryRequired");
     }
 
-    if (!formData.description.trim()) {
+    const description = (formData.description || "").trim();
+    if (!description) {
       newErrors.description = t("descriptionRequired");
     }
 
@@ -189,13 +267,29 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
     setIsSubmitting(true);
 
     try {
+      // Ensure required fields are not empty - double check
+      const arabicName = (formData.name || "").trim();
+      const englishName = (formData.nameEn || "").trim();
+
+      if (!arabicName || !englishName) {
+        setErrors({ 
+          submit: t("productNameRequired"),
+          ...(!arabicName && { name: t("productNameRequired") }),
+          ...(!englishName && { nameEn: t("englishNameRequired") })
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Prepare product data in frontend format (productService will map it to API format)
       const productData = {
-        name: formData.name.trim(),
-        nameEn: formData.nameEn.trim(),
-        category: formData.category,
-        stock: parseInt(formData.stock),
-        minStock: parseInt(formData.minStock),
-        price: parseFloat(formData.price),
+        name: arabicName,
+        nameEn: englishName,
+        category: formData.category ? formData.category.toString().trim() : null,
+        subcategory: formData.subcategory ? formData.subcategory.toString().trim() : null,
+        stock: parseInt(formData.stock) || 0,
+        minStock: parseInt(formData.minStock) || 0,
+        price: parseFloat(formData.price) || 0,
         supplier: formData.supplier
           ? formData.supplier.toString().trim()
           : null,
@@ -205,8 +299,10 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
           ? formData.description.toString().trim()
           : null,
         imageUrl: formData.imageUrl || null,
-        unitSize: formData.unitSize ? parseFloat(formData.unitSize) : null,
-        unitType: formData.unitType || null,
+        unitSize: formData.unitSize && formData.unitSize.trim() !== ""
+          ? formData.unitSize.toString().trim()
+          : null,
+        unitType: formData.measureUnit ? formData.measureUnit.toString().trim() : null,
       };
 
       let result;
@@ -227,6 +323,7 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
             name: "",
             nameEn: "",
             category: "",
+            subcategory: "",
             stock: "",
             minStock: "",
             price: "",
@@ -236,7 +333,7 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
             description: "",
             imageUrl: "",
             unitSize: "",
-            unitType: "",
+            measureUnit: "",
           });
           setImagePreview(null);
         }
@@ -245,11 +342,84 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
         dispatch(fetchProducts());
         onClose();
       } else {
-        setErrors({ submit: result.payload || t("errorSavingProduct") });
+        // Handle API validation errors
+        const apiErrors = {};
+        const errorPayload = result.payload || {};
+        
+        // Check if error is a string
+        if (typeof errorPayload === "string") {
+          apiErrors.submit = errorPayload;
+        } else if (typeof errorPayload === "object") {
+          // Handle field-specific errors from API
+          if (errorPayload.arabic_name) {
+            apiErrors.name = Array.isArray(errorPayload.arabic_name) 
+              ? errorPayload.arabic_name[0] 
+              : errorPayload.arabic_name;
+          }
+          if (errorPayload.english_name) {
+            apiErrors.nameEn = Array.isArray(errorPayload.english_name) 
+              ? errorPayload.english_name[0] 
+              : errorPayload.english_name;
+          }
+          if (errorPayload.category) {
+            apiErrors.category = Array.isArray(errorPayload.category) 
+              ? errorPayload.category[0] 
+              : errorPayload.category;
+          }
+          if (errorPayload.description) {
+            apiErrors.description = Array.isArray(errorPayload.description) 
+              ? errorPayload.description[0] 
+              : errorPayload.description;
+          }
+          if (errorPayload.price) {
+            apiErrors.price = Array.isArray(errorPayload.price) 
+              ? errorPayload.price[0] 
+              : errorPayload.price;
+          }
+          if (errorPayload.current_stock) {
+            apiErrors.stock = Array.isArray(errorPayload.current_stock) 
+              ? errorPayload.current_stock[0] 
+              : errorPayload.current_stock;
+          }
+          if (errorPayload.min_stock) {
+            apiErrors.minStock = Array.isArray(errorPayload.min_stock) 
+              ? errorPayload.min_stock[0] 
+              : errorPayload.min_stock;
+          }
+          
+          // General error message
+          if (!Object.keys(apiErrors).length && errorPayload.message) {
+            apiErrors.submit = errorPayload.message;
+          } else if (!Object.keys(apiErrors).length) {
+            apiErrors.submit = t("errorSavingProduct");
+          }
+        } else {
+          apiErrors.submit = t("errorSavingProduct");
+        }
+        
+        setErrors(apiErrors);
       }
     } catch (error) {
       console.error("Error saving product:", error);
-      setErrors({ submit: t("errorSavingProduct") });
+      // Handle caught errors
+      const caughtErrors = {};
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        if (errorData.arabic_name) {
+          caughtErrors.name = Array.isArray(errorData.arabic_name) 
+            ? errorData.arabic_name[0] 
+            : errorData.arabic_name;
+        }
+        if (errorData.english_name) {
+          caughtErrors.nameEn = Array.isArray(errorData.english_name) 
+            ? errorData.english_name[0] 
+            : errorData.english_name;
+        }
+        caughtErrors.submit = errorData.message || error.message || t("errorSavingProduct");
+      } else {
+        caughtErrors.submit = error.message || t("errorSavingProduct");
+      }
+      setErrors(caughtErrors);
     } finally {
       setIsSubmitting(false);
     }
@@ -423,6 +593,17 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
                 options={categoryOptions}
                 error={errors.category}
                 required
+                disabled={loadingCategories}
+              />
+              <FormField
+                label={t("subcategory")}
+                type="select"
+                value={formData.subcategory}
+                onChange={handleInputChange("subcategory")}
+                placeholder={t("selectSubcategory")}
+                options={subcategoryOptions}
+                disabled={loadingSubcategories || !formData.category}
+                helperText={!formData.category ? t("selectCategoryFirst") : t("subcategoryOptional")}
               />
               <FormField
                 label={t("sku")}
@@ -495,15 +676,16 @@ const ProductForm = ({ isOpen, onClose, product = null, mode = "create" }) => {
                 helperText={t("unitSizeOptional")}
               />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <div className="grid grid-cols-1 md:grid-cols-1 gap-4 mt-4">
               <FormField
-                label={t("unitType")}
+                label={t("measureUnit")}
                 type="select"
-                value={formData.unitType}
-                onChange={handleInputChange("unitType")}
-                placeholder={t("selectUnitType")}
-                options={unitTypeOptions}
-                helperText={t("unitTypeOptional")}
+                value={formData.measureUnit}
+                onChange={handleInputChange("measureUnit")}
+                placeholder={t("selectMeasureUnit")}
+                options={measureUnitOptions}
+                disabled={loadingMeasureUnits}
+                helperText={t("measureUnitOptional")}
               />
             </div>
           </div>

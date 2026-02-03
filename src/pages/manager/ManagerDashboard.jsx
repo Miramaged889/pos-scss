@@ -13,6 +13,7 @@ import {
   CreditCard,
   Truck,
   Package,
+  Tag,
 } from "lucide-react";
 
 import DashboardLayout from "../../components/Layout/DashboardLayout";
@@ -32,6 +33,8 @@ import VouchersPage from "./components/VouchersPage";
 import BranchesManagement from "./components/BranchesManagement";
 import SupplierPurchase from "./components/SupplierPurchase";
 import InventoryManagement from "./components/InventoryManagement";
+import CategoriesManagement from "./components/CategoriesManagement";
+import CurrencyManagement from "./components/CurrencyManagement";
 const ManagerDashboard = () => {
   const { t } = useTranslation();
 
@@ -55,17 +58,23 @@ const ManagerDashboard = () => {
       href: "/manager/branches",
       icon: Building,
     },
-    // {
-    //   key: "payment-methods",
-    //   title: t("paymentMethods"),
-    //   href: "/manager/payment-methods",
-    //   icon: CreditCard,
-    // },
+    {
+      key: "payment-methods",
+      title: t("paymentMethods"),
+      href: "/manager/currency",
+      icon: CreditCard,
+    },
     {
       key: "inventory",
       title: t("inventory"),
       href: "/manager/inventory",
       icon: Package,
+    },
+    {
+      key: "categories",
+      title: t("categories"),
+      href: "/manager/categories",
+      icon: Tag,
     },
     {
       key: "orders",
@@ -143,6 +152,8 @@ const ManagerDashboard = () => {
         <Route path="/home" element={<ManagerHome />} />
         <Route path="users" element={<UserManagement />} />
         <Route path="inventory" element={<InventoryManagement />} />
+        <Route path="categories" element={<CategoriesManagement />} />
+        <Route path="currency" element={<CurrencyManagement />} />
         <Route path="branches" element={<BranchesManagement />} />
         <Route path="orders" element={<OrdersManagement />} />
         <Route path="invoices" element={<InvoicesManagement />} />

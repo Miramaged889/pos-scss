@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import FormField from "../../../components/Forms/FormField";
 import api from "../../../services/api";
+import { currencyService } from "../../../services";
 
 // Phase 1: Choose Delivery & Payment
 const PhaseOne = ({
@@ -29,40 +30,21 @@ const PhaseOne = ({
   setDeliveryType,
   paymentMethod,
   setPaymentMethod,
+  paymentMethods,
   onNext,
   isRTL,
   t,
 }) => {
-  const paymentMethods = [
-    {
-      id: "cash",
-      label: t("cash"),
-      icon: Banknote,
-      description: t("payWithCash"),
-    },
-    {
-      id: "card",
-      label: t("card"),
-      icon: CreditCard,
-      description: t("payWithCard"),
-    },
-    {
-      id: "knet",
-      label: t("knet"),
-      icon: Wallet,
-      description: t("payWithKNET"),
-    },
-    {
-      id: "credit",
-      label: t("credit"),
-      icon: Calendar,
-      description: t("payWithCredit"),
-    },
-  ];
 
+  // Get selected payment method data
+  const selectedPaymentMethodData = paymentMethods?.find((method) => method.id === paymentMethod) || null;
   const canProceed = deliveryType && paymentMethod;
+  // Check if payment method requires confirmation or if it's credit based on code
+  const selectedPaymentCode = selectedPaymentMethodData?.code?.toLowerCase() || "";
   const requiresPhase2 =
-    deliveryType === "delivery" || paymentMethod === "credit";
+    deliveryType === "delivery" || 
+    selectedPaymentCode === "credit" || 
+    selectedPaymentMethodData?.requires_confirmation === true;
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg dark:shadow-xl border border-gray-200 dark:border-gray-700 p-6">
@@ -159,38 +141,60 @@ const PhaseOne = ({
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
           {t("paymentMethod")}
         </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {paymentMethods.map((method) => (
-            <button
-              key={method.id}
-              onClick={() => setPaymentMethod(method.id)}
-              className={`p-4 rounded-xl border-2 transition-all duration-300 w-full ${
-                paymentMethod === method.id
-                  ? "border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20"
-                  : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500"
-              }`}
-            >
-              <div className="flex flex-col items-center gap-2 text-center">
-                <method.icon
-                  className={`w-6 h-6 ${
-                    paymentMethod === method.id
-                      ? "text-blue-600 dark:text-blue-400"
-                      : "text-gray-600 dark:text-gray-400"
-                  }`}
-                />
-                <p
-                  className={`font-medium text-sm ${
-                    paymentMethod === method.id
-                      ? "text-blue-700 dark:text-blue-300"
-                      : "text-gray-900 dark:text-white"
-                  }`}
-                >
-                  {method.label}
-                </p>
-              </div>
-            </button>
-          ))}
-        </div>
+        {!paymentMethods || paymentMethods.length === 0 ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="text-center">
+              <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {t("loading")}
+              </p>
+            </div>
+          </div>
+        ) : paymentMethods.length === 0 ? (
+          <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+            <p className="text-sm text-yellow-800 dark:text-yellow-300">
+              {t("noCurrencies")}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {paymentMethods.map((method) => (
+              <button
+                key={method.id}
+                onClick={() => setPaymentMethod(method.id)}
+                className={`p-4 rounded-xl border-2 transition-all duration-300 w-full ${
+                  paymentMethod === method.id
+                    ? "border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20"
+                    : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300 dark:hover:border-blue-500"
+                }`}
+              >
+                <div className="flex flex-col items-center gap-2 text-center">
+                  <CreditCard
+                    className={`w-6 h-6 ${
+                      paymentMethod === method.id
+                        ? "text-blue-600 dark:text-blue-400"
+                        : "text-gray-600 dark:text-gray-400"
+                    }`}
+                  />
+                  <p
+                    className={`font-medium text-sm ${
+                      paymentMethod === method.id
+                        ? "text-blue-700 dark:text-blue-300"
+                        : "text-gray-900 dark:text-white"
+                    }`}
+                  >
+                    {method.label}
+                  </p>
+                  {method.code && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {method.code}
+                    </p>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Info Alert */}
@@ -227,6 +231,7 @@ const PhaseOne = ({
 const PhaseTwo = ({
   deliveryType,
   paymentMethod,
+  paymentMethods,
   customerMode,
   setCustomerMode,
   selectedCustomerId,
@@ -244,8 +249,15 @@ const PhaseTwo = ({
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
   const [errors, setErrors] = useState({});
 
+  // Get selected payment method data
+  const selectedPaymentMethod = paymentMethods?.find((method) => method.id === paymentMethod);
+  const selectedPaymentCode = selectedPaymentMethod?.code?.toLowerCase() || "";
+  
   // Check if customer info is optional (not required)
-  const isOptional = deliveryType !== "delivery" && paymentMethod !== "credit";
+  const isOptional = 
+    deliveryType !== "delivery" && 
+    selectedPaymentCode !== "credit" && 
+    selectedPaymentMethod?.requires_confirmation !== true;
 
   const loadCustomers = async () => {
     try {
@@ -637,6 +649,7 @@ const PhaseTwo = ({
 const PhaseThree = ({
   deliveryType,
   paymentMethod,
+  paymentMethods,
   customerInfo,
   orderData,
   discount,
@@ -707,7 +720,8 @@ const PhaseThree = ({
               <strong>{t("deliveryOption")}:</strong> {t(deliveryType)}
             </p>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              <strong>{t("paymentMethod")}:</strong> {t(paymentMethod)}
+              <strong>{t("paymentMethod")}:</strong>{" "}
+              {paymentMethods?.find((method) => method.id === paymentMethod)?.label || paymentMethod}
             </p>
           </div>
         </div>
@@ -861,6 +875,37 @@ const CheckoutPage = () => {
   // Phase 1 state
   const [deliveryType, setDeliveryType] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
+  const [paymentMethods, setPaymentMethods] = useState([]);
+
+  // Fetch payment methods from API
+  useEffect(() => {
+    const fetchPaymentMethods = async () => {
+      try {
+        const response = await currencyService.getCurrencies();
+        const currenciesList = Array.isArray(response) ? response : [];
+        
+        // Filter only active currencies and map to payment methods format
+        const activeCurrencies = currenciesList
+          .filter((currency) => currency.is_active === true)
+          .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+          .map((currency) => ({
+            id: currency.id?.toString() || currency.code || "",
+            label: currency.name || currency.code || "",
+            code: currency.code || "",
+            description: currency.description || "",
+            requires_confirmation: currency.requires_confirmation || false,
+          }));
+        
+        setPaymentMethods(activeCurrencies);
+      } catch (error) {
+        console.error("Error fetching payment methods:", error);
+        toast.error(t("failedToFetchCurrencies"));
+        setPaymentMethods([]);
+      }
+    };
+
+    fetchPaymentMethods();
+  }, [t]);
 
   // Phase 2 state
   const [customerMode, setCustomerMode] = useState("existing"); // "existing" or "new"
@@ -1170,6 +1215,7 @@ const CheckoutPage = () => {
                 setDeliveryType={setDeliveryType}
                 paymentMethod={paymentMethod}
                 setPaymentMethod={setPaymentMethod}
+                paymentMethods={paymentMethods}
                 onNext={handlePhaseOneNext}
                 isRTL={isRTL}
                 t={t}
@@ -1180,6 +1226,7 @@ const CheckoutPage = () => {
               <PhaseTwo
                 deliveryType={deliveryType}
                 paymentMethod={paymentMethod}
+                paymentMethods={paymentMethods}
                 customerMode={customerMode}
                 setCustomerMode={setCustomerMode}
                 selectedCustomerId={selectedCustomerId}
@@ -1198,6 +1245,7 @@ const CheckoutPage = () => {
               <PhaseThree
                 deliveryType={deliveryType}
                 paymentMethod={paymentMethod}
+                paymentMethods={paymentMethods}
                 customerId={selectedCustomerId}
                 customerInfo={customerInfo}
                 orderData={orderData}
@@ -1206,8 +1254,12 @@ const CheckoutPage = () => {
                 onSubmit={handleSubmitOrder}
                 onBack={() => {
                   // Go back to Phase 2 if it was required, otherwise Phase 1
+                  const selectedPayment = paymentMethods?.find((method) => method.id === paymentMethod);
+                  const paymentCode = selectedPayment?.code?.toLowerCase() || "";
                   const requiresPhase2 =
-                    deliveryType === "delivery" || paymentMethod === "credit";
+                    deliveryType === "delivery" || 
+                    paymentCode === "credit" || 
+                    selectedPayment?.requires_confirmation === true;
                   setCurrentPhase(requiresPhase2 ? 2 : 1);
                 }}
                 isSubmitting={isSubmitting}

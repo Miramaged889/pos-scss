@@ -216,10 +216,10 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
             : "w-64"
         } fixed inset-y-0 ${
           isRTL ? "right-0" : "left-0"
-        } z-50 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out lg:static lg:inset-0`}
+        } z-50 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out lg:static lg:inset-0 flex flex-col`}
       >
         <div
-          className={`flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-700 ${
+          className={`flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 ${
             sidebarCollapsed && !isMobileView ? "justify-center" : ""
           }`}
         >
@@ -263,7 +263,7 @@ const DashboardLayout = ({ children, title, sidebarItems = [] }) => {
           )}
         </div>
 
-        <nav className="mt-5 px-2 space-y-1">
+        <nav className="mt-2 px-2 mb-2 space-y-1 overflow-y-auto flex-1 scrollbar-hide">
           {allSidebarItems.map((item) => {
             const Icon = item.icon;
             const isActive = isLinkActive(item.href);

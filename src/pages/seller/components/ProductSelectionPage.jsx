@@ -3,7 +3,7 @@ import { useSelector } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ShoppingCart, Search, Filter, Barcode } from "lucide-react";
-import { productService } from "../../../services";
+import { productService, categoriesService, subcategoriesService } from "../../../services";
 
 const ProductSelectionPage = () => {
   const { t } = useTranslation();
@@ -19,6 +19,10 @@ const ProductSelectionPage = () => {
   const [barcodeSearch, setBarcodeSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [subcategoryFilter, setSubcategoryFilter] = useState("all");
+  const [categories, setCategories] = useState([]);
+  const [subcategories, setSubcategories] = useState([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+  const [loadingSubcategories, setLoadingSubcategories] = useState(false);
 
   // Fetch products from API
   useEffect(() => {
@@ -39,6 +43,45 @@ const ProductSelectionPage = () => {
     fetchProducts();
   }, []);
 
+  // Fetch categories from API
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setLoadingCategories(true);
+        const response = await categoriesService.getCategories();
+        const categoriesList = Array.isArray(response) ? response : [];
+        setCategories(categoriesList);
+      } catch (err) {
+        console.error("Error fetching categories:", err);
+        setCategories([]);
+      } finally {
+        setLoadingCategories(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
+
+  // Fetch subcategories from API when category filter changes
+  useEffect(() => {
+    const fetchSubcategories = async () => {
+      try {
+        setLoadingSubcategories(true);
+        const params = categoryFilter !== "all" ? { category: categoryFilter } : {};
+        const response = await subcategoriesService.getSubcategories(params);
+        const subcategoriesList = Array.isArray(response) ? response : [];
+        setSubcategories(subcategoriesList);
+      } catch (err) {
+        console.error("Error fetching subcategories:", err);
+        setSubcategories([]);
+      } finally {
+        setLoadingSubcategories(false);
+      }
+    };
+
+    fetchSubcategories();
+  }, [categoryFilter]);
+
   // Load selected products from cart if coming back from cart page
   useEffect(() => {
     if (location.state?.selectedProducts) {
@@ -46,51 +89,28 @@ const ProductSelectionPage = () => {
     }
   }, [location.state]);
 
-  const categories = [
+  // Map categories from API to dropdown options format
+  const categoryOptions = [
     { value: "all", label: t("allCategories") },
-    { value: "main", label: t("mainCourse") },
-    { value: "side", label: t("sideDish") },
-    { value: "beverages", label: t("beverages") },
-    { value: "desserts", label: t("desserts") },
+    ...categories.map((category) => ({
+      value: category.id?.toString() || category.id,
+      label: category.name || t("category"),
+    })),
   ];
 
-  const subcategories = {
-    main: [
-      { value: "all", label: t("allSubcategories") },
-      { value: "grilled", label: t("grilled") },
-      { value: "fried", label: t("fried") },
-      { value: "pasta", label: t("pasta") },
-      { value: "rice", label: t("rice") },
-      { value: "seafood", label: t("seafood") },
-    ],
-    side: [
-      { value: "all", label: t("allSubcategories") },
-      { value: "salads", label: t("salads") },
-      { value: "appetizers", label: t("appetizers") },
-      { value: "bread", label: t("bread") },
-      { value: "soup", label: t("soup") },
-    ],
-    beverages: [
-      { value: "all", label: t("allSubcategories") },
-      { value: "hot", label: t("hotDrinks") },
-      { value: "cold", label: t("coldDrinks") },
-      { value: "juices", label: t("juices") },
-      { value: "soft", label: t("softDrinks") },
-    ],
-    desserts: [
-      { value: "all", label: t("allSubcategories") },
-      { value: "cakes", label: t("cakes") },
-      { value: "ice_cream", label: t("iceCream") },
-      { value: "traditional", label: t("traditional") },
-      { value: "chocolate", label: t("chocolate") },
-    ],
-    all: [{ value: "all", label: t("allSubcategories") }],
-  };
+  // Map subcategories from API to dropdown options format
+  const subcategoryOptions = [
+    { value: "all", label: t("allSubcategories") },
+    ...subcategories.map((subcategory) => ({
+      value: subcategory.id?.toString() || subcategory.id,
+      label: subcategory.name || t("subcategory"),
+    })),
+  ];
 
   const filteredProducts = products.filter((product) => {
     const searchValue = searchTerm?.toString().toLowerCase() || "";
-    const productName = product.name ? product.name.toString() : "";
-    const productNameEn = product.nameEn ? product.nameEn.toString() : "";
+    const productName = (product.arabic_name || product.name || "").toString();
+    const productNameEn = (product.english_name || product.nameEn || "").toString();
     const matchesSearch =
       productName.toLowerCase().includes(searchValue) ||
       productNameEn.toLowerCase().includes(searchValue);
@@ -101,17 +121,22 @@ const ProductSelectionPage = () => {
         ? product.barcode.toString().toLowerCase()
         : "";
     const productSku =
-      product.sku !== undefined && product.sku !== null
-        ? product.sku.toString().toLowerCase()
+      (product.product_no || product.sku) !== undefined && (product.product_no || product.sku) !== null
+        ? (product.product_no || product.sku).toString().toLowerCase()
         : "";
     const matchesBarcode =
       !barcodeValue ||
       productBarcode.includes(barcodeValue) ||
       productSku.includes(barcodeValue);
+    // Handle category filter - product.category can be an object {id, name} or ID
+    const productCategoryId = product.category?.id?.toString() || product.category?.toString() || "";
     const matchesCategory =
-      categoryFilter === "all" || product.category === categoryFilter;
+      categoryFilter === "all" || productCategoryId === categoryFilter;
+
+    // Handle subcategory filter - product.subcategory can be an object {id, name} or ID
+    const productSubcategoryId = product.subcategory?.id?.toString() || product.subcategory?.toString() || "";
     const matchesSubcategory =
-      subcategoryFilter === "all" || product.subcategory === subcategoryFilter;
+      subcategoryFilter === "all" || productSubcategoryId === subcategoryFilter;
     return (
       matchesSearch && matchesBarcode && matchesCategory && matchesSubcategory
     );
@@ -122,7 +147,8 @@ const ProductSelectionPage = () => {
       const currentQty = prev[productId]?.quantity || 0;
       const product = products.find((p) => p.id === productId);
 
-      if (!product || product.stock === 0) {
+      const stock = product?.current_stock ?? product?.stock ?? 0;
+      if (!product || stock === 0) {
         return prev;
       }
 
@@ -130,12 +156,12 @@ const ProductSelectionPage = () => {
         ...prev,
         [productId]: {
           quantity: currentQty + 1,
-          name: product.name,
-          nameEn: product.nameEn,
+          name: product.arabic_name || product.name,
+          nameEn: product.english_name || product.nameEn,
           price: product.price,
-          imageUrl: product.imageUrl,
-          unitSize: product.unitSize,
-          unitType: product.unitType,
+          imageUrl: product.image || product.imageUrl,
+          unitSize: product.unit_size || product.unitSize,
+          unitType: product.unit_type || product.unitType,
         },
       };
     });
@@ -271,12 +297,13 @@ const ProductSelectionPage = () => {
                 setCategoryFilter(e.target.value);
                 setSubcategoryFilter("all");
               }}
-              className={`w-full py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white appearance-none ${
+              disabled={loadingCategories}
+              className={`w-full py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white appearance-none disabled:opacity-50 disabled:cursor-not-allowed ${
                 isRTL ? "pr-10 pl-4 text-right" : "pl-10 pr-4 text-left"
               }`}
               dir={isRTL ? "rtl" : "ltr"}
             >
-              {categories.map((category) => (
+              {categoryOptions.map((category) => (
                 <option key={category.value} value={category.value}>
                   {category.label}
                 </option>
@@ -294,12 +321,13 @@ const ProductSelectionPage = () => {
             <select
               value={subcategoryFilter}
               onChange={(e) => setSubcategoryFilter(e.target.value)}
-              className={`w-full py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white appearance-none ${
+              disabled={loadingSubcategories || categoryFilter === "all"}
+              className={`w-full py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white appearance-none disabled:opacity-50 disabled:cursor-not-allowed ${
                 isRTL ? "pr-10 pl-4 text-right" : "pl-10 pr-4 text-left"
               }`}
               dir={isRTL ? "rtl" : "ltr"}
             >
-              {subcategories[categoryFilter]?.map((subcategory) => (
+              {subcategoryOptions.map((subcategory) => (
                 <option key={subcategory.value} value={subcategory.value}>
                   {subcategory.label}
                 </option>
@@ -316,7 +344,7 @@ const ProductSelectionPage = () => {
             key={product.id}
             onClick={() => handleAddToCart(product.id)}
             className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-3 cursor-pointer hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 ${
-              product.stock === 0 ? "opacity-50 cursor-not-allowed" : ""
+              (product.current_stock ?? product.stock ?? 0) === 0 ? "opacity-50 cursor-not-allowed" : ""
             } ${
               selectedProducts[product.id]
                 ? "ring-2 ring-blue-500 dark:ring-blue-400"
@@ -324,10 +352,10 @@ const ProductSelectionPage = () => {
             }`}
           >
             {/* Product Image */}
-            {product.imageUrl ? (
+            {(product.image || product.imageUrl) ? (
               <img
-                src={product.imageUrl}
-                alt={product.name}
+                src={product.image || product.imageUrl}
+                alt={product.arabic_name || product.name}
                 className="w-full h-24 sm:h-32 object-cover rounded-md mb-2"
               />
             ) : (
@@ -341,9 +369,13 @@ const ProductSelectionPage = () => {
               className={`text-sm font-medium mb-1 dark:text-white line-clamp-2 ${
                 isRTL ? "text-right" : "text-left"
               }`}
-              title={isRTL ? product.name : product.nameEn || product.name}
+              title={isRTL 
+                ? (product.arabic_name || product.name) 
+                : (product.english_name || product.nameEn || product.arabic_name || product.name)}
             >
-              {isRTL ? product.name : product.nameEn || product.name}
+              {isRTL 
+                ? (product.arabic_name || product.name) 
+                : (product.english_name || product.nameEn || product.arabic_name || product.name)}
             </div>
 
             {/* Price */}
@@ -361,7 +393,7 @@ const ProductSelectionPage = () => {
             )}
 
             {/* Out of Stock Indicator */}
-            {product.stock === 0 && (
+            {(product.current_stock ?? product.stock ?? 0) === 0 && (
               <div className="text-center">
                 <span className="text-xs text-red-500 dark:text-red-400 font-medium">
                   {t("outOfStock")}

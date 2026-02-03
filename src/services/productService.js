@@ -39,20 +39,13 @@ const getFullImageUrl = (imageUrl) => {
 
 // Helper function to map database schema to frontend format
 const mapDbToFrontend = (dbProduct) => {
-  // Map category from database to frontend format
-  const categoryMapping = {
-    "main course": "main",
-    "side dish": "side",
-    beverages: "beverages",
-    desserts: "desserts",
-  };
-
   return {
     id: dbProduct.id,
     name: dbProduct.arabic_name,
     nameEn: dbProduct.english_name,
     description: dbProduct.description,
-    category: categoryMapping[dbProduct.category] || dbProduct.category,
+    category: dbProduct.category, // Keep as object or ID from API
+    subcategory: dbProduct.subcategory, // Keep as object or ID from API
     price: parseFloat(dbProduct.price),
     imageUrl: getFullImageUrl(dbProduct.image),
     sku: dbProduct.product_no,
@@ -60,65 +53,107 @@ const mapDbToFrontend = (dbProduct) => {
     stock: dbProduct.current_stock,
     minStock: dbProduct.min_stock,
     unitSize: dbProduct.unit_size ? parseFloat(dbProduct.unit_size) : null,
-    unitType: dbProduct.unit_type,
+    unitType: dbProduct.unit_type, // Keep as object or ID from API
     status: dbProduct.status,
     suspended: dbProduct.suspended,
-    supplierId: dbProduct.Supplier,
-    supplier: dbProduct.Supplier,
+    supplierId: dbProduct.supplier_detail?.id || dbProduct.Supplier || dbProduct.supplier,
+    supplier: dbProduct.supplier_detail?.id || dbProduct.Supplier || dbProduct.supplier,
+    supplier_detail: dbProduct.supplier_detail, // Keep full supplier object
     Suspended: dbProduct.Suspended,
+    // Keep original API fields for compatibility
+    arabic_name: dbProduct.arabic_name,
+    english_name: dbProduct.english_name,
+    current_stock: dbProduct.current_stock,
+    min_stock: dbProduct.min_stock,
+    product_no: dbProduct.product_no,
+    unit_size: dbProduct.unit_size,
+    unit_type: dbProduct.unit_type,
   };
 };
 
 // Helper function to map frontend format to database schema
 const mapFrontendToDb = (frontendProduct) => {
-  // Map category from frontend to database format
-  const categoryMapping = {
-    main: "main course",
-    side: "side dish",
-    beverages: "beverages",
-    desserts: "desserts",
-  };
+  // Ensure required fields are present and not empty
+  const arabicName = (frontendProduct.name || "").trim();
+  const englishName = (frontendProduct.nameEn || "").trim();
+  
+  if (!arabicName || !englishName) {
+    throw new Error("arabic_name and english_name are required fields");
+  }
 
   const dbData = {
-    arabic_name: frontendProduct.name?.trim() || "",
-    english_name: frontendProduct.nameEn?.trim() || "",
-    description: frontendProduct.description?.trim() || "", // Ensure description is not null
-    category:
-      categoryMapping[frontendProduct.category] || frontendProduct.category,
+    arabic_name: arabicName,
+    english_name: englishName,
+    description: frontendProduct.description?.trim() || "",
     price: frontendProduct.price?.toString() || "0",
     current_stock: parseInt(frontendProduct.stock) || 0,
     min_stock: parseInt(frontendProduct.minStock) || 0,
   };
 
-  if (frontendProduct?.Suspended !== undefined) {
-    dbData.Suspended = frontendProduct.Suspended;
-  } else if (frontendProduct?.suspended !== undefined) {
-    dbData.Suspended = frontendProduct.suspended;
+  // Handle category - can be ID (string/number) or null
+  if (frontendProduct.category) {
+    // If it's an object with id, use the id; otherwise use the value directly
+    dbData.category = frontendProduct.category.id?.toString() || frontendProduct.category.toString();
   } else {
-    dbData.Suspended = "no";
+    dbData.category = null;
   }
 
-  // Only add optional fields if they have values
+  // Handle subcategory - can be ID (string/number) or null
+  if (frontendProduct.subcategory) {
+    dbData.subcategory = frontendProduct.subcategory.id?.toString() || frontendProduct.subcategory.toString();
+  } else {
+    dbData.subcategory = null;
+  }
+
+  // Handle unit_type - can be ID (string/number) or null
+  if (frontendProduct.unitType) {
+    dbData.unit_type = frontendProduct.unitType.id?.toString() || frontendProduct.unitType.toString();
+  } else {
+    dbData.unit_type = null;
+  }
+
+  // Handle unit_size - default to "1.00" if not provided (required by API)
+  if (frontendProduct.unitSize && frontendProduct.unitSize.toString().trim() !== "") {
+    const unitSizeValue = parseFloat(frontendProduct.unitSize);
+    dbData.unit_size = isNaN(unitSizeValue) ? "1.00" : unitSizeValue.toFixed(2);
+  } else {
+    dbData.unit_size = "1.00";
+  }
+
+  // Handle supplier - can be ID (string/number) or null
+  if (frontendProduct.supplier) {
+    dbData.supplier = frontendProduct.supplier.id?.toString() || frontendProduct.supplier.toString();
+  } else {
+    dbData.supplier = null;
+  }
+
+  // Optional fields
   if (frontendProduct.sku?.trim()) {
     dbData.product_no = frontendProduct.sku.trim();
+  } else {
+    dbData.product_no = null;
   }
-  if (frontendProduct.barcode?.toString()) {
-    dbData.barcode = frontendProduct.barcode.toString();
-  }
-  if (frontendProduct.unitSize?.toString()) {
-    dbData.unit_size = frontendProduct.unitSize.toString();
-  }
-  if (frontendProduct.unitType) {
-    dbData.unit_type = frontendProduct.unitType;
-  }
-  if (frontendProduct.supplier) {
-    dbData.Supplier = frontendProduct.supplier;
+
+  if (frontendProduct.barcode?.toString() && frontendProduct.barcode.toString().trim() !== "") {
+    dbData.barcode = frontendProduct.barcode.toString().trim();
+  } else {
+    dbData.barcode = null;
   }
 
   // Add image only if it exists and is not null
   if (frontendProduct.imageUrl && frontendProduct.imageUrl.trim() !== "") {
     dbData.image = frontendProduct.imageUrl;
+  } else {
+    dbData.image = null;
   }
+
+  // Handle suspended status
+  if (frontendProduct?.Suspended !== undefined) {
+    dbData.Suspended = frontendProduct.Suspended;
+  } else if (frontendProduct?.suspended !== undefined) {
+    dbData.Suspended = frontendProduct.suspended;
+  }
+
   return dbData;
 };
 

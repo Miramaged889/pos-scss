@@ -189,6 +189,33 @@ export const API_ENDPOINTS = {
   //   GET: "/payment-methods/:id",
   // },
 
+  // Categories
+  CATEGORIES: {
+    LIST: "/manager/categories/",
+    CREATE: "/manager/categories/",
+    UPDATE: "/manager/categories/:id/",
+    DELETE: "/manager/categories/:id/",
+    GET: "/manager/categories/:id/",
+  },
+
+  // Subcategories
+  SUBCATEGORIES: {
+    LIST: "/manager/subcategories/",
+    CREATE: "/manager/subcategories/",
+    UPDATE: "/manager/subcategories/:id/",
+    DELETE: "/manager/subcategories/:id/",
+    GET: "/manager/subcategories/:id/",
+  },
+
+  // Currency (Payment Methods)
+  CURRENCY: {
+    LIST: "seller/currency/",
+    CREATE: "seller/currency/",
+    UPDATE: "seller/currency/:id/",
+    DELETE: "seller/currency/:id/",
+    GET: "seller/currency/:id/",
+  },
+
   // // Reports
   // REPORTS: {
   //   SALES: "/reports/sales",

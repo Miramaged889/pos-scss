@@ -14,3 +14,7 @@ export { default as tenantUsersService } from "./tenantUsersService";
 export { default as branchesService } from "./branchesService";
 export { default as tenantService } from "./tenantService";
 export { default as customerInvoiceService } from "./customerInvoiceService";
+export { default as categoriesService } from "./categoriesService";
+export { default as subcategoriesService } from "./subcategoriesService";
+export { default as measureUnitsService } from "./measureUnitsService";
+export { default as currencyService } from "./currencyService";

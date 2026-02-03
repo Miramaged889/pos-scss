@@ -113,39 +113,16 @@ const tenantApiService = createTenantApiService();
 // };
 
 const tenantService = {
-  // Get tenant ID based on subdomain
-  async getTenantIdBySubdomain() {
+  // Get tenant information including branch limits using subdomain
+  async getTenantInfo() {
     try {
       const subdomain = this.getSubdomain();
       if (!subdomain) {
         throw new Error("No subdomain found");
       }
 
-      // First, get all tenants to find the one with matching subdomain
-      const response = await tenantApiService.get(API_ENDPOINTS.TENANTS.GET);
-      const tenants = response.data || response;
-
-      // Find tenant with matching subdomain
-      const tenant = tenants.find((t) => t.subdomain === subdomain);
-      if (!tenant) {
-        throw new Error(`Tenant not found for subdomain: ${subdomain}`);
-      }
-
-      return tenant.id;
-    } catch (error) {
-      console.error("Failed to get tenant ID:", error);
-      throw new Error(`Failed to get tenant ID: ${error.message}`);
-    }
-  },
-
-  // Get tenant information including branch limits
-  async getTenantInfo() {
-    try {
-      // First get the tenant ID based on subdomain
-      const tenantId = await this.getTenantIdBySubdomain();
-
-      // Then get the specific tenant info using the ID
-      const endpoint = API_ENDPOINTS.TENANTS.GET_BY_ID.replace(":id", tenantId);
+      // Get tenant info directly using subdomain: /ten/tenants/{subdomain}/
+      const endpoint = `/ten/tenants/${subdomain}/`;
       const response = await tenantApiService.get(endpoint);
       return response.data || response;
     } catch (error) {
@@ -178,10 +155,31 @@ const tenantService = {
   // Update tenant information (e.g., increase branch limit)
   async updateTenantInfo(tenantData) {
     try {
-      const response = await tenantApiService.put(
-        API_ENDPOINTS.TENANTS.UPDATE,
-        tenantData
-      );
+      const subdomain = this.getSubdomain();
+      if (!subdomain) {
+        throw new Error("No subdomain found");
+      }
+
+      // Prepare tenant data for API - handle Currency field
+      const preparedData = { ...tenantData };
+      
+      // Handle Currency field - if it's an object, extract the Currency_id
+      if (preparedData.Currency !== undefined && preparedData.Currency !== null) {
+        if (typeof preparedData.Currency === 'object' && preparedData.Currency !== null) {
+          // If Currency is an object with Currency_id, use the Currency_id
+          // Support both old format {id, code, name, ...} and new format {Currency_id, Currency_code, Currency_name}
+          preparedData.Currency = preparedData.Currency.Currency_id || 
+                                   preparedData.Currency.id || 
+                                   preparedData.Currency.code || 
+                                   preparedData.Currency.Currency_code || 
+                                   preparedData.Currency;
+        }
+        // If Currency is already a string, number, or null, keep it as is
+      }
+      
+      // Update tenant info using subdomain: /ten/tenants/{subdomain}/
+      const endpoint = `/ten/tenants/${subdomain}/`;
+      const response = await tenantApiService.put(endpoint, preparedData);
       return response.data || response;
     } catch (error) {
       throw new Error(`Failed to update tenant info: ${error.message}`);
