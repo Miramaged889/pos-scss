@@ -23,14 +23,15 @@ import { fetchCustomers } from "../../../store/slices/customerSlice";
 import {
   fetchReceipts,
   createReceipt,
-  updateReceipt,
-  deleteReceipt,
 } from "../../../store/slices/receiptVoucherSlice";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
+import { useCurrency } from "../../../hooks";
 
 const FinancialReceiptVoucher = () => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
   const dispatch = useDispatch();
+  const { currency } = useCurrency();
   const { customers, loading: customersLoading } = useSelector(
     (state) => state.customers
   );
@@ -42,6 +43,7 @@ const FinancialReceiptVoucher = () => {
   useEffect(() => {
     dispatch(fetchCustomers());
     dispatch(fetchReceipts());
+    dispatch(fetchTenantInfo());
   }, [dispatch]);
 
   // Form state
@@ -598,7 +600,7 @@ const FinancialReceiptVoucher = () => {
                                   (c) => c.id === parseInt(selectedCustomerId)
                                 )?.outstandingCredit
                               }{" "}
-                              {t("currency")}
+                              {currency()}
                             </div>
                           </div>
                         )}
@@ -923,7 +925,7 @@ const FinancialReceiptVoucher = () => {
                       {t("amount")}:
                     </span>
                     <span className="font-bold text-green-600 dark:text-green-400">
-                      {amount ? `${amount} ${t("currency")}` : "-"}
+                      {amount ? `${amount} ${currency()}` : "-"}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -1234,7 +1236,7 @@ const FinancialReceiptVoucher = () => {
                     {t("amount")}:
                   </label>
                   <p className="text-sm font-semibold text-green-600 dark:text-green-400">
-                    {selectedReceipt.amount} {t("currency")}
+                    {selectedReceipt.amount} {currency()}
                   </p>
                 </div>
                 <div>

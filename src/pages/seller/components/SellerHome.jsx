@@ -25,10 +25,13 @@ import {
 } from "../../../utils";
 import { fetchOrders } from "../../../store/slices/ordersSlice";
 import { fetchCustomers } from "../../../store/slices/customerSlice";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
+import { useCurrency } from "../../../hooks";
 
 const SellerHome = () => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
+  const { currency } = useCurrency();
   const { isRTL } = useSelector((state) => state.language);
   const { products } = useSelector((state) => state.inventory);
   const {
@@ -158,7 +161,11 @@ const SellerHome = () => {
       setIsLoading(true);
 
       // Fetch data from API via Redux
-      await Promise.all([dispatch(fetchOrders()), dispatch(fetchCustomers())]);
+      await Promise.all([
+        dispatch(fetchOrders()),
+        dispatch(fetchCustomers()),
+        dispatch(fetchTenantInfo()),
+      ]);
 
       setError(null);
     } catch (err) {
@@ -218,7 +225,7 @@ const SellerHome = () => {
     },
     {
       title: t("todayRevenue"),
-      value: formatCurrencyEnglish(salesData.todayRevenue || 0, t("currency")),
+      value: formatCurrencyEnglish(salesData.todayRevenue || 0, currency()),
       icon: DollarSign,
       color: "green",
       change: Number(salesData.revenueChange.toFixed(1)),
@@ -234,7 +241,7 @@ const SellerHome = () => {
     },
     {
       title: t("avgOrderValue"),
-      value: formatCurrencyEnglish(salesData.avgOrderValue || 0, t("currency")),
+      value: formatCurrencyEnglish(salesData.avgOrderValue || 0, currency()),
       icon: TrendingUp,
       color: "purple",
       subtitle: t("thisMonth"),
@@ -279,7 +286,7 @@ const SellerHome = () => {
     {
       header: t("total"),
       accessor: "total",
-      render: (order) => formatCurrencyEnglish(order.total || 0, t("currency")),
+      render: (order) => formatCurrencyEnglish(order.total || 0, currency()),
     },
     {
       header: t("status"),
@@ -543,7 +550,7 @@ const SellerHome = () => {
                   {t("revenue")}
                 </span>
                 <span className="font-medium text-gray-900 dark:text-white">
-                  {formatCurrencyEnglish(2450.75, t("currency"))}
+                  {formatCurrencyEnglish(2450.75, currency())}
                 </span>
               </div>
               <div
@@ -568,7 +575,7 @@ const SellerHome = () => {
                     {t("avgOrderValue")}
                   </span>
                   <span className="font-medium text-green-600 dark:text-green-400">
-                    {formatCurrencyEnglish(106.55, t("currency"))}
+                    {formatCurrencyEnglish(106.55, currency())}
                   </span>
                 </div>
               </div>

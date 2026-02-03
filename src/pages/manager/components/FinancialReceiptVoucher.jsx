@@ -26,6 +26,8 @@ import {
   updateReceipt,
   deleteReceipt,
 } from "../../../store/slices/receiptVoucherSlice";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
+import { useCurrency } from "../../../hooks";
 
 const FinancialReceiptVoucher = () => {
   const { t } = useTranslation();
@@ -37,11 +39,15 @@ const FinancialReceiptVoucher = () => {
   const { receipts, loading, error } = useSelector(
     (state) => state.receiptVouchers
   );
+  
+  // Get currency display based on language
+  const { currency } = useCurrency();
 
-  // Load customers and receipts
+  // Load customers, receipts, and tenant info
   useEffect(() => {
     dispatch(fetchCustomers());
     dispatch(fetchReceipts());
+    dispatch(fetchTenantInfo());
   }, [dispatch]);
 
   // Form state
@@ -199,6 +205,7 @@ const FinancialReceiptVoucher = () => {
 
   const handlePrintReceipt = (receipt) => {
     const printWindow = window.open("", "_blank");
+    const currencyDisplay = currency();
     const printContent = `
       <!DOCTYPE html>
       <html dir="${isRTL ? "rtl" : "ltr"}">
@@ -292,7 +299,7 @@ const FinancialReceiptVoucher = () => {
               <label>مبلغ وقدره:</label>
               <input type="text" value="${
                 receipt.amount
-              } ريال" readonly class="amount">
+              } ${currencyDisplay}" readonly class="amount">
             </div>
             
             <div class="form-row">
@@ -623,7 +630,7 @@ const FinancialReceiptVoucher = () => {
                                   (c) => c.id === parseInt(selectedCustomerId)
                                 )?.outstandingCredit
                               }{" "}
-                              {t("currency")}
+                              {currency()}
                             </div>
                           </div>
                         )}
@@ -948,7 +955,7 @@ const FinancialReceiptVoucher = () => {
                       {t("amount")}:
                     </span>
                     <span className="font-bold text-green-600 dark:text-green-400">
-                      {amount ? `${amount} ${t("currency")}` : "-"}
+                      {amount ? `${amount} ${currency()}` : "-"}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -1171,7 +1178,7 @@ const FinancialReceiptVoucher = () => {
                         {getReceivedFromValue(receipt)}
                       </td>
                       <td className="py-3 px-4 text-sm font-semibold text-green-600 dark:text-green-400">
-                        {receipt.amount} ريال
+                        {receipt.amount} {currency()}
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
                         {receipt.receiver}
@@ -1273,7 +1280,7 @@ const FinancialReceiptVoucher = () => {
                     {t("amount")}:
                   </label>
                   <p className="text-sm font-semibold text-green-600 dark:text-green-400">
-                    {selectedReceipt.amount} {t("currency")}
+                    {selectedReceipt.amount} {currency()}
                   </p>
                 </div>
                 <div>

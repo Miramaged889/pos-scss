@@ -28,11 +28,14 @@ import {
   fetchSuppliers,
   deleteSupplier,
 } from "../../../store/slices/supplierSlice";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 import { supplierService } from "../../../services/supplierService";
+import { useCurrency } from "../../../hooks";
 
 const SuppliersManagement = () => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
+  const { currency } = useCurrency();
   const { isRTL } = useSelector((state) => state.language);
   const { suppliers, loading, error } = useSelector((state) => state.suppliers);
 
@@ -108,6 +111,7 @@ const SuppliersManagement = () => {
 
   useEffect(() => {
     dispatch(fetchSuppliers());
+    dispatch(fetchTenantInfo());
     loadSupplierStatistics();
   }, [dispatch]);
 
@@ -543,9 +547,9 @@ const SuppliersManagement = () => {
                         {loadingStats ? (
                           <span className="animate-pulse">Loading...</span>
                         ) : (
-                          formatCurrencyEnglish(
+                          `${currency()} ${formatCurrencyEnglish(
                             supplierStats[selectedSupplier.id]?.totalSpent || 0
-                          )
+                          )}`
                         )}
                       </p>
                     </div>

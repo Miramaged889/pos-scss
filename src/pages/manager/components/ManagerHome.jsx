@@ -24,10 +24,15 @@ import {
   customerService,
   tenantUsersService,
 } from "../../../services";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
+import { useCurrency } from "../../../hooks";
 
 const ManagerHome = () => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
+  
+  // Get currency display based on language
+  const { currency } = useCurrency();
 
   // Get data from Redux store
   const { orders, loading: ordersLoading } = useSelector(
@@ -87,6 +92,7 @@ const ManagerHome = () => {
     // Fetch data from API
     dispatch(fetchOrders());
     dispatch(fetchProducts());
+    dispatch(fetchTenantInfo());
     fetchProductsData();
     fetchCustomersData();
     fetchSellersData();
@@ -310,14 +316,15 @@ const ManagerHome = () => {
           id: 3,
           type: "success",
           message: `${t("dailySalesTargetAchieved")}: ${formatCurrencyEnglish(
-            todaySales
+            todaySales,
+            currency()
           )}`,
           time: "30 minutes ago",
         });
       }
     }
 
-  }, [orders, products, t]);
+  }, [orders, products, t, currency]);
 
   // Compute statistics from Redux data
   const statsCards = React.useMemo(() => {
@@ -390,7 +397,7 @@ const ManagerHome = () => {
       },
       {
         title: t("totalRevenue"),
-        value: formatCurrencyEnglish(totalRevenue),
+        value: formatCurrencyEnglish(totalRevenue, currency()),
         change: "+8.5%", // TODO: Calculate real change
         changeType: "positive",
         icon: DollarSign,
@@ -405,7 +412,7 @@ const ManagerHome = () => {
         color: "orange",
       },
     ];
-  }, [orders, products, t]);
+  }, [orders, products, t, currency]);
 
   const getStatusBadge = (status) => {
     const statusConfig = {

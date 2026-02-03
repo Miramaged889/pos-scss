@@ -52,6 +52,8 @@ import { toast } from "react-hot-toast";
 
 import StatsCard from "../../../components/Common/StatsCard";
 import { formatCurrencyEnglish, formatNumberEnglish } from "../../../utils";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
+import { useCurrency } from "../../../hooks";
 
 // Register Chart.js components
 ChartJS.register(
@@ -72,6 +74,9 @@ const ManagerReports = () => {
   const { isRTL, theme } = useSelector((state) => state.language);
   const dispatch = useDispatch();
   const { reports, loading, error } = useSelector((state) => state.manager);
+  
+  // Get currency display based on language
+  const { currency } = useCurrency();
 
   // Get data from Redux store
   const { orders, loading: ordersLoading } = useSelector(
@@ -1111,6 +1116,11 @@ const ManagerReports = () => {
     setRealReportsData(realData);
   }, [calculateRealReportsData]);
 
+  // Fetch tenant info on component mount
+  useEffect(() => {
+    dispatch(fetchTenantInfo());
+  }, [dispatch]);
+
   // No need for fetchFinancialReports since we're using real data
 
   // Initialize date inputs with default values
@@ -1297,7 +1307,7 @@ const ManagerReports = () => {
             title: t("totalSales"),
             value: formatCurrencyEnglish(
               overviewData.totalSales || 0,
-              t("currency")
+              currency()
             ),
             icon: DollarSign,
             color: "green",
@@ -1308,7 +1318,7 @@ const ManagerReports = () => {
             title: t("totalPurchases"),
             value: formatCurrencyEnglish(
               overviewData.totalPurchases || 0,
-              t("currency")
+              currency()
             ),
             icon: ShoppingCart,
             color: "blue",
@@ -1319,7 +1329,7 @@ const ManagerReports = () => {
             title: t("totalExpenses"),
             value: formatCurrencyEnglish(
               overviewData.totalExpenses || 0,
-              t("currency")
+              currency()
             ),
             icon: FileText,
             color: "red",
@@ -1330,7 +1340,7 @@ const ManagerReports = () => {
             title: t("netProfit"),
             value: formatCurrencyEnglish(
               overviewData.netProfit || 0,
-              t("currency")
+              currency()
             ),
             icon: TrendingUp,
             color: overviewData.netProfit >= 0 ? "green" : "red",
@@ -1438,7 +1448,7 @@ const ManagerReports = () => {
             title: t("totalAmount"),
             value: formatCurrencyEnglish(
               currentData.totalInvoiceAmount || 0,
-              t("currency")
+              currency()
             ),
             icon: DollarSign,
             color: "purple",
@@ -1476,7 +1486,7 @@ const ManagerReports = () => {
             title: t("totalAmount"),
             value: formatCurrencyEnglish(
               currentData.totalOrderAmount || 0,
-              t("currency")
+              currency()
             ),
             icon: DollarSign,
             color: "purple",
@@ -1515,7 +1525,7 @@ const ManagerReports = () => {
             value: formatCurrencyEnglish(
               (currentData.totalExpenseAmount || 0) +
                 (currentData.totalPaymentAmount || 0),
-              t("currency")
+              currency()
             ),
             icon: DollarSign,
             color: "purple",
@@ -2028,7 +2038,7 @@ const ManagerReports = () => {
                             invoice.total_amount ||
                             invoice.amount ||
                             0,
-                          t("currency")
+                          currency()
                         )}</td>
                       <td>${invoice.status || t("pending")}</td>
                     </tr>
@@ -2094,7 +2104,7 @@ const ManagerReports = () => {
                             invoice.total_amount ||
                             invoice.amount ||
                             0,
-                          t("currency")
+                          currency()
                         )}</td>
                       <td>${invoice.status || t("pending")}</td>
                     </tr>
@@ -2174,7 +2184,7 @@ const ManagerReports = () => {
                             voucher.total_amount ||
                             voucher.total ||
                             0,
-                          t("currency")
+                          currency()
                         )}</td>
                       <td>${t(voucher.status?.toLowerCase() || "pending")}</td>
                     </tr>
@@ -2283,7 +2293,7 @@ const ManagerReports = () => {
             }
           })()}","${formatCurrencyEnglish(
             invoice.total || invoice.total_amount || invoice.amount || 0,
-            t("currency")
+            currency()
           )}","${invoice.status || t("pending")}"\n`;
         });
       }
@@ -2300,7 +2310,7 @@ const ManagerReports = () => {
             purchase.created_at || purchase.date || purchase.purchase_date
           ).toLocaleDateString()}","${formatCurrencyEnglish(
             purchase.total_amount || purchase.total || purchase.amount || 0,
-            t("currency")
+            currency()
           )}","${purchase.status || t("pending")}"\n`;
         });
       }
@@ -2320,7 +2330,7 @@ const ManagerReports = () => {
               returnItem.total ||
               returnItem.amount ||
               0,
-            t("currency")
+            currency()
           )}","${returnItem.status || t("pending")}"\n`;
         });
       }
@@ -2357,7 +2367,7 @@ const ManagerReports = () => {
             }
           })()}","${formatCurrencyEnglish(
             invoice.total || invoice.total_amount || invoice.amount || 0,
-            t("currency")
+            currency()
           )}","${invoice.status || t("pending")}"\n`;
         });
       }
@@ -2372,7 +2382,7 @@ const ManagerReports = () => {
             order.createdAt || order.date || order.orderDate
           ).toLocaleDateString()}","${formatCurrencyEnglish(
             order.total_amount || order.totalAmount || order.total || 0,
-            t("currency")
+            currency()
           )}","${order.status || t("pending")}"\n`;
         });
       }
@@ -2387,7 +2397,7 @@ const ManagerReports = () => {
             returnItem.created_at || returnItem.date
           ).toLocaleDateString()}","${formatCurrencyEnglish(
             returnItem.refundAmount || returnItem.refund_amount || 0,
-            t("currency")
+            currency()
           )}","${t("returned")}"\n`;
         });
       }
@@ -2434,7 +2444,7 @@ const ManagerReports = () => {
             }
           })()}","${formatCurrencyEnglish(
             voucher.amount || voucher.total_amount || voucher.total || 0,
-            t("currency")
+            currency()
           )}","${t(voucher.status?.toLowerCase() || "pending")}"\n`;
         });
       }
@@ -3094,7 +3104,7 @@ const ManagerReports = () => {
                           <div className="text-sm text-gray-900 dark:text-white">
                             {formatCurrencyEnglish(
                               overviewData.totalSales || 0,
-                              t("currency")
+                              currency()
                             )}
                           </div>
                         </td>
@@ -3135,7 +3145,7 @@ const ManagerReports = () => {
                           <div className="text-sm text-gray-900 dark:text-white">
                             {formatCurrencyEnglish(
                               overviewData.totalPurchases || 0,
-                              t("currency")
+                              currency()
                             )}
                           </div>
                         </td>
@@ -3183,7 +3193,7 @@ const ManagerReports = () => {
                           <div className="text-sm text-gray-900 dark:text-white">
                             {formatCurrencyEnglish(
                               overviewData.totalExpenses || 0,
-                              t("currency")
+                              currency()
                             )}
                           </div>
                         </td>
@@ -3243,7 +3253,7 @@ const ManagerReports = () => {
                           >
                             {formatCurrencyEnglish(
                               overviewData.netProfit || 0,
-                              t("currency")
+                              currency()
                             )}
                           </div>
                         </td>
@@ -3339,7 +3349,7 @@ const ManagerReports = () => {
                           }`}
                         >
                           <div className="text-sm text-gray-900 dark:text-white">
-                            {formatCurrencyEnglish(seller.sales, t("currency"))}
+                            {formatCurrencyEnglish(seller.sales, currency())}
                           </div>
                         </td>
                         <td
@@ -3445,7 +3455,7 @@ const ManagerReports = () => {
                                   invoice.total_amount ||
                                   invoice.amount ||
                                   0,
-                                t("currency")
+                                currency()
                               )}
                             </div>
                           </td>
@@ -3660,7 +3670,7 @@ const ManagerReports = () => {
                                   invoice.total_amount ||
                                   invoice.amount ||
                                   0,
-                                t("currency")
+                                currency()
                               )}
                             </div>
                           </td>
@@ -3727,7 +3737,7 @@ const ManagerReports = () => {
                                   order.totalAmount ||
                                   order.total ||
                                   0,
-                                t("currency")
+                                currency()
                               )}
                             </div>
                           </td>
@@ -3798,7 +3808,7 @@ const ManagerReports = () => {
                                 returnItem.refundAmount ||
                                   returnItem.refund_amount ||
                                   0,
-                                t("currency")
+                                currency()
                               )}
                             </div>
                           </td>
@@ -3907,7 +3917,7 @@ const ManagerReports = () => {
                                   voucher.total_amount ||
                                   voucher.total ||
                                   0,
-                                t("currency")
+                                currency()
                               )}
                             </div>
                           </td>

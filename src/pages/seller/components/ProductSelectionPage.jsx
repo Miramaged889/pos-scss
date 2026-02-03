@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ShoppingCart, Search, Filter, Barcode } from "lucide-react";
 import { productService, categoriesService, subcategoriesService } from "../../../services";
+import { useCurrency } from "../../../hooks";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 
 const ProductSelectionPage = () => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
   const navigate = useNavigate();
   const location = useLocation();
+  const dispatch = useDispatch();
+  const { currency } = useCurrency();
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,6 +27,11 @@ const ProductSelectionPage = () => {
   const [subcategories, setSubcategories] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [loadingSubcategories, setLoadingSubcategories] = useState(false);
+
+  // Fetch tenant info
+  useEffect(() => {
+    dispatch(fetchTenantInfo());
+  }, [dispatch]);
 
   // Fetch products from API
   useEffect(() => {
@@ -380,7 +389,7 @@ const ProductSelectionPage = () => {
 
             {/* Price */}
             <div className="text-blue-600 dark:text-blue-400 font-bold text-sm mb-2">
-              {product.price} {t("currency")}
+              {product.price} {currency()}
             </div>
 
             {/* Add to Cart Indicator */}
@@ -410,7 +419,7 @@ const ProductSelectionPage = () => {
           <div className="container mx-auto flex items-center justify-between">
             <div className={isRTL ? "text-right" : "text-left"}>
               <div className="text-lg font-semibold text-gray-900 dark:text-white">
-                {t("total")}: {calculateTotal().toFixed(2)} {t("currency")}
+                {t("total")}: {calculateTotal().toFixed(2)} {currency()}
               </div>
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 {Object.keys(selectedProducts).length} {t("itemsSelected")}

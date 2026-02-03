@@ -1,15 +1,21 @@
 import React, { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Plus, Minus, Trash2, ShoppingCart, ArrowLeft } from "lucide-react";
+import { useCurrency } from "../../../hooks";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 
 const CartPage = () => {
   const { t } = useTranslation();
+  const dispatch = useDispatch();
   const { isRTL } = useSelector((state) => state.language);
   const { products } = useSelector((state) => state.inventory);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Get currency display based on language
+  const { currency } = useCurrency();
 
   const [cartItems, setCartItems] = useState({});
 
@@ -17,7 +23,8 @@ const CartPage = () => {
     if (location.state?.selectedProducts) {
       setCartItems(location.state.selectedProducts);
     }
-  }, [location.state]);
+    dispatch(fetchTenantInfo());
+  }, [location.state, dispatch]);
 
   const handleQuantityChange = (productId, change) => {
     setCartItems((prev) => {
@@ -178,7 +185,7 @@ const CartPage = () => {
                     {isRTL ? item.name : item.nameEn || item.name}
                   </h3>
                   <p className="text-blue-600 dark:text-blue-400 font-semibold">
-                    {item.price} {t("currency")}
+                    {item.price} {currency()}
                   </p>
                   {product && (
                     <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -229,7 +236,7 @@ const CartPage = () => {
                   }`}
                 >
                   <p className="font-semibold text-gray-900 dark:text-white">
-                    {(item.quantity * item.price).toFixed(2)} {t("currency")}
+                    {(item.quantity * item.price).toFixed(2)} {currency()}
                   </p>
                 </div>
               </div>
@@ -250,7 +257,7 @@ const CartPage = () => {
               {t("subtotal")}:
             </span>
             <span className="text-lg font-semibold text-gray-900 dark:text-white">
-              {calculateTotal().toFixed(2)} {t("currency")}
+              {calculateTotal().toFixed(2)} {currency()}
             </span>
           </div>
 
@@ -278,7 +285,7 @@ const CartPage = () => {
               {t("total")}:
             </span>
             <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
-              {calculateTotal().toFixed(2)} {t("currency")}
+              {calculateTotal().toFixed(2)} {currency()}
             </span>
           </div>
         </div>

@@ -4,6 +4,7 @@ import { tenantService } from "../../services";
 // Initial state
 const initialState = {
   tenantInfo: null,
+  currencyDetails: null,
   branchLimits: {
     currentBranches: 0,
     maxBranches: 0,
@@ -80,6 +81,10 @@ const tenantSlice = createSlice({
       .addCase(fetchTenantInfo.fulfilled, (state, action) => {
         state.loading = false;
         state.tenantInfo = action.payload;
+        
+        // Store currency details
+        state.currencyDetails = action.payload.currencyDetails || action.payload.Currency || null;
+        
         // Update branch limits from tenant info - focus on no_branches field
         const currentBranches = action.payload.current_branches || 0;
         const maxBranches = action.payload.no_branches || 5; // Use no_branches as the limit
@@ -125,6 +130,10 @@ const tenantSlice = createSlice({
       .addCase(updateTenantInfo.fulfilled, (state, action) => {
         state.loading = false;
         state.tenantInfo = action.payload;
+        
+        // Store currency details
+        state.currencyDetails = action.payload.currencyDetails || action.payload.Currency || null;
+        
         // Update branch limits from updated tenant info - focus on no_branches field
         const currentBranches = action.payload.current_branches || 0;
         const maxBranches = action.payload.no_branches || 5; // Use no_branches as the limit

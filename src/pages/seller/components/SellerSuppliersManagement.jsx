@@ -25,13 +25,16 @@ import StatsCard from "../../../components/Common/StatsCard";
 import { SellerSupplierForm } from "../../../components/Forms";
 import { formatCurrencyEnglish, formatNumberEnglish } from "../../../utils";
 import { fetchSuppliers } from "../../../store/slices/supplierSlice";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 import { supplierService } from "../../../services/supplierService";
+import { useCurrency } from "../../../hooks";
 
 const SuppliersManagement = () => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
   const { isRTL } = useSelector((state) => state.language);
   const { suppliers, loading, error } = useSelector((state) => state.suppliers);
+  const { currency } = useCurrency();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -102,6 +105,7 @@ const SuppliersManagement = () => {
   };
 
   useEffect(() => {
+    dispatch(fetchTenantInfo());
     dispatch(fetchSuppliers());
     loadSupplierStatistics();
   }, [dispatch]);
@@ -501,9 +505,9 @@ const SuppliersManagement = () => {
                         {loadingStats ? (
                           <span className="animate-pulse">Loading...</span>
                         ) : (
-                          formatCurrencyEnglish(
+                          `${currency()} ${formatCurrencyEnglish(
                             supplierStats[selectedSupplier.id]?.totalSpent || 0
-                          )
+                          )}`
                         )}
                       </p>
                     </div>

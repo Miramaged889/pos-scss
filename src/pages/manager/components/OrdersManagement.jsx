@@ -33,10 +33,15 @@ import {
   customerService,
   tenantUsersService,
 } from "../../../services";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
+import { useCurrency } from "../../../hooks";
 
 const OrdersManagement = () => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
+  
+  // Get currency display based on language
+  const { currency } = useCurrency();
 
   // Get data from Redux store
   const { orders, loading, error } = useSelector((state) => state.orders);
@@ -354,6 +359,7 @@ const OrdersManagement = () => {
 
   useEffect(() => {
     dispatch(fetchOrders());
+    dispatch(fetchTenantInfo());
     fetchProducts();
     fetchCustomersData();
     fetchSellersData();
@@ -514,7 +520,8 @@ const OrdersManagement = () => {
                     : orderItem.name || orderItem.product?.name || "Item"}
                 </span>
                 <span className="text-gray-500 dark:text-gray-400">
-                  $
+                  {" "}
+                  {currency()}{" "}
                   {productsLoading
                     ? "..."
                     : (orderItem.product_id
@@ -539,7 +546,8 @@ const OrdersManagement = () => {
                     : product.name || product.nameEn || "Item"}
                 </span>
                 <span className="text-gray-500 dark:text-gray-400">
-                  $
+                  {" "}
+                  {currency()}{" "}
                   {productsLoading
                     ? "..."
                     : (product.id
@@ -564,7 +572,7 @@ const OrdersManagement = () => {
       accessor: "totalAmount",
       render: (item) => (
         <span className="font-medium text-gray-900 dark:text-white">
-          ${(item.total_amount || 0).toFixed(2)}
+          {currency()} {(item.total_amount || 0).toFixed(2)}
         </span>
       ),
     },
@@ -833,7 +841,7 @@ const OrdersManagement = () => {
                 {t("totalRevenue")}
               </p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                ${stats.totalRevenue}
+                {currency()} {stats.totalRevenue}
               </p>
             </div>
             <User className="w-8 h-8 text-purple-500" />
@@ -1043,7 +1051,7 @@ const OrdersManagement = () => {
                     )}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    <strong>{t("total")}:</strong> $
+                    <strong>{t("total")}:</strong> {currency()}{" "}
                     {(selectedOrder.total_amount || 0).toFixed(2)}
                   </p>
                 </div>
@@ -1103,7 +1111,7 @@ const OrdersManagement = () => {
                           : item.name || item.product?.name || "Item"}
                       </span>
                       <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        $
+                        {currency()}{" "}
                         {(item.product_id
                           ? getProductPrice(item.product_id)
                           : item.price || item.product?.price || 0

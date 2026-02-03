@@ -32,14 +32,17 @@ import {
   clearManagerError,
 } from "../../../store/slices/managerSlice";
 import { fetchSuppliers } from "../../../store/slices/supplierSlice";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 
 import DataTable from "../../../components/Common/DataTable";
 import { SupplierInvoiceForm } from "../../../components/Forms";
+import { useCurrency } from "../../../hooks";
 
 const SupplierInvoicesManagement = () => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
   const { isRTL } = useSelector((state) => state.language);
+  const { currency } = useCurrency();
 
   // Redux state
   const { invoices, loading, error } = useSelector((state) => state.manager);
@@ -69,6 +72,7 @@ const SupplierInvoicesManagement = () => {
   useEffect(() => {
     dispatch(fetchSupplierInvoices());
     dispatch(fetchSuppliers());
+    dispatch(fetchTenantInfo());
   }, [dispatch]);
 
   // Clear error when component unmounts
@@ -305,10 +309,10 @@ const SupplierInvoicesManagement = () => {
           return (
             <div>
               <p className="font-medium text-gray-900 dark:text-white">
-                ${total.toFixed(2)}
+                {currency()}{total.toFixed(2)}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Tax: ${tax.toFixed(2)}
+                Tax: {currency()}{tax.toFixed(2)}
               </p>
             </div>
           );
@@ -316,9 +320,9 @@ const SupplierInvoicesManagement = () => {
           console.warn("Error calculating item total:", error, item);
           return (
             <div>
-              <p className="font-medium text-gray-900 dark:text-white">$0.00</p>
+              <p className="font-medium text-gray-900 dark:text-white">{currency()}0.00</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Tax: $0.00
+                Tax: {currency()}0.00
               </p>
             </div>
           );
@@ -567,7 +571,7 @@ const SupplierInvoicesManagement = () => {
                   <td>#${invoice.id}</td>
                   <td>${invoice.order_id}</td>
                   <td>${getSupplierName(invoice.supplier)}</td>
-                  <td>$${(() => {
+                  <td>${currency()}${(() => {
                     try {
                       const itemsTotal =
                         invoice.items?.reduce((sum, item) => {
@@ -594,7 +598,7 @@ const SupplierInvoicesManagement = () => {
             <h2>${t("totalInvoices")}: ${filteredInvoices.length}</h2>
             <h2>${t("paidInvoices")}: ${stats.paidInvoices}</h2>
             <h2>${t("pendingInvoices")}: ${stats.pendingInvoices}</h2>
-            <h2>${t("totalAmount")}: $${stats.totalAmount}</h2>
+            <h2>${t("totalAmount")}: ${currency()}${stats.totalAmount}</h2>
           </div>
           
           <div class="no-print" style="margin-top: 50px; text-align: center;">
@@ -839,7 +843,7 @@ const SupplierInvoicesManagement = () => {
                 {t("totalAmount")}
               </p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                ${stats.totalAmount}
+                {currency()}{stats.totalAmount}
               </p>
             </div>
             <DollarSign className="w-8 h-8 text-purple-500" />
@@ -1021,7 +1025,7 @@ const SupplierInvoicesManagement = () => {
                     {getPaymentMethodBadge(selectedInvoice.payment_method)}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    <strong>{t("total")}:</strong> $
+                    <strong>{t("total")}:</strong> {currency()}
                     {(() => {
                       try {
                         const itemsTotal =
@@ -1066,7 +1070,7 @@ const SupplierInvoicesManagement = () => {
                             {quantity}x {item.item_name}
                           </span>
                           <span className="text-sm font-medium text-gray-900 dark:text-white">
-                            ${subtotal.toFixed(2)}
+                            {currency()}{subtotal.toFixed(2)}
                           </span>
                         </div>
                       );
@@ -1082,7 +1086,7 @@ const SupplierInvoicesManagement = () => {
                             {item.item_name || "Unknown Item"}
                           </span>
                           <span className="text-sm font-medium text-gray-900 dark:text-white">
-                            $0.00
+                            {currency()}0.00
                           </span>
                         </div>
                       );

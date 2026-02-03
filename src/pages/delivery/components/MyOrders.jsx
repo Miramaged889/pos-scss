@@ -20,12 +20,15 @@ import {
   fetchOrders,
   updateOrderStatus,
 } from "../../../store/slices/ordersSlice";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 import { customerService, productService } from "../../../services";
+import { useCurrency } from "../../../hooks";
 
 const MyOrders = ({ isHome = false }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const { currency } = useCurrency();
   const { user } = useSelector((state) => state.auth);
   const {
     orders,
@@ -210,6 +213,7 @@ const MyOrders = ({ isHome = false }) => {
   // Load orders from API
   useEffect(() => {
     dispatch(fetchOrders());
+    dispatch(fetchTenantInfo());
     fetchCustomersData();
     fetchProducts();
 
@@ -588,7 +592,7 @@ const MyOrders = ({ isHome = false }) => {
                                   product.price ||
                                   0) * (product.quantity || 1)
                             ).toFixed(2)}{" "}
-                            {t("currency")}
+                            {currency()}
                           </span>
                         </div>
                       ))}
@@ -620,7 +624,7 @@ const MyOrders = ({ isHome = false }) => {
                     </span>
                     <span className="text-lg font-semibold text-gray-900 dark:text-white">
                       {(order.total_amount || order.total || 0).toFixed(2)}{" "}
-                      {t("currency")}
+                      {currency()}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
@@ -631,7 +635,7 @@ const MyOrders = ({ isHome = false }) => {
                       {((order.total_amount || order.total || 0) * 0.1).toFixed(
                         2
                       )}{" "}
-                      {t("currency")}
+                      {currency()}
                     </span>
                   </div>
                   {order.deliveryStartTime && (
@@ -762,7 +766,7 @@ const MyOrders = ({ isHome = false }) => {
                           selectedOrder?.total ||
                           0
                         ).toFixed(2)}{" "}
-                        {t("currency")}
+                        {currency()}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
@@ -770,7 +774,7 @@ const MyOrders = ({ isHome = false }) => {
                         {t("amountCollected")}
                       </span>
                       <span className="text-lg font-semibold text-green-600 dark:text-green-400">
-                        {paymentAmount} {t("currency")}
+                        {paymentAmount} {currency()}
                       </span>
                     </div>
                   </div>
@@ -788,7 +792,7 @@ const MyOrders = ({ isHome = false }) => {
                           selectedOrder?.total ||
                           0
                         ).toFixed(2)}{" "}
-                        {t("currency")}
+                        {currency()}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
@@ -801,7 +805,7 @@ const MyOrders = ({ isHome = false }) => {
                             selectedOrder?.total ||
                             0) * 0.1
                         ).toFixed(2)}{" "}
-                        {t("currency")}
+                        {currency()}
                       </span>
                     </div>
                   </div>

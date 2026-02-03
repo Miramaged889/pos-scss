@@ -29,6 +29,8 @@ import {
 import { Line, Bar, Doughnut } from "react-chartjs-2";
 import StatsCard from "../../../components/Common/StatsCard";
 import { fetchOrders } from "../../../store/slices/ordersSlice";
+import { useCurrency } from "../../../hooks";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 
 // Register ChartJS components
 ChartJS.register(
@@ -48,6 +50,7 @@ const DeliveryReports = () => {
   const dispatch = useDispatch();
   const { isRTL, theme } = useSelector((state) => state.language);
   const { orders } = useSelector((state) => state.orders);
+  const { currency } = useCurrency();
   const [stats, setStats] = useState(null);
   const [dateRange, setDateRange] = useState("today");
   const reportRef = useRef(null);
@@ -102,6 +105,7 @@ const DeliveryReports = () => {
   // Load orders from API
   useEffect(() => {
     dispatch(fetchOrders());
+    dispatch(fetchTenantInfo());
   }, [dispatch]);
 
   // Calculate stats from orders data
@@ -175,9 +179,7 @@ const DeliveryReports = () => {
       },
       {
         title: t("earnings"),
-        value: `${(currentStats.totalEarnings || 0).toFixed(2)} ${t(
-          "currency"
-        )}`,
+        value: `${(currentStats.totalEarnings || 0).toFixed(2)} ${currency()}`,
         icon: DollarSign,
         color: "green",
         trend: "+8%",

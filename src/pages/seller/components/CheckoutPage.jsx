@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-hot-toast";
@@ -23,6 +23,8 @@ import {
 import FormField from "../../../components/Forms/FormField";
 import api from "../../../services/api";
 import { currencyService } from "../../../services";
+import { useCurrency } from "../../../hooks";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 
 // Phase 1: Choose Delivery & Payment
 const PhaseOne = ({
@@ -659,6 +661,7 @@ const PhaseThree = ({
   isSubmitting,
   isRTL,
   t,
+  currency,
 }) => {
   const subtotal = orderData?.total || 0;
   const totalAmount = subtotal - discount;
@@ -748,7 +751,7 @@ const PhaseThree = ({
                 </div>
                 <div className="text-right">
                   <p className="font-medium text-gray-900 dark:text-white">
-                    {(product.price * product.quantity).toFixed(2)} {t("sar")}
+                    {(product.price * product.quantity).toFixed(2)} {currency()}
                   </p>
                 </div>
               </div>
@@ -774,12 +777,12 @@ const PhaseThree = ({
               className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
             />
             <span className="text-sm text-gray-600 dark:text-gray-400">
-              {t("sar")}
+              {currency()}
             </span>
           </div>
           {discount > 0 && (
             <p className="text-xs text-green-600 dark:text-green-400 mt-2">
-              {t("discountApplied")}: -{discount.toFixed(2)} {t("sar")}
+              {t("discountApplied")}: -{discount.toFixed(2)} {currency()}
             </p>
           )}
         </div>
@@ -792,7 +795,7 @@ const PhaseThree = ({
                 {t("subtotal")}
               </span>
               <span className="text-sm text-gray-600 dark:text-gray-400">
-                {subtotal.toFixed(2)} {t("sar")}
+                {subtotal.toFixed(2)} {currency()}
               </span>
             </div>
             {discount > 0 && (
@@ -801,7 +804,7 @@ const PhaseThree = ({
                   {t("discount")}
                 </span>
                 <span className="text-sm text-red-600 dark:text-red-400">
-                  -{discount.toFixed(2)} {t("sar")}
+                  -{discount.toFixed(2)} {currency()}
                 </span>
               </div>
             )}
@@ -811,7 +814,7 @@ const PhaseThree = ({
                   {t("total")}
                 </span>
                 <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {totalAmount.toFixed(2)} {t("sar")}
+                  {totalAmount.toFixed(2)} {currency()}
                 </span>
               </div>
             </div>
@@ -866,6 +869,8 @@ const CheckoutPage = () => {
   const { user } = useSelector((state) => state.auth);
   const navigate = useNavigate();
   const location = useLocation();
+  const dispatch = useDispatch();
+  const { currency } = useCurrency();
 
   const orderData = location.state?.orderData;
 
@@ -905,7 +910,8 @@ const CheckoutPage = () => {
     };
 
     fetchPaymentMethods();
-  }, [t]);
+    dispatch(fetchTenantInfo());
+  }, [t, dispatch]);
 
   // Phase 2 state
   const [customerMode, setCustomerMode] = useState("existing"); // "existing" or "new"
@@ -1166,7 +1172,7 @@ const CheckoutPage = () => {
                     <div className="text-right">
                       <p className="font-medium text-gray-900 dark:text-white text-sm">
                         {(product.price * product.quantity).toFixed(2)}{" "}
-                        {t("sar")}
+                        {currency()}
                       </p>
                     </div>
                   </div>
@@ -1180,7 +1186,7 @@ const CheckoutPage = () => {
                     {t("subtotal")}
                   </span>
                   <span className="text-sm text-gray-600 dark:text-gray-400">
-                    {orderData.total?.toFixed(2)} {t("sar")}
+                    {orderData.total?.toFixed(2)} {currency()}
                   </span>
                 </div>
                 {discount > 0 && (
@@ -1189,7 +1195,7 @@ const CheckoutPage = () => {
                       {t("discount")}
                     </span>
                     <span className="text-sm text-red-600 dark:text-red-400">
-                      -{discount.toFixed(2)} {t("sar")}
+                      -{discount.toFixed(2)} {currency()}
                     </span>
                   </div>
                 )}
@@ -1199,7 +1205,7 @@ const CheckoutPage = () => {
                       {t("total")}
                     </span>
                     <span className="text-xl font-bold text-gray-900 dark:text-white">
-                      {(orderData.total - discount).toFixed(2)} {t("sar")}
+                      {(orderData.total - discount).toFixed(2)} {currency()}
                     </span>
                   </div>
                 </div>
@@ -1265,6 +1271,7 @@ const CheckoutPage = () => {
                 isSubmitting={isSubmitting}
                 isRTL={isRTL}
                 t={t}
+                currency={currency}
               />
             )}
           </div>

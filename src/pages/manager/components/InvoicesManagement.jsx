@@ -34,6 +34,8 @@ import {
 import { CustomerInvoiceForm } from "../../../components/Forms/SellerForms";
 import { fetchCustomerInvoices } from "../../../store/slices/customerInvoiceSlice";
 import { customerInvoiceService } from "../../../services";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
+import { useCurrency } from "../../../hooks";
 
 const InvoicesManagement = () => {
   const { t } = useTranslation();
@@ -42,6 +44,9 @@ const InvoicesManagement = () => {
     (state) => state.customerInvoices
   );
   const dispatch = useDispatch();
+  
+  // Get currency display based on language
+  const { currency } = useCurrency();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -57,9 +62,10 @@ const InvoicesManagement = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
 
-  // Fetch customer invoices on component mount
+  // Fetch customer invoices and tenant info on component mount
   useEffect(() => {
     dispatch(fetchCustomerInvoices());
+    dispatch(fetchTenantInfo());
   }, [dispatch]);
 
   // Close dropdown when clicking outside
@@ -152,13 +158,13 @@ const InvoicesManagement = () => {
     },
     {
       title: t("totalRevenue"),
-      value: formatCurrencyEnglish(totalRevenue, t("currency")),
+      value: formatCurrencyEnglish(totalRevenue, currency()),
       icon: DollarSign,
       color: "green",
     },
     {
       title: t("totalTax"),
-      value: formatCurrencyEnglish(totalTax, t("currency")),
+      value: formatCurrencyEnglish(totalTax, currency()),
       icon: TrendingUp,
       color: "purple",
     },
@@ -298,7 +304,7 @@ const InvoicesManagement = () => {
                   <td>${payment.customer}</td>
                   <td>${formatCurrencyEnglish(
                     payment.amount,
-                    t("currency")
+                    currency()
                   )}</td>
                   <td>${t(payment.status)}</td>
                   <td>${formatDateTimeEnglish(payment.paymentDate)}</td>
@@ -313,7 +319,7 @@ const InvoicesManagement = () => {
             <h2>${t("totalInvoices")}: ${filteredPayments.length}</h2>
             <h2>${t("totalRevenue")}: ${formatCurrencyEnglish(
       filteredPayments.reduce((sum, payment) => sum + payment.amount, 0),
-      t("currency")
+      currency()
     )}</h2>
           </div>
           
@@ -423,9 +429,9 @@ const InvoicesManagement = () => {
 
 ---------------------------------
 الوصف / Description: ${payment.description}
-المبلغ الفرعي / Subtotal: ${formatCurrencyEnglish(subtotal, t("currency"))}
-الضريبة / Tax: ${formatCurrencyEnglish(tax, t("currency"))}
-الإجمالي / Total: ${formatCurrencyEnglish(total, t("currency"))}
+المبلغ الفرعي / Subtotal: ${formatCurrencyEnglish(subtotal, currency())}
+الضريبة / Tax: ${formatCurrencyEnglish(tax, currency())}
+الإجمالي / Total: ${formatCurrencyEnglish(total, currency())}
 
 طريقة الدفع / Payment Method: ${
       payment.method === "cash"
@@ -487,7 +493,7 @@ const InvoicesManagement = () => {
       render: (payment) => {
         return (
           <span className="font-semibold text-green-600 dark:text-green-400">
-            {formatCurrencyEnglish(payment.amount, t("currency"))}
+            {formatCurrencyEnglish(payment.amount, currency())}
           </span>
         );
       },
@@ -520,7 +526,7 @@ const InvoicesManagement = () => {
       render: (payment) => {
         return (
           <span className="text-purple-600 dark:text-purple-400 font-medium">
-            {formatCurrencyEnglish(payment.tax || 0, t("currency"))}
+            {formatCurrencyEnglish(payment.tax || 0, currency())}
           </span>
         );
       },
@@ -1022,7 +1028,7 @@ const InvoicesManagement = () => {
                     <span className="text-lg font-semibold text-green-600 dark:text-green-400">
                       {formatCurrencyEnglish(
                         selectedPayment.subtotal || 0,
-                        t("currency")
+                        currency()
                       )}
                     </span>
                   </div>
@@ -1033,7 +1039,7 @@ const InvoicesManagement = () => {
                     <span className="text-lg font-semibold text-purple-600 dark:text-purple-400">
                       {formatCurrencyEnglish(
                         selectedPayment.tax || 0,
-                        t("currency")
+                        currency()
                       )}
                     </span>
                   </div>
@@ -1044,7 +1050,7 @@ const InvoicesManagement = () => {
                     <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
                       {formatCurrencyEnglish(
                         selectedPayment.total || selectedPayment.amount,
-                        t("currency")
+                        currency()
                       )}
                     </span>
                   </div>
@@ -1234,7 +1240,7 @@ const InvoicesManagement = () => {
                 <div className="flex items-center gap-2">
                   <DollarSign className="w-4 h-4 text-gray-500" />
                   <span className="text-gray-900 dark:text-white font-semibold">
-                    {formatCurrencyEnglish(deleteConfirm.amount, t("currency"))}
+                    {formatCurrencyEnglish(deleteConfirm.amount, currency())}
                   </span>
                 </div>
               </div>

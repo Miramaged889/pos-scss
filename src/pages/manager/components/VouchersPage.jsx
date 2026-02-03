@@ -39,11 +39,14 @@ import {
   updateVoucher,
   deleteVoucher,
 } from "../../../store/slices/voucherSlice";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
+import { useCurrency } from "../../../hooks";
 
 const VouchersPage = () => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
   const dispatch = useDispatch();
+  const { currency } = useCurrency();
 
   // Redux state
   const { vouchers, loading } = useSelector((state) => state.vouchers);
@@ -58,6 +61,7 @@ const VouchersPage = () => {
 
   useEffect(() => {
     dispatch(fetchVouchers());
+    dispatch(fetchTenantInfo());
   }, [dispatch]);
 
   // Separate vouchers by type
@@ -299,7 +303,7 @@ const VouchersPage = () => {
               <p><strong>التاريخ:</strong> ${voucher.date}</p>
               <p><strong>المبلغ:</strong> ${Number(voucher.amount).toFixed(
                 2
-              )} ${t("currency")}</p>
+              )} ${currency()}</p>
               <p><strong>طريقة الدفع:</strong> ${getPaymentMethodText(
                 voucher.paymentMethod
               )}</p>
@@ -328,9 +332,7 @@ const VouchersPage = () => {
           </div>
           
           <div class="amount-section">
-            <h2>المبلغ: ${Number(voucher.amount).toFixed(2)} ${t(
-      "currency"
-    )}</h2>
+            <h2>المبلغ: ${Number(voucher.amount).toFixed(2)} ${currency()}</h2>
             <p>${numberToWords(Number(voucher.amount) || 0)}</p>
           </div>
           
@@ -457,7 +459,7 @@ const VouchersPage = () => {
                 {t("totalExpenses")}
               </p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {stats.totalExpenses} {t("currency")}
+                {stats.totalExpenses} {currency()}
               </p>
             </div>
             <DollarSign className="w-8 h-8 text-red-500" />
@@ -471,7 +473,7 @@ const VouchersPage = () => {
                 {t("totalPayments")}
               </p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {stats.totalPayments} {t("currency")}
+                {stats.totalPayments} {currency()}
               </p>
             </div>
             <Receipt className="w-8 h-8 text-blue-500" />
@@ -600,7 +602,7 @@ const VouchersPage = () => {
                           {t("amount")}
                         </p>
                         <p className="font-medium text-gray-900 dark:text-white">
-                          {Number(voucher.amount).toFixed(2)} {t("currency")}
+                          {Number(voucher.amount).toFixed(2)} {currency()}
                         </p>
                       </div>
                       <div>
@@ -724,7 +726,7 @@ const VouchersPage = () => {
                           {t("amount")}
                         </p>
                         <p className="font-medium text-gray-900 dark:text-white">
-                          {Number(voucher.amount).toFixed(2)} {t("currency")}
+                          {Number(voucher.amount).toFixed(2)} {currency()}
                         </p>
                       </div>
                       <div>
@@ -811,7 +813,7 @@ const VouchersPage = () => {
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("amount")}:</strong>{" "}
-                    {Number(selectedVoucher.amount).toFixed(2)} {t("currency")}
+                    {Number(selectedVoucher.amount).toFixed(2)} {currency()}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("status")}:</strong>{" "}

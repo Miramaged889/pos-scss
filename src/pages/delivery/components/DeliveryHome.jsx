@@ -14,12 +14,15 @@ import {
 
 import { setOnlineStatus } from "../../../store/slices/deliverySlice";
 import { fetchOrders } from "../../../store/slices/ordersSlice";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 import StatsCard from "../../../components/Common/StatsCard";
 import MyOrders from "./MyOrders";
+import { useCurrency } from "../../../hooks";
 
 const DeliveryHome = () => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
+  const { currency } = useCurrency();
   const { user } = useSelector((state) => state.auth);
   const { isOnline } = useSelector((state) => state.delivery);
   const { orders } = useSelector((state) => state.orders);
@@ -37,6 +40,7 @@ const DeliveryHome = () => {
     };
 
     loadOrdersAndStats();
+    dispatch(fetchTenantInfo());
     const interval = setInterval(loadOrdersAndStats, 30000); // Refresh every 30 seconds
 
     return () => clearInterval(interval);
@@ -98,7 +102,7 @@ const DeliveryHome = () => {
     },
     {
       title: t("todaysEarnings"),
-      value: `${(todaysStats.todaysEarnings || 0).toFixed(2)} ${t("currency")}`,
+      value: `${(todaysStats.todaysEarnings || 0).toFixed(2)} ${currency()}`,
       icon: DollarSign,
       color: "blue",
     },

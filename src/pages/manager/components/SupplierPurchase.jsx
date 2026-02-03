@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import {
   Truck,
@@ -30,15 +30,20 @@ import {
   formatDateTimeEnglish,
 } from "../../../utils";
 import { supplierService } from "../../../services/supplierService";
+import { useCurrency } from "../../../hooks";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
+
 const SupplierPurchase = () => {
   const { t, i18n } = useTranslation();
+  const dispatch = useDispatch();
   const { isRTL } = useSelector((state) => state.language);
+  const { currency } = useCurrency();
 
   // Smart currency formatter based on current language
   const formatCurrencySmart = (amount) => {
     return i18n.language === "ar"
       ? formatCurrency(amount)
-      : formatCurrencyEnglish(amount);
+      : formatCurrencyEnglish(amount, currency());
   };
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -105,6 +110,7 @@ const SupplierPurchase = () => {
   // Load suppliers and purchase orders from API
   useEffect(() => {
     const loadData = async () => {
+      dispatch(fetchTenantInfo());
       await loadSuppliers();
       await loadPurchaseOrders();
     };

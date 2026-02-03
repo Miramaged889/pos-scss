@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
@@ -35,7 +34,9 @@ import {
 import StatsCard from "../../../components/Common/StatsCard";
 import { formatCurrencyEnglish, formatNumberEnglish } from "../../../utils";
 import { fetchOrders } from "../../../store/slices/ordersSlice";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 import { customerService, productService, orderService } from "../../../services";
+import { useCurrency } from "../../../hooks";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -57,6 +58,7 @@ const SalesReports = () => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
   const { isRTL, theme } = useSelector((state) => state.language || {});
+  const { currency } = useCurrency();
   const [dateRange, setDateRange] = useState("today");
   const [viewMode, setViewMode] = useState("charts"); // 'charts' or 'table'
   const [loading, setLoading] = useState(false);
@@ -66,6 +68,11 @@ const SalesReports = () => {
   const [customers, setCustomers] = useState([]);
   const [products, setProducts] = useState([]);
   const [error, setError] = useState(null);
+
+  // Fetch tenant info
+  useEffect(() => {
+    dispatch(fetchTenantInfo());
+  }, [dispatch]);
 
   // Load data from database using services
   useEffect(() => {
@@ -377,7 +384,7 @@ const SalesReports = () => {
   const stats = [
     {
       title: t("totalRevenue") || "Total Revenue",
-      value: formatCurrencyEnglish(currentData.revenue, t("currency") || "USD"),
+      value: formatCurrencyEnglish(currentData.revenue, currency),
       icon: DollarSign,
       color: "green",
       change: currentData.growth,
@@ -549,7 +556,7 @@ const SalesReports = () => {
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;">
             <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #10b981;">
               <h3 style="margin: 0 0 5px 0; color: #059669; font-size: 18px;">${t("totalRevenue") || "Total Revenue"}</h3>
-              <p style="margin: 0; font-size: 24px; font-weight: bold; color: #333;">${formatCurrencyEnglish(currentData.revenue, t("currency") || "USD")}</p>
+              <p style="margin: 0; font-size: 24px; font-weight: bold; color: #333;">${formatCurrencyEnglish(currentData.revenue, currency)}</p>
             </div>
             <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6;">
               <h3 style="margin: 0 0 5px 0; color: #2563eb; font-size: 18px;">${t("totalOrders") || "Total Orders"}</h3>
@@ -582,7 +589,7 @@ const SalesReports = () => {
                 <tr style="border-bottom: 1px solid #e5e7eb;">
                   <td style="padding: 12px; border: 1px solid #e5e7eb;">${p.name}</td>
                   <td style="padding: 12px; border: 1px solid #e5e7eb;">${formatNumberEnglish(p.sales)}</td>
-                  <td style="padding: 12px; border: 1px solid #e5e7eb;">${formatCurrencyEnglish(p.revenue, t("currency") || "USD")}</td>
+                  <td style="padding: 12px; border: 1px solid #e5e7eb;">${formatCurrencyEnglish(p.revenue, currency)}</td>
                 </tr>
               `).join("")}
             </tbody>
@@ -605,7 +612,7 @@ const SalesReports = () => {
                 <tr style="border-bottom: 1px solid #e5e7eb;">
                   <td style="padding: 12px; border: 1px solid #e5e7eb;">${cat.category}</td>
                   <td style="padding: 12px; border: 1px solid #e5e7eb;">${formatNumberEnglish(cat.percentage)}%</td>
-                  <td style="padding: 12px; border: 1px solid #e5e7eb;">${formatCurrencyEnglish(cat.revenue, t("currency") || "USD")}</td>
+                  <td style="padding: 12px; border: 1px solid #e5e7eb;">${formatCurrencyEnglish(cat.revenue, currency)}</td>
                 </tr>
               `).join("")}
             </tbody>
@@ -795,7 +802,7 @@ const SalesReports = () => {
                           label: function (context) {
                             const product = topProducts[context.dataIndex];
                             if (product && product.revenue > 0) {
-                              return `${t("sales") || "Sales"}: ${formatNumberEnglish(product.sales)} | ${t("revenue") || "Revenue"}: ${formatCurrencyEnglish(product.revenue, t("currency") || "USD")}`;
+                              return `${t("sales") || "Sales"}: ${formatNumberEnglish(product.sales)} | ${t("revenue") || "Revenue"}: ${formatCurrencyEnglish(product.revenue, currency)}`;
                             }
                             return `${t("sales") || "Sales"}: ${context.parsed.y ?? context.parsed.x}`;
                           },
@@ -829,7 +836,7 @@ const SalesReports = () => {
                       </div>
                     </div>
                     <div className={isRTL ? "text-left" : "text-right"}>
-                      <div className="font-medium text-gray-900 dark:text-white">{formatCurrencyEnglish(product.revenue, t("currency") || "USD")}</div>
+                      <div className="font-medium text-gray-900 dark:text-white">{formatCurrencyEnglish(product.revenue, currency)}</div>
                     </div>
                   </div>
                 )) : (
@@ -859,7 +866,7 @@ const SalesReports = () => {
                         <div className="h-2 rounded-full transition-all duration-300" style={{ width: `${category.percentage}%`, backgroundColor: colors[index] || chartColors.primary }} />
                       </div>
                       <div className={isRTL ? "text-left" : "text-right"}>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">{formatCurrencyEnglish(category.revenue, t("currency") || "USD")}</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">{formatCurrencyEnglish(category.revenue, currency)}</span>
                       </div>
                     </div>
                   );

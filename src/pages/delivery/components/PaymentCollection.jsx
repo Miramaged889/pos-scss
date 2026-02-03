@@ -15,11 +15,14 @@ import {
   fetchOrders,
   updateOrderStatus,
 } from "../../../store/slices/ordersSlice";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 import { customerService } from "../../../services";
+import { useCurrency } from "../../../hooks";
 
 const PaymentCollection = () => {
   const { t } = useTranslation();
   const dispatch = useDispatch();
+  const { currency } = useCurrency();
   const { orders } = useSelector((state) => state.orders);
   const [searchTerm, setSearchTerm] = useState("");
   const [payments, setPayments] = useState([]);
@@ -121,6 +124,7 @@ const PaymentCollection = () => {
 
     loadOrders();
     fetchCustomersData();
+    dispatch(fetchTenantInfo());
     const interval = setInterval(loadOrders, 30000);
     return () => clearInterval(interval);
   }, [dispatch]);
@@ -291,7 +295,7 @@ const PaymentCollection = () => {
                 {t("totalCollected")}
               </h3>
               <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-                {(totalCollected || 0).toFixed(2)} {t("currency")}
+                {(totalCollected || 0).toFixed(2)} {currency()}
               </p>
             </div>
           </div>
@@ -341,13 +345,13 @@ const PaymentCollection = () => {
                 </p>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                   {t("commission")}: {(payment.commission || 0).toFixed(2)}{" "}
-                  {t("currency")}
+                  {currency()}
                 </p>
               </div>
 
               <div className="flex flex-col items-end gap-2">
                 <span className="text-xl font-semibold text-gray-900 dark:text-white">
-                  {(payment.amount || 0).toFixed(2)} {t("currency")}
+                  {(payment.amount || 0).toFixed(2)} {currency()}
                 </span>
                 <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                   <Clock className="w-4 h-4" />
@@ -429,7 +433,7 @@ const PaymentCollection = () => {
                           selectedOrder?.total ||
                           0
                         ).toFixed(2)}{" "}
-                        {t("currency")}
+                        {currency()}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
@@ -437,7 +441,7 @@ const PaymentCollection = () => {
                         {t("amountCollected")}
                       </span>
                       <span className="text-lg font-semibold text-green-600 dark:text-green-400">
-                        {paymentAmount} {t("currency")}
+                        {paymentAmount} {currency()}
                       </span>
                     </div>
                   </div>
@@ -455,7 +459,7 @@ const PaymentCollection = () => {
                           selectedOrder?.total ||
                           0
                         ).toFixed(2)}{" "}
-                        {t("currency")}
+                        {currency()}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
@@ -468,7 +472,7 @@ const PaymentCollection = () => {
                             selectedOrder?.total ||
                             0) * 0.1
                         ).toFixed(2)}{" "}
-                        {t("currency")}
+                        {currency()}
                       </span>
                     </div>
                   </div>

@@ -19,7 +19,9 @@ import { ProductForm } from "../../../components/Forms";
 import { formatCurrencyEnglish, formatNumberEnglish } from "../../../utils";
 import { fetchProducts } from "../../../store/slices/inventorySlice";
 import { fetchSuppliers } from "../../../store/slices/supplierSlice";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 import { categoriesService, subcategoriesService, measureUnitsService } from "../../../services";
+import { useCurrency } from "../../../hooks";
 
 const InventoryManagement = () => {
   const { t } = useTranslation();
@@ -27,6 +29,7 @@ const InventoryManagement = () => {
   const { products, loading, error } = useSelector((state) => state.inventory);
   const { suppliers } = useSelector((state) => state.suppliers);
   const dispatch = useDispatch();
+  const { currency } = useCurrency();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -43,6 +46,7 @@ const InventoryManagement = () => {
   useEffect(() => {
     dispatch(fetchProducts());
     dispatch(fetchSuppliers());
+    dispatch(fetchTenantInfo());
   }, [dispatch]);
 
   // Fetch categories from API
@@ -304,7 +308,7 @@ const InventoryManagement = () => {
     },
     {
       title: t("inventoryValue"),
-      value: formatCurrencyEnglish(totalValue, t("currency")),
+      value: formatCurrencyEnglish(totalValue, currency()),
       icon: TrendingUp,
       color: "green",
       subtitle: t("totalWorth"),
@@ -431,7 +435,7 @@ const InventoryManagement = () => {
             }`}
           >
             <span className="font-semibold text-green-600 dark:text-green-400">
-              {formatCurrencyEnglish(price, t("currency"))}
+              {formatCurrencyEnglish(price, currency())}
             </span>
           </div>
         );
@@ -446,7 +450,7 @@ const InventoryManagement = () => {
         return (
           <div className={`${isRTL ? "text-right" : "text-center"}`}>
             <span className="font-semibold text-gray-900 dark:text-white">
-              {formatCurrencyEnglish(price * stock, t("currency"))}
+              {formatCurrencyEnglish(price * stock, currency())}
             </span>
           </div>
         );
@@ -807,7 +811,7 @@ const InventoryManagement = () => {
                   <p className="text-xl font-semibold text-green-600 dark:text-green-400">
                     {formatCurrencyEnglish(
                       parseFloat(selectedProduct.price) || 0,
-                      t("currency")
+                      currency()
                     )}
                   </p>
                 </div>
@@ -862,7 +866,7 @@ const InventoryManagement = () => {
                   <p className="text-xl font-semibold text-gray-900 dark:text-white">
                     {formatCurrencyEnglish(
                       (parseFloat(selectedProduct.price) || 0) * (selectedProduct.current_stock ?? selectedProduct.stock ?? 0),
-                      t("currency")
+                      currency()
                     )}
                   </p>
                 </div>

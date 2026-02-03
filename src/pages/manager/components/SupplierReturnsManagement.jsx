@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { useSelector, useDispatch } from "react-redux";
 import {
   Search,
   Filter,
@@ -26,11 +27,14 @@ import { toast } from "react-hot-toast";
 import DataTable from "../../../components/Common/DataTable";
 import { SupplierReturnForm } from "../../../components/Forms";
 import { supplierService } from "../../../services/supplierService";
-import { useSelector } from "react-redux";
+import { useCurrency } from "../../../hooks";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 
 const SupplierReturnsManagement = () => {
   const { t } = useTranslation();
+  const dispatch = useDispatch();
   const { isRTL } = useSelector((state) => state.language);
+  const { currency } = useCurrency();
 
   // Local state
   const [returns, setReturns] = useState([]);
@@ -149,9 +153,10 @@ const SupplierReturnsManagement = () => {
   }, [suppliers, purchaseItemsLoading, getPurchaseItemName, t]);
 
   useEffect(() => {
+    dispatch(fetchTenantInfo());
     loadSuppliers();
     loadPurchaseItems();
-  }, [loadSuppliers, loadPurchaseItems]);
+  }, [dispatch, loadSuppliers, loadPurchaseItems]);
 
   useEffect(() => {
     // Load returns when suppliers and purchase items are available
@@ -520,7 +525,7 @@ const SupplierReturnsManagement = () => {
             <h2>${t("totalReturns")}: ${filteredReturns.length}</h2>
             <h2>${t("approvedReturns")}: ${stats.approvedReturns}</h2>
             <h2>${t("pendingReturns")}: ${stats.pendingReturns}</h2>
-            <h2>${t("totalRefundAmount")}: $${stats.totalRefundAmount}</h2>
+            <h2>${t("totalRefundAmount")}: ${currency()}${stats.totalRefundAmount}</h2>
           </div>
           
           <div class="no-print" style="margin-top: 50px; text-align: center;">
@@ -743,7 +748,7 @@ const SupplierReturnsManagement = () => {
                 {t("totalRefundAmount")}
               </p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                ${stats.totalRefundAmount}
+                {currency()}{stats.totalRefundAmount}
               </p>
             </div>
             <DollarSign className="w-8 h-8 text-purple-500" />
@@ -960,7 +965,7 @@ const SupplierReturnsManagement = () => {
                         </p>
                       </div>
                       <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        ${item.total.toFixed(2)}
+                        {currency()}{item.total.toFixed(2)}
                       </span>
                     </div>
                   ))}

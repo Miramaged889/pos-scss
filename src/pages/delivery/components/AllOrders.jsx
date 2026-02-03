@@ -7,12 +7,15 @@ import {
   fetchOrders,
   updateOrderStatus,
 } from "../../../store/slices/ordersSlice";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 import { customerService } from "../../../services";
+import { useCurrency } from "../../../hooks";
 
 const AllOrders = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const { currency } = useCurrency();
   const { orders, loading, error } = useSelector((state) => state.orders);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortConfig, setSortConfig] = useState({
@@ -104,6 +107,7 @@ const AllOrders = () => {
 
     loadOrders();
     fetchCustomersData();
+    dispatch(fetchTenantInfo());
     const interval = setInterval(loadOrders, 30000); // Refresh every 30 seconds
 
     return () => clearInterval(interval);
@@ -362,7 +366,7 @@ const AllOrders = () => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                   {(order.total_amount || order.total || 0).toFixed(2)}{" "}
-                  {t("currency")}
+                  {currency()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                   {new Date(order.date || order.createdAt).toLocaleString()}

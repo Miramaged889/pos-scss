@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { toast } from "react-hot-toast";
 import {
@@ -29,10 +29,14 @@ import {
   formatNumberEnglish,
 } from "../../../utils/formatters";
 import { returnService } from "../../../services";
+import { useCurrency } from "../../../hooks";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 
 const ReturnsManagement = () => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
+  const dispatch = useDispatch();
+  const { currency } = useCurrency();
   const [searchTerm, setSearchTerm] = useState("");
   const [returns, setReturns] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -63,7 +67,8 @@ const ReturnsManagement = () => {
     };
 
     loadReturns();
-  }, [t]);
+    dispatch(fetchTenantInfo());
+  }, [t, dispatch]);
 
   // Calculate stats
   const totalReturns = returns.length;
@@ -98,7 +103,7 @@ const ReturnsManagement = () => {
     },
     {
       title: t("totalRefunds"),
-      value: formatCurrencyEnglish(totalRefunds, t("currency")),
+      value: formatCurrencyEnglish(totalRefunds, currency()),
       icon: Package,
       color: "purple",
     },
@@ -248,7 +253,7 @@ const ReturnsManagement = () => {
       accessor: "refundAmount",
       render: (returnItem) => (
         <span className="font-semibold text-green-600 dark:text-green-400">
-          {formatCurrencyEnglish(returnItem.refundAmount || 0, t("currency"))}
+          {formatCurrencyEnglish(returnItem.refundAmount || 0, currency())}
         </span>
       ),
     },
@@ -529,7 +534,7 @@ const ReturnsManagement = () => {
                     <span className="text-lg font-semibold text-green-600 dark:text-green-400">
                       {formatCurrencyEnglish(
                         selectedReturn.refundAmount || 0,
-                        t("currency")
+                        currency()
                       )}
                     </span>
                   </div>
@@ -713,7 +718,7 @@ const ReturnsManagement = () => {
                     <span className="text-sm font-semibold text-green-600 dark:text-green-400">
                       {formatCurrencyEnglish(
                         selectedReturn.refundAmount || 0,
-                        t("currency")
+                        currency()
                       )}
                     </span>
                   </div>

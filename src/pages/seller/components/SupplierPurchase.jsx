@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import {
   Truck,
@@ -23,21 +23,18 @@ import DataTable from "../../../components/Common/DataTable";
 import StatsCard from "../../../components/Common/StatsCard";
 import { PurchaseOrderForm } from "../../../components/Forms";
 import {
-  formatCurrency,
-  formatCurrencyEnglish,
   formatDateTimeEnglish,
 } from "../../../utils";
 import { supplierService } from "../../../services/supplierService";
-const SupplierPurchase = () => {
-  const { t, i18n } = useTranslation();
-  const { isRTL } = useSelector((state) => state.language);
+import { useCurrency } from "../../../hooks";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 
-  // Smart currency formatter based on current language
-  const formatCurrencySmart = (amount) => {
-    return i18n.language === "ar"
-      ? formatCurrency(amount)
-      : formatCurrencyEnglish(amount);
-  };
+const SupplierPurchase = () => {
+  const { t } = useTranslation();
+  const { isRTL } = useSelector((state) => state.language);
+  const dispatch = useDispatch();
+  const { currency } = useCurrency();
+
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -90,6 +87,7 @@ const SupplierPurchase = () => {
       await loadPurchaseOrders();
     };
     loadData();
+    dispatch(fetchTenantInfo());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -156,7 +154,7 @@ const SupplierPurchase = () => {
     },
     {
       title: t("totalSpent"),
-      value: formatCurrencySmart(totalSpent),
+      value: `${totalSpent.toFixed(2)} ${currency()}`,
       icon: TrendingUp,
       color: "purple",
     },
@@ -269,7 +267,7 @@ const SupplierPurchase = () => {
       accessor: "totalAmount",
       render: (order) => (
         <div className="font-semibold text-gray-900 dark:text-white">
-          {formatCurrencySmart(calculateOrderTotal(order))}
+          {`${calculateOrderTotal(order).toFixed(2)} ${currency()}`}
         </div>
       ),
     },
@@ -581,7 +579,7 @@ const SupplierPurchase = () => {
                               {t("unitPrice")}
                             </label>
                             <p className="text-sm text-gray-900 dark:text-white">
-                              {formatCurrencySmart(item.unit_price)}
+                              {`${item.unit_price.toFixed(2)} ${currency()}`}
                             </p>
                           </div>
                           <div>
@@ -589,9 +587,7 @@ const SupplierPurchase = () => {
                               {t("subtotal")}
                             </label>
                             <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                              {formatCurrencySmart(
-                                (item.quantity || 0) * (item.unit_price || 0)
-                              )}
+                              {`${((item.quantity || 0) * (item.unit_price || 0)).toFixed(2)} ${currency()}`}
                             </p>
                           </div>
                         </div>
@@ -637,7 +633,7 @@ const SupplierPurchase = () => {
                     </span>
                   </div>
                   <span className="text-2xl font-bold text-blue-800 dark:text-blue-300">
-                    {formatCurrencySmart(calculateOrderTotal(viewData))}
+                    {`${calculateOrderTotal(viewData).toFixed(2)} ${currency()}`}
                   </span>
                 </div>
               </div>

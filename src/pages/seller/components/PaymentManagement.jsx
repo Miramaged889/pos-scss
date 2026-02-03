@@ -28,6 +28,8 @@ import {
 } from "../../../utils/formatters";
 import { CustomerInvoiceForm } from "../../../components/Forms/SellerForms";
 import { fetchCustomerInvoices } from "../../../store/slices/customerInvoiceSlice";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
+import { useCurrency } from "../../../hooks";
 
 const PaymentManagement = () => {
   const { t } = useTranslation();
@@ -36,6 +38,7 @@ const PaymentManagement = () => {
     (state) => state.customerInvoices
   );
   const dispatch = useDispatch();
+  const { currency } = useCurrency();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -49,6 +52,7 @@ const PaymentManagement = () => {
   // Fetch customer invoices on component mount
   useEffect(() => {
     dispatch(fetchCustomerInvoices());
+    dispatch(fetchTenantInfo());
   }, [dispatch]);
 
   // Convert customer invoices to payment format for display
@@ -127,13 +131,13 @@ const PaymentManagement = () => {
     },
     {
       title: t("totalRevenue"),
-      value: formatCurrencyEnglish(totalRevenue, t("currency")),
+      value: formatCurrencyEnglish(totalRevenue, currency()),
       icon: DollarSign,
       color: "green",
     },
     {
       title: t("totalTax"),
-      value: formatCurrencyEnglish(totalTax, t("currency")),
+      value: formatCurrencyEnglish(totalTax, currency()),
       icon: TrendingUp,
       color: "purple",
     },
@@ -190,9 +194,9 @@ const PaymentManagement = () => {
 
 ---------------------------------
 الوصف / Description: ${payment.description}
-المبلغ الفرعي / Subtotal: ${formatCurrencyEnglish(subtotal, t("currency"))}
-الضريبة / Tax: ${formatCurrencyEnglish(tax, t("currency"))}
-الإجمالي / Total: ${formatCurrencyEnglish(total, t("currency"))}
+المبلغ الفرعي / Subtotal: ${formatCurrencyEnglish(subtotal, currency())}
+الضريبة / Tax: ${formatCurrencyEnglish(tax, currency())}
+الإجمالي / Total: ${formatCurrencyEnglish(total, currency())}
 
 طريقة الدفع / Payment Method: ${
       payment.method === "cash"
@@ -254,7 +258,7 @@ const PaymentManagement = () => {
       render: (payment) => {
         return (
           <span className="font-semibold text-green-600 dark:text-green-400">
-            {formatCurrencyEnglish(payment.amount, t("currency"))}
+            {formatCurrencyEnglish(payment.amount, currency())}
           </span>
         );
       },
@@ -287,7 +291,7 @@ const PaymentManagement = () => {
       render: (payment) => {
         return (
           <span className="text-purple-600 dark:text-purple-400 font-medium">
-            {formatCurrencyEnglish(payment.tax || 0, t("currency"))}
+            {formatCurrencyEnglish(payment.tax || 0, currency())}
           </span>
         );
       },
@@ -734,7 +738,7 @@ const PaymentManagement = () => {
                     <span className="text-lg font-semibold text-green-600 dark:text-green-400">
                       {formatCurrencyEnglish(
                         selectedPayment.subtotal || 0,
-                        t("currency")
+                        currency()
                       )}
                     </span>
                   </div>
@@ -745,7 +749,7 @@ const PaymentManagement = () => {
                     <span className="text-lg font-semibold text-purple-600 dark:text-purple-400">
                       {formatCurrencyEnglish(
                         selectedPayment.tax || 0,
-                        t("currency")
+                        currency()
                       )}
                     </span>
                   </div>
@@ -756,7 +760,7 @@ const PaymentManagement = () => {
                     <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
                       {formatCurrencyEnglish(
                         selectedPayment.total || selectedPayment.amount,
-                        t("currency")
+                        currency()
                       )}
                     </span>
                   </div>

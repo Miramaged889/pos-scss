@@ -39,6 +39,26 @@ export const formatCurrencyEnglish = (amount, currency = "SAR") => {
 };
 
 /**
+ * Get currency display based on language mode
+ * @param {object} currencyData - Currency data from tenant API
+ * @param {boolean} isRTL - Is RTL mode (Arabic)
+ * @returns {string} - Currency code (English) or symbol (Arabic)
+ */
+export const getCurrencyDisplay = (currencyData, isRTL) => {
+  if (!currencyData) {
+    return isRTL ? "ر.س" : "SAR";
+  }
+
+  // If isRTL (Arabic mode), return symbol
+  if (isRTL) {
+    return currencyData.symbol || currencyData.Currency_code || "ر.س";
+  }
+
+  // If English mode, return code
+  return currencyData.code || currencyData.Currency_code || "SAR";
+};
+
+/**
  * Format date for display
  * @param {string|Date} date - The date to format
  * @param {string} locale - The locale for formatting (default: 'ar-SA')
@@ -322,10 +342,6 @@ export const numberToWords = (amount) => {
 
   const hundreds = [
     "", "مائة", "مئتان", "ثلاثمائة", "أربعمائة", "خمسمائة", "ستمائة", "سبعمائة", "ثمانمائة", "تسعمائة"
-  ];
-
-  const thousands = [
-    "", "ألف", "ألفان", "ثلاثة آلاف", "أربعة آلاف", "خمسة آلاف", "ستة آلاف", "سبعة آلاف", "ثمانية آلاف", "تسعة آلاف"
   ];
 
   const convertLessThanOneThousand = (num) => {

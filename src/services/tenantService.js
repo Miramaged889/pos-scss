@@ -117,14 +117,29 @@ const tenantService = {
   async getTenantInfo() {
     try {
       const subdomain = this.getSubdomain();
-      if (!subdomain) {
-        throw new Error("No subdomain found");
-      }
-
+      
       // Get tenant info directly using subdomain: /ten/tenants/{subdomain}/
       const endpoint = `/ten/tenants/${subdomain}/`;
       const response = await tenantApiService.get(endpoint);
-      return response.data || response;
+      const tenantData = response.data || response;
+      
+      // Extract currency information
+      if (tenantData.Currency) {
+        // Fetch full currency details if needed
+        if (tenantData.Currency.Currency_id) {
+          try {
+            const currencyEndpoint = `/ten/currencies/${tenantData.Currency.Currency_id}/`;
+            const currencyResponse = await tenantApiService.get(currencyEndpoint);
+            tenantData.currencyDetails = currencyResponse.data || currencyResponse;
+          } catch (currencyError) {
+            console.warn("Failed to fetch currency details:", currencyError);
+            // Use the currency data from tenant response
+            tenantData.currencyDetails = tenantData.Currency;
+          }
+        }
+      }
+      
+      return tenantData;
     } catch (error) {
       // If authentication is required but not available, return default tenant info
       if (error.message.includes("Authentication required")) {
@@ -135,6 +150,18 @@ const tenantService = {
           current_branches: 0,
           no_branches: 5, // Default limit as specified
           subdomain: this.getSubdomain(),
+          Currency: {
+            Currency_id: 1,
+            Currency_name: "Saudi Riyal",
+            Currency_code: "SAR"
+          },
+          currencyDetails: {
+            id: 1,
+            code: "SAR",
+            name: "Saudi Riyal",
+            symbol: "ر.س",
+            is_active: true
+          }
         };
       }
       throw new Error(`Failed to fetch tenant info: ${error.message}`);
@@ -144,22 +171,59 @@ const tenantService = {
   // Helper method to get subdomain
   getSubdomain() {
     const hostname = window.location.hostname;
-    if (hostname.includes(".posback.shop")) {
-      return hostname.split(".")[0];
-    } else if (hostname.includes(".localhost")) {
+    
+    // Handle custom localhost subdomains (e.g., ymy.localhost:5174)
+    if (hostname.includes(".localhost")) {
       return hostname.split(".")[0];
     }
-    return null;
+    
+    // Handle production subdomains (e.g., ymy.posback.shop, ymy.detalls-sa.com)
+    if (hostname.includes(".posback.shop") || hostname.includes(".detalls-sa.com")) {
+      return hostname.split(".")[0];
+    }
+    
+    // Handle regular localhost or Netlify deployment
+    if (hostname.includes("localhost") || hostname.includes("127.0.0.1") || hostname.includes("netlify.app")) {
+      // Try to get from localStorage first
+      const storedTenant = localStorage.getItem("tenant_subdomain");
+      if (storedTenant) {
+        return storedTenant;
+      }
+      
+      // Try to get from auth user data
+      const authData = localStorage.getItem("auth_user");
+      if (authData) {
+        try {
+          const userData = JSON.parse(authData);
+          if (userData && userData.tenant) {
+            return userData.tenant;
+          }
+        } catch (e) {
+          console.warn("Failed to parse auth_user data:", e);
+        }
+      }
+      
+      // Fallback to default tenant for development
+      console.warn("No subdomain detected, using fallback tenant 'ymy'");
+      return "ymy";
+    }
+    
+    // Handle other custom domains - extract first part if it has multiple dots
+    const parts = hostname.split(".");
+    if (parts.length > 2) {
+      return parts[0];
+    }
+    
+    // Final fallback
+    console.warn("Could not determine subdomain from hostname:", hostname);
+    return "ymy"; // Default fallback tenant
   },
 
   // Update tenant information (e.g., increase branch limit)
   async updateTenantInfo(tenantData) {
     try {
       const subdomain = this.getSubdomain();
-      if (!subdomain) {
-        throw new Error("No subdomain found");
-      }
-
+      
       // Prepare tenant data for API - handle Currency field
       const preparedData = { ...tenantData };
       
@@ -222,6 +286,53 @@ const tenantService = {
         maxBranches: 5, // Default limit as specified
         remainingBranches: 5,
       };
+    }
+  },
+
+  // Initialize tenant (used by useTenant hook)
+  async initializeTenant() {
+    try {
+      const subdomain = this.getSubdomain();
+      const tenantInfo = await this.getTenantInfo();
+      
+      return {
+        ...tenantInfo,
+        subdomain,
+        status: "success",
+        message: `Connected to ${subdomain} tenant`,
+      };
+    } catch (error) {
+      console.error("Failed to initialize tenant:", error);
+      
+      // Return fallback tenant info
+      const subdomain = this.getSubdomain();
+      return {
+        subdomain,
+        status: "error",
+        message: error.message,
+        current_branches: 0,
+        no_branches: 5,
+        Currency: {
+          Currency_id: 1,
+          Currency_name: "Saudi Riyal",
+          Currency_code: "SAR"
+        },
+        currencyDetails: {
+          id: 1,
+          code: "SAR",
+          name: "Saudi Riyal",
+          symbol: "ر.س",
+          is_active: true
+        }
+      };
+    }
+  },
+
+  // Set tenant for development (used by useTenant hook)
+  setTenantForDevelopment(subdomain) {
+    if (subdomain) {
+      localStorage.setItem("tenant_subdomain", subdomain);
+      console.log(`Development tenant set to: ${subdomain}`);
     }
   },
 };

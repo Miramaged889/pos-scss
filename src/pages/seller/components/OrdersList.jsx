@@ -25,13 +25,16 @@ import {
   formatNumberEnglish,
 } from "../../../utils";
 import { fetchOrders } from "../../../store/slices/ordersSlice";
+import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 import { productService, customerService } from "../../../services";
+import { useCurrency } from "../../../hooks";
 
 const OrdersList = () => {
   const { t } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
   const { orders } = useSelector((state) => state.orders);
   const dispatch = useDispatch();
+  const { currency } = useCurrency();
 
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -48,6 +51,7 @@ const OrdersList = () => {
   // Load orders, products, and customers from API on component mount
   useEffect(() => {
     dispatch(fetchOrders());
+    dispatch(fetchTenantInfo());
     fetchProducts();
     fetchCustomersData();
   }, [dispatch]);
@@ -292,7 +296,7 @@ const OrdersList = () => {
         >
           <DollarSign className="w-4 h-4 text-green-600 dark:text-green-400" />
           <span className="font-semibold text-green-600 dark:text-green-400">
-            {formatCurrencyEnglish(getOrderTotal(order), t("currency"))}
+            {formatCurrencyEnglish(getOrderTotal(order), currency())}
           </span>
         </div>
       ),
@@ -380,7 +384,7 @@ const OrdersList = () => {
           (sum, order) => sum + parseFloat(order.total_amount || 0),
           0
         ),
-        t("currency")
+        currency()
       ),
       icon: DollarSign,
       color: "purple",
@@ -596,7 +600,7 @@ const OrdersList = () => {
                   <p className="text-green-600 dark:text-green-400 font-semibold">
                     {formatCurrencyEnglish(
                       parseFloat(selectedOrder.total_amount || 0),
-                      t("currency")
+                      currency()
                     )}
                   </p>
                 </div>
@@ -654,7 +658,7 @@ const OrdersList = () => {
                         {formatNumberEnglish(item.quantity)} ×{" "}
                         {formatCurrencyEnglish(
                           getProductPrice(item.product_id),
-                          t("currency")
+                          currency()
                         )}
                       </span>
                     </div>
@@ -669,7 +673,7 @@ const OrdersList = () => {
                   <p className="text-gray-900 dark:text-white">
                     {formatCurrencyEnglish(
                       parseFloat(selectedOrder.subtotal || 0),
-                      t("currency")
+                      currency()
                     )}
                   </p>
                 </div>
@@ -680,7 +684,7 @@ const OrdersList = () => {
                   <p className="text-gray-900 dark:text-white">
                     {formatCurrencyEnglish(
                       parseFloat(selectedOrder.discount || 0),
-                      t("currency")
+                      currency()
                     )}
                   </p>
                 </div>
