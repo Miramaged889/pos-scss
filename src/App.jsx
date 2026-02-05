@@ -5,7 +5,7 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
-import { Provider, useSelector } from "react-redux";
+import { Provider, useSelector, useDispatch } from "react-redux";
 import { useTranslation } from "react-i18next";
 import { Toaster } from "react-hot-toast";
 
@@ -18,11 +18,18 @@ import KitchenDashboard from "./pages/kitchen/KitchenDashboard";
 import DeliveryDashboard from "./pages/delivery/DeliveryDashboard";
 import ManagerDashboard from "./pages/manager/ManagerDashboard";
 import { getRouteForRole } from "./utils/roleRouting";
+import { restoreAuth } from "./store/slices/authSlice";
 
 const AppContent = () => {
+  const dispatch = useDispatch();
   const { i18n } = useTranslation();
   const { isAuthenticated, role } = useSelector((state) => state.auth);
   const { currentLanguage, isRTL } = useSelector((state) => state.language);
+
+  // Restore auth state from localStorage on app initialization
+  useEffect(() => {
+    dispatch(restoreAuth());
+  }, [dispatch]);
 
   useEffect(() => {
     // Sync i18n with Redux state

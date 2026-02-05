@@ -24,7 +24,7 @@ import {
   updateCustomerInvoice,
 } from "../../../store/slices/customerInvoiceSlice";
 import { fetchProducts } from "../../../store/slices/inventorySlice";
-import { customerService } from "../../../services";
+import { customerService, categoriesService, subcategoriesService, currencyService } from "../../../services";
 
 const CustomerInvoiceForm = ({
   isOpen,
@@ -65,13 +65,17 @@ const CustomerInvoiceForm = ({
   const [subcategoryFilter, setSubcategoryFilter] = useState("");
   const [barcodeSearch, setBarcodeSearch] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // Categories and subcategories from API
+  const [categories, setCategories] = useState([]);
+  const [subcategories, setSubcategories] = useState([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+  const [loadingSubcategories, setLoadingSubcategories] = useState(false);
+  
+  // Payment methods from API
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false);
 
-  const reverseCategoryMapping = {
-    main: "main course",
-    side: "side dish",
-    beverages: "beverages",
-    desserts: "desserts",
-  };
 
   // Fetch customers when form opens
   useEffect(() => {
@@ -102,12 +106,134 @@ const CustomerInvoiceForm = ({
     }
   }, [isOpen, dispatch]);
 
+  // Fetch categories from API
+  useEffect(() => {
+    const fetchCategories = async () => {
+      if (!isOpen) return;
+      try {
+        setLoadingCategories(true);
+        const response = await categoriesService.getCategories();
+        const categoriesList = Array.isArray(response) 
+          ? response 
+          : response.results || response.data || [];
+        setCategories(categoriesList);
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+        setCategories([]);
+      } finally {
+        setLoadingCategories(false);
+      }
+    };
+
+    fetchCategories();
+  }, [isOpen]);
+
+  // Fetch subcategories from API when category filter changes
+  useEffect(() => {
+    const fetchSubcategories = async () => {
+      if (!isOpen) return;
+      try {
+        setLoadingSubcategories(true);
+        const params = categoryFilter ? { category: categoryFilter } : {};
+        const response = await subcategoriesService.getSubcategories(params);
+        const subcategoriesList = Array.isArray(response)
+          ? response
+          : response.results || response.data || [];
+        setSubcategories(subcategoriesList);
+        // Reset subcategory filter when category changes
+        if (categoryFilter) {
+          setSubcategoryFilter("");
+        }
+      } catch (error) {
+        console.error("Error fetching subcategories:", error);
+        setSubcategories([]);
+      } finally {
+        setLoadingSubcategories(false);
+      }
+    };
+
+    fetchSubcategories();
+  }, [isOpen, categoryFilter]);
+
+  // Fetch payment methods from API
+  useEffect(() => {
+    const fetchPaymentMethods = async () => {
+      if (!isOpen) return;
+      try {
+        setLoadingPaymentMethods(true);
+        const response = await currencyService.getCurrencies();
+        const currenciesList = Array.isArray(response)
+          ? response
+          : response.results || response.data || [];
+        
+        // Filter only active currencies and map to payment methods format
+        const activePaymentMethods = currenciesList
+          .filter((currency) => currency.is_active === true)
+          .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+          .map((currency) => ({
+            value: currency.id?.toString() || String(currency.id || ""),
+            label: currency.name || currency.code || "",
+          }));
+        
+        setPaymentMethods(activePaymentMethods);
+      } catch (error) {
+        console.error("Error fetching payment methods:", error);
+        setPaymentMethods([]);
+      } finally {
+        setLoadingPaymentMethods(false);
+      }
+    };
+
+    fetchPaymentMethods();
+  }, [isOpen]);
+
+  // Helper function to get category name (handles both object and string)
+  const getCategoryName = (category) => {
+    if (!category) return "";
+    
+    // If category is an object with name
+    if (typeof category === "object" && category.name) {
+      return category.name;
+    }
+    
+    // If category is an object with id, try to find it in categories list
+    if (typeof category === "object" && category.id) {
+      const foundCategory = categories.find(c => c.id === category.id || c.id?.toString() === category.id?.toString());
+      return foundCategory?.name || category.id.toString();
+    }
+    
+    // If category is an ID (number or string), try to find it in categories list
+    const foundCategory = categories.find(c => c.id?.toString() === String(category));
+    if (foundCategory) {
+      return foundCategory.name;
+    }
+    
+    return String(category);
+  };
+
+
   // Filter products based on category, subcategory, and search
   const filteredProducts = products.filter((product) => {
+    // Get product category ID (could be object with id or direct id)
+    const productCategoryId = 
+      typeof product.category === "object" && product.category?.id
+        ? product.category.id.toString()
+        : typeof product.category === "object" && product.category
+        ? String(product.category)
+        : product.category?.toString() || "";
+    
+    // Get product subcategory ID (could be object with id or direct id)
+    const productSubcategoryId =
+      typeof product.subcategory === "object" && product.subcategory?.id
+        ? product.subcategory.id.toString()
+        : typeof product.subcategory === "object" && product.subcategory
+        ? String(product.subcategory)
+        : product.subcategory?.toString() || "";
+    
     const matchesCategory =
-      !categoryFilter || product.category === categoryFilter;
+      !categoryFilter || productCategoryId === categoryFilter;
     const matchesSubcategory =
-      !subcategoryFilter || product.subcategory === subcategoryFilter;
+      !subcategoryFilter || productSubcategoryId === subcategoryFilter;
     const matchesSearch =
       !searchTerm ||
       product.english_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -123,13 +249,7 @@ const CustomerInvoiceForm = ({
     );
   });
 
-  // Get unique categories and subcategories
-  const categories = [
-    ...new Set(products.map((p) => p.category).filter(Boolean)),
-  ];
-  const subcategories = [
-    ...new Set(products.map((p) => p.subcategory).filter(Boolean)),
-  ];
+  // Categories and subcategories are now fetched from API, no need to extract from products
 
   // Handle product selection
   const handleProductSelect = (product) => {
@@ -463,11 +583,13 @@ const CustomerInvoiceForm = ({
                     options={[
                       { value: "", label: t("allCategories") },
                       ...categories.map((cat) => ({
-                        value: cat,
-                        label: reverseCategoryMapping[cat] || cat,
+                        value: cat.id?.toString() || String(cat.id || ""),
+                        label: cat.name || cat.id?.toString() || "",
                       })),
                     ]}
                     icon={Filter}
+                    disabled={loadingCategories}
+                    helperText={loadingCategories ? t("loading") : ""}
                   />
 
                   {/* Subcategory Filter */}
@@ -479,11 +601,19 @@ const CustomerInvoiceForm = ({
                     options={[
                       { value: "", label: t("allSubcategories") },
                       ...subcategories.map((sub) => ({
-                        value: sub,
-                        label: sub,
+                        value: sub.id?.toString() || String(sub.id || ""),
+                        label: sub.name || sub.id?.toString() || "",
                       })),
                     ]}
                     icon={Filter}
+                    disabled={loadingSubcategories || !categoryFilter}
+                    helperText={
+                      loadingSubcategories
+                        ? t("loading")
+                        : !categoryFilter
+                        ? t("selectCategoryFirst")
+                        : ""
+                    }
                   />
 
                   {/* Search by Name */}
@@ -584,7 +714,7 @@ const CustomerInvoiceForm = ({
                             product.name}
                         </h4>
                         <span className="text-sm text-gray-500 dark:text-gray-400">
-                          {product.category}
+                          {getCategoryName(product.category) || t("noCategory")}
                         </span>
                       </div>
                       <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
@@ -800,12 +930,11 @@ const CustomerInvoiceForm = ({
                   }
                   options={[
                     { value: "", label: t("selectPaymentMethod") },
-                    { value: "cash", label: t("cash") },
-                    { value: "card", label: t("card") },
-                    { value: "knet", label: t("knet") },
-                    { value: "digital", label: t("digital") },
+                    ...paymentMethods,
                   ]}
                   icon={DollarSign}
+                  disabled={loadingPaymentMethods}
+                  helperText={loadingPaymentMethods ? t("loading") : ""}
                 />
 
                 <FormField

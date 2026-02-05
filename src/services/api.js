@@ -180,14 +180,14 @@ export const API_ENDPOINTS = {
     GET: "seller/receipts/:id/",
   },
 
-  // // Payment Methods
-  // PAYMENT_METHODS: {
-  //   LIST: "/payment-methods",
-  //   CREATE: "/payment-methods",
-  //   UPDATE: "/payment-methods/:id",
-  //   DELETE: "/payment-methods/:id",
-  //   GET: "/payment-methods/:id",
-  // },
+  // Payment Methods
+  PAYMENT_METHODS: {
+    LIST: "seller/currency/",
+    CREATE: "seller/currency/",
+    UPDATE: "seller/currency/:id/",
+    DELETE: "seller/currency/:id/",
+    GET: "seller/currency/:id/",
+  },
 
   // Categories
   CATEGORIES: {

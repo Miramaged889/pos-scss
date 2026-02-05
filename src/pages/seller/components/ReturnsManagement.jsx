@@ -12,8 +12,6 @@ import {
   Plus,
   Search,
   Filter,
-  Edit,
-  Trash2,
   X,
   Calendar,
   User,
@@ -34,7 +32,7 @@ import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 
 const ReturnsManagement = () => {
   const { t } = useTranslation();
-  const { isRTL } = useSelector((state) => state.language);
+  const { isRTL, currentLanguage } = useSelector((state) => state.language);
   const dispatch = useDispatch();
   const { currency } = useCurrency();
   const [searchTerm, setSearchTerm] = useState("");
@@ -45,9 +43,6 @@ const ReturnsManagement = () => {
   const [editingReturn, setEditingReturn] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedReturn, setSelectedReturn] = useState(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
 
   // Fetch tenant info
   useEffect(() => {
@@ -118,19 +113,9 @@ const ReturnsManagement = () => {
     setShowReturnForm(true);
   };
 
-  const handleEditReturn = (returnItem) => {
-    setEditingReturn(returnItem);
-    setShowReturnForm(true);
-  };
-
   const handleViewReturn = (returnItem) => {
     setSelectedReturn(returnItem);
     setShowViewModal(true);
-  };
-
-  const handleDeleteReturn = (returnItem) => {
-    setSelectedReturn(returnItem);
-    setShowDeleteModal(true);
   };
 
   const handleReturnSubmit = async (returnData) => {
@@ -141,15 +126,19 @@ const ReturnsManagement = () => {
           t("returnUpdatedSuccessfully") || "Return updated successfully"
         );
       } else {
-        await returnService.createReturn(returnData);
+        const result = await returnService.createReturn(returnData);
+        // Handle array response (multiple returns created)
+        const returnCount = Array.isArray(result) ? result.length : 1;
         toast.success(
-          t("returnCreatedSuccessfully") || "Return created successfully"
+          returnCount > 1
+            ? `${returnCount} ${t("returnsCreatedSuccessfully") || "returns created successfully"}`
+            : t("returnCreatedSuccessfully") || "Return created successfully"
         );
       }
 
       // Reload returns from API
       const response = await returnService.getReturns();
-      setReturns(response.data || response);
+      setReturns(Array.isArray(response) ? response : response.data || response);
       setShowReturnForm(false);
       setEditingReturn(null);
     } catch (err) {
@@ -158,44 +147,6 @@ const ReturnsManagement = () => {
       setError(errorMessage);
       toast.error(errorMessage);
     }
-  };
-
-  const confirmDelete = async () => {
-    if (!selectedReturn) return;
-
-    setIsDeleting(true);
-
-    try {
-      // Delete the return via API
-      await returnService.deleteReturn(selectedReturn.id);
-
-      // Update local state
-      setReturns(returns.filter((r) => r.id !== selectedReturn.id));
-
-      // Reset states
-      setShowDeleteModal(false);
-      setSelectedReturn(null);
-      setDeleteConfirmationText("");
-
-      // Show success toast
-      toast.success(
-        `Return ${formatReturnId(selectedReturn.id)} deleted successfully`
-      );
-    } catch (error) {
-      console.error("Error deleting return:", error);
-      const errorMessage = error.message || t("errorDeletingReturn");
-      setError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  const handleDeleteModalClose = () => {
-    if (isDeleting) return; // Prevent closing while deleting
-    setShowDeleteModal(false);
-    setSelectedReturn(null);
-    setDeleteConfirmationText("");
   };
 
   const formatReturnId = (returnId) => {
@@ -218,21 +169,19 @@ const ReturnsManagement = () => {
       ),
     },
     {
-      header: t("orderId"),
-      accessor: "orderId",
-      render: (returnItem) => (
-        <span className="font-mono text-sm font-bold text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded border border-blue-200 dark:border-blue-800">
-          {returnItem.orderId}
-        </span>
-      ),
-    },
-    {
       header: t("customer"),
       accessor: "customerName",
     },
     {
       header: t("product"),
       accessor: "productName",
+      render: (returnItem) => (
+        <span className="text-gray-900 dark:text-white">
+          {currentLanguage === "ar" 
+            ? (returnItem.productArabicName || returnItem.productName)
+            : (returnItem.productEnglishName || returnItem.productName)}
+        </span>
+      ),
     },
     {
       header: t("quantity"),
@@ -289,20 +238,6 @@ const ReturnsManagement = () => {
             title={t("viewReturn")}
           >
             <Eye className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleEditReturn(returnItem)}
-            className="p-2 text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-lg transition-all duration-200 hover:scale-110"
-            title={t("editReturn")}
-          >
-            <Edit className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleDeleteReturn(returnItem)}
-            className="p-2 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200 hover:scale-110"
-            title={t("deleteReturn")}
-          >
-            <Trash2 className="w-4 h-4" />
           </button>
         </div>
       ),
@@ -471,26 +406,6 @@ const ReturnsManagement = () => {
                         isRTL ? "text-right" : "text-left"
                       }`}
                     >
-                      {t("orderId")}
-                    </label>
-                    <div
-                      className={`flex items-center gap-2 ${
-                        isRTL ? "flex-row" : ""
-                      }`}
-                    >
-                      <Hash className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                      <span className="font-mono text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 px-2 py-1 rounded">
-                        {selectedReturn.orderId}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label
-                      className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 ${
-                        isRTL ? "text-right" : "text-left"
-                      }`}
-                    >
                       {t("customer")}
                     </label>
                     <div
@@ -560,7 +475,9 @@ const ReturnsManagement = () => {
                       {t("product")}
                     </label>
                     <span className="text-gray-900 dark:text-white">
-                      {selectedReturn.productName}
+                      {currentLanguage === "ar" 
+                        ? (selectedReturn.productArabicName || selectedReturn.productName)
+                        : (selectedReturn.productEnglishName || selectedReturn.productName)}
                     </span>
                   </div>
                   <div className={isRTL ? "text-right" : "text-left"}>
@@ -619,188 +536,11 @@ const ReturnsManagement = () => {
               }`}
             >
               <button
-                onClick={() => {
-                  setShowViewModal(false);
-                  handleEditReturn(selectedReturn);
-                }}
-                className={`flex items-center gap-2 px-4 py-2 bg-orange-600 dark:bg-orange-500 text-white rounded-lg hover:bg-orange-700 dark:hover:bg-orange-600 transition-all duration-200 hover:scale-105 ${
-                  isRTL ? "flex-row" : ""
-                }`}
-              >
-                <Edit className="w-4 h-4" />
-                {t("editReturn")}
-              </button>
-              <button
                 onClick={() => setShowViewModal(false)}
                 className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors duration-200"
               >
                 {t("close")}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Enhanced Delete Confirmation Modal */}
-      {showDeleteModal && selectedReturn && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-lg w-full animate-fade-in">
-            <div className="p-6">
-              {/* Header */}
-              <div
-                className={`flex items-center gap-3 mb-6 ${
-                  isRTL ? "flex-row" : ""
-                }`}
-              >
-                <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                  <Trash2 className="w-6 h-6 text-red-600 dark:text-red-400" />
-                </div>
-                <div className={isRTL ? "text-right" : "text-left"}>
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    {t("deleteReturn")}
-                  </h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {t("thisActionCannotBeUndone")}
-                  </p>
-                </div>
-              </div>
-
-              {/* Return Details */}
-              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-6">
-                <h3
-                  className={`text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 ${
-                    isRTL ? "text-right" : "text-left"
-                  }`}
-                >
-                  {t("returnToDelete")}
-                </h3>
-                <div className="space-y-2">
-                  <div
-                    className={`flex justify-between items-center ${
-                      isRTL ? "flex-row-reverse" : ""
-                    }`}
-                  >
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      {t("returnId")}:
-                    </span>
-                    <span className="font-mono text-sm font-semibold text-gray-900 dark:text-white">
-                      {formatReturnId(selectedReturn.id)}
-                    </span>
-                  </div>
-                  <div
-                    className={`flex justify-between items-center ${
-                      isRTL ? "flex-row-reverse" : ""
-                    }`}
-                  >
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      {t("customer")}:
-                    </span>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">
-                      {selectedReturn.customerName}
-                    </span>
-                  </div>
-                  <div
-                    className={`flex justify-between items-center ${
-                      isRTL ? "flex-row-reverse" : ""
-                    }`}
-                  >
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      {t("product")}:
-                    </span>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">
-                      {selectedReturn.productName}
-                    </span>
-                  </div>
-                  <div
-                    className={`flex justify-between items-center ${
-                      isRTL ? "flex-row-reverse" : ""
-                    }`}
-                  >
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      {t("refundAmount")}:
-                    </span>
-                    <span className="text-sm font-semibold text-green-600 dark:text-green-400">
-                      {formatCurrencyEnglish(
-                        selectedReturn.refundAmount || 0,
-                        currency()
-                      )}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Confirmation Input */}
-              <div className="mb-6">
-                <label
-                  className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 ${
-                    isRTL ? "text-right" : "text-left"
-                  }`}
-                >
-                  {t("typeDeleteToConfirm")}
-                </label>
-                <input
-                  type="text"
-                  value={deleteConfirmationText}
-                  onChange={(e) => setDeleteConfirmationText(e.target.value)}
-                  placeholder={t("typeDelete")}
-                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-200 ${
-                    isRTL ? "text-right" : "text-left"
-                  }`}
-                  dir={isRTL ? "rtl" : "ltr"}
-                  disabled={isDeleting}
-                />
-              </div>
-
-              {/* Warning Message */}
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mb-6">
-                <div
-                  className={`flex items-start gap-2 ${
-                    isRTL ? "flex-row-reverse" : ""
-                  }`}
-                >
-                  <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
-                  <p
-                    className={`text-sm text-yellow-800 dark:text-yellow-300 ${
-                      isRTL ? "text-right" : "text-left"
-                    }`}
-                  >
-                    {t("deleteReturnWarning")}
-                  </p>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className={`flex gap-3 ${isRTL ? "flex-row-reverse" : ""}`}>
-                <button
-                  onClick={confirmDelete}
-                  disabled={
-                    deleteConfirmationText.toLowerCase() !== "delete" ||
-                    isDeleting
-                  }
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-600 dark:bg-red-500 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-600 dark:disabled:hover:bg-red-500 ${
-                    isRTL ? "flex-row-reverse" : ""
-                  }`}
-                >
-                  {isDeleting ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      {t("deleting")}
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="w-4 h-4" />
-                      {t("confirmDelete")}
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={handleDeleteModalClose}
-                  disabled={isDeleting}
-                  className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {t("cancel")}
-                </button>
-              </div>
             </div>
           </div>
         </div>

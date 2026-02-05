@@ -34,7 +34,7 @@ import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 
 const ReturnsManagement = () => {
   const { t } = useTranslation();
-  const { isRTL } = useSelector((state) => state.language);
+  const { isRTL, currentLanguage } = useSelector((state) => state.language);
   const dispatch = useDispatch();
   const { currency } = useCurrency();
   const [searchTerm, setSearchTerm] = useState("");
@@ -137,15 +137,19 @@ const ReturnsManagement = () => {
           t("returnUpdatedSuccessfully") || "Return updated successfully"
         );
       } else {
-        await returnService.createReturn(returnData);
+        const result = await returnService.createReturn(returnData);
+        // Handle array response (multiple returns created)
+        const returnCount = Array.isArray(result) ? result.length : 1;
         toast.success(
-          t("returnCreatedSuccessfully") || "Return created successfully"
+          returnCount > 1
+            ? `${returnCount} ${t("returnsCreatedSuccessfully") || "returns created successfully"}`
+            : t("returnCreatedSuccessfully") || "Return created successfully"
         );
       }
 
       // Reload returns from API
       const response = await returnService.getReturns();
-      setReturns(response.data || response);
+      setReturns(Array.isArray(response) ? response : response.data || response);
       setShowReturnForm(false);
       setEditingReturn(null);
     } catch (err) {
@@ -214,21 +218,19 @@ const ReturnsManagement = () => {
       ),
     },
     {
-      header: t("orderId"),
-      accessor: "orderId",
-      render: (returnItem) => (
-        <span className="font-mono text-sm font-bold text-blue-800 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded border border-blue-200 dark:border-blue-800">
-          {returnItem.orderId}
-        </span>
-      ),
-    },
-    {
       header: t("customer"),
       accessor: "customerName",
     },
     {
       header: t("product"),
       accessor: "productName",
+      render: (returnItem) => (
+        <span className="text-gray-900 dark:text-white">
+          {currentLanguage === "ar" 
+            ? (returnItem.productArabicName || returnItem.productName)
+            : (returnItem.productEnglishName || returnItem.productName)}
+        </span>
+      ),
     },
     {
       header: t("quantity"),
@@ -467,26 +469,6 @@ const ReturnsManagement = () => {
                         isRTL ? "text-right" : "text-left"
                       }`}
                     >
-                      {t("orderId")}
-                    </label>
-                    <div
-                      className={`flex items-center gap-2 ${
-                        isRTL ? "flex-row" : ""
-                      }`}
-                    >
-                      <Hash className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                      <span className="font-mono text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 px-2 py-1 rounded">
-                        {selectedReturn.orderId}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label
-                      className={`block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 ${
-                        isRTL ? "text-right" : "text-left"
-                      }`}
-                    >
                       {t("customer")}
                     </label>
                     <div
@@ -556,7 +538,9 @@ const ReturnsManagement = () => {
                       {t("product")}
                     </label>
                     <span className="text-gray-900 dark:text-white">
-                      {selectedReturn.productName}
+                      {currentLanguage === "ar" 
+                        ? (selectedReturn.productArabicName || selectedReturn.productName)
+                        : (selectedReturn.productEnglishName || selectedReturn.productName)}
                     </span>
                   </div>
                   <div className={isRTL ? "text-right" : "text-left"}>
@@ -704,7 +688,9 @@ const ReturnsManagement = () => {
                       {t("product")}:
                     </span>
                     <span className="text-sm font-medium text-gray-900 dark:text-white">
-                      {selectedReturn.productName}
+                      {currentLanguage === "ar" 
+                        ? (selectedReturn.productArabicName || selectedReturn.productName)
+                        : (selectedReturn.productEnglishName || selectedReturn.productName)}
                     </span>
                   </div>
                   <div

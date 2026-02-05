@@ -26,12 +26,13 @@ import {
   formatDateTimeEnglish,
 } from "../../../utils";
 import { supplierService } from "../../../services/supplierService";
+import { productService } from "../../../services/productService";
 import { useCurrency } from "../../../hooks";
 import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 
 const SupplierPurchase = () => {
   const { t } = useTranslation();
-  const { isRTL } = useSelector((state) => state.language);
+  const { isRTL, currentLanguage } = useSelector((state) => state.language);
   const dispatch = useDispatch();
   const { currency } = useCurrency();
 
@@ -45,6 +46,7 @@ const SupplierPurchase = () => {
   const [viewData, setViewData] = useState(null);
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [suppliersMap, setSuppliersMap] = useState({});
+  const [products, setProducts] = useState([]);
 
   // Load suppliers and create a mapping of ID to name
   const loadSuppliers = async () => {
@@ -61,6 +63,18 @@ const SupplierPurchase = () => {
     } catch (error) {
       console.error("Error loading suppliers:", error);
       setSuppliersMap({});
+    }
+  };
+
+  // Load products from API
+  const loadProducts = async () => {
+    try {
+      const response = await productService.getProducts();
+      const productsList = Array.isArray(response) ? response : response.results || response || [];
+      setProducts(productsList);
+    } catch (error) {
+      console.error("Error loading products:", error);
+      setProducts([]);
     }
   };
 
@@ -84,6 +98,7 @@ const SupplierPurchase = () => {
   useEffect(() => {
     const loadData = async () => {
       await loadSuppliers();
+      await loadProducts();
       await loadPurchaseOrders();
     };
     loadData();
@@ -117,6 +132,56 @@ const SupplierPurchase = () => {
   // Helper function to get supplier name by ID
   const getSupplierName = (supplierId) => {
     return suppliersMap[supplierId] || "N/A";
+  };
+
+  // Helper function to get item name based on current language
+  const getItemName = (item) => {
+    if (!item) return "";
+    
+    // Check if item has separate Arabic and English name fields
+    const arabicName = item.item_arabic_name || item.arabic_name || item.name_ar;
+    const englishName = item.item_english_name || item.english_name || item.name_en;
+    
+    // Return name based on current language
+    if (currentLanguage === "ar") {
+      return arabicName || item.item_name || item.name || "";
+    } else {
+      return englishName || item.item_name || item.name || "";
+    }
+  };
+
+  // Helper function to get product barcode from API based on item name
+  const getItemBarcode = (item) => {
+    if (!item) return null;
+    
+    // First check if item already has barcode
+    if (item.barcode) {
+      return item.barcode;
+    }
+    
+    // Get item name to search for product
+    const itemName = getItemName(item);
+    const originalItemName = item.item_name || item.name;
+    
+    if (!itemName && !originalItemName) return null;
+    
+    // Search for product in products list by matching all possible name fields
+    const matchingProduct = products.find(
+      (product) =>
+        // Match by displayed name (based on current language)
+        product.arabic_name === itemName ||
+        product.english_name === itemName ||
+        product.name === itemName ||
+        product.nameEn === itemName ||
+        // Match by original item name
+        product.arabic_name === originalItemName ||
+        product.english_name === originalItemName ||
+        product.name === originalItemName ||
+        product.nameEn === originalItemName
+    );
+    
+    // Return barcode from product if found
+    return matchingProduct?.barcode || null;
   };
 
   // Filter purchase orders
@@ -243,7 +308,7 @@ const SupplierPurchase = () => {
               key={index}
               className="text-sm text-gray-600 dark:text-gray-400"
             >
-              {item.item_name} × {item.quantity}
+              {getItemName(item)} × {item.quantity}
               {item.barcode
                 ? ` • ${t("barcode")}: ${item.barcode}`
                 : ""}
@@ -555,7 +620,7 @@ const SupplierPurchase = () => {
                               {t("itemName")}
                             </label>
                             <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {item.item_name}
+                              {getItemName(item)}
                             </p>
                           </div>
                           <div>
@@ -563,7 +628,7 @@ const SupplierPurchase = () => {
                               {t("barcode")}
                             </label>
                             <p className="text-sm text-gray-900 dark:text-white">
-                              {item.barcode || "-"}
+                              {getItemBarcode(item) || "-"}
                             </p>
                           </div>
                           <div>
@@ -579,7 +644,7 @@ const SupplierPurchase = () => {
                               {t("unitPrice")}
                             </label>
                             <p className="text-sm text-gray-900 dark:text-white">
-                              {`${item.unit_price.toFixed(2)} ${currency()}`}
+                              {`${(parseFloat(item.unit_price) || 0).toFixed(2)} ${currency()}`}
                             </p>
                           </div>
                           <div>
@@ -587,7 +652,7 @@ const SupplierPurchase = () => {
                               {t("subtotal")}
                             </label>
                             <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                              {`${((item.quantity || 0) * (item.unit_price || 0)).toFixed(2)} ${currency()}`}
+                              {`${((item.quantity || 0) * (parseFloat(item.unit_price) || 0)).toFixed(2)} ${currency()}`}
                             </p>
                           </div>
                         </div>

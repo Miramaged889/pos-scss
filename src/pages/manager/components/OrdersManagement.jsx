@@ -111,7 +111,7 @@ const OrdersManagement = () => {
   // Helper function to get both English and Arabic product names
   const getProductNameBothLanguages = (productId) => {
     if (!productId)
-      return { english: "Unknown Product", arabic: "منتج غير معروف" };
+      return { english: t("unknownProduct"), arabic: t("unknownProduct") };
 
     // Extract actual ID from strings like "Product #3"
     let actualId = productId;
@@ -133,13 +133,13 @@ const OrdersManagement = () => {
 
     if (product) {
       return {
-        english: product.nameEn || product.name || `Product #${actualId}`,
-        arabic: product.name || product.nameEn || `منتج #${actualId}`,
+        english: product.nameEn || product.name || `${t("productNumber")}${actualId}`,
+        arabic: product.name || product.nameEn || `${t("productNumber")}${actualId}`,
       };
     }
     return {
-      english: `Product #${actualId}`,
-      arabic: `منتج #${actualId}`,
+      english: `${t("productNumber")}${actualId}`,
+      arabic: `${t("productNumber")}${actualId}`,
     };
   };
 
@@ -170,7 +170,7 @@ const OrdersManagement = () => {
 
   // Helper function to get customer name by ID
   const getCustomerName = (customerId) => {
-    if (!customerId) return "Unknown Customer";
+    if (!customerId) return t("unknownCustomer");
 
     // Extract actual ID from strings like "Customer #1"
     let actualId = customerId;
@@ -191,14 +191,14 @@ const OrdersManagement = () => {
     );
 
     if (customer) {
-      return customer.customer_name || customer.name || `Customer #${actualId}`;
+      return customer.customer_name || customer.name || `${t("customerNumber")}${actualId}`;
     }
-    return `Customer #${actualId}`;
+    return `${t("customerNumber")}${actualId}`;
   };
 
   // Helper function to get customer phone by ID
   const getCustomerPhone = (customerId) => {
-    if (!customerId) return "N/A";
+    if (!customerId) return t("notAvailable");
 
     // Extract actual ID from strings like "Customer #1"
     let actualId = customerId;
@@ -218,12 +218,12 @@ const OrdersManagement = () => {
         c.id === customerId.toString()
     );
 
-    return customer ? customer.customer_phone || customer.phone : "N/A";
+    return customer ? customer.customer_phone || customer.phone : t("notAvailable");
   };
 
   // Helper function to get customer address by ID
   const getCustomerAddress = (customerId) => {
-    if (!customerId) return "N/A";
+    if (!customerId) return t("notAvailable");
 
     // Extract actual ID from strings like "Customer #1"
     let actualId = customerId;
@@ -243,12 +243,12 @@ const OrdersManagement = () => {
         c.id === customerId.toString()
     );
 
-    return customer ? customer.customer_address || customer.address : "N/A";
+    return customer ? customer.customer_address || customer.address : t("notAvailable");
   };
 
   // Helper function to get seller name by ID
   const getSellerName = (sellerId) => {
-    if (!sellerId) return "Unknown Seller";
+    if (!sellerId) return t("unknownSeller");
 
     // Extract actual ID from strings like "Seller #2"
     let actualId = sellerId;
@@ -272,13 +272,13 @@ const OrdersManagement = () => {
       ? seller.username ||
           seller.name ||
           seller.user_name ||
-          `Seller #${actualId}`
-      : `Seller #${actualId}`;
+          `${t("sellerNumber")}${actualId}`
+      : `${t("sellerNumber")}${actualId}`;
   };
 
   // Helper function to get seller email by ID
   const getSellerEmail = (sellerId) => {
-    if (!sellerId) return "N/A";
+    if (!sellerId) return t("notAvailable");
 
     // Extract actual ID from strings like "Seller #2"
     let actualId = sellerId;
@@ -298,7 +298,7 @@ const OrdersManagement = () => {
         s.id === sellerId.toString()
     );
 
-    return seller ? seller.email || seller.user_email : "N/A";
+    return seller ? seller.email || seller.user_email : t("notAvailable");
   };
 
   const filterOrders = useCallback(() => {
@@ -472,10 +472,10 @@ const OrdersManagement = () => {
         return (
           <div>
             <p className="font-medium text-gray-900 dark:text-white">
-              {customersLoading ? "..." : getCustomerName(customerId)}
+              {customersLoading ? t("loadingIndicator") : getCustomerName(customerId)}
             </p>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              {customersLoading ? "..." : getCustomerPhone(customerId) || "N/A"}
+              {customersLoading ? t("loadingIndicator") : getCustomerPhone(customerId) || t("notAvailable")}
             </p>
           </div>
         );
@@ -489,10 +489,10 @@ const OrdersManagement = () => {
         return (
           <div>
             <p className="font-medium text-gray-900 dark:text-white">
-              {sellersLoading ? "..." : getSellerName(sellerId)}
+              {sellersLoading ? t("loadingIndicator") : getSellerName(sellerId)}
             </p>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              {sellersLoading ? "..." : getSellerEmail(sellerId) || "N/A"}
+              {sellersLoading ? t("loadingIndicator") : getSellerEmail(sellerId) || t("notAvailable")}
             </p>
           </div>
         );
@@ -509,7 +509,7 @@ const OrdersManagement = () => {
                 <span className="text-gray-900 dark:text-white">
                   {orderItem.quantity || 1}x{" "}
                   {productsLoading
-                    ? "..."
+                    ? t("loadingIndicator")
                     : orderItem.product_id
                     ? (() => {
                         const names = getProductNameBothLanguages(
@@ -517,17 +517,16 @@ const OrdersManagement = () => {
                         );
                         return isRTL ? names.arabic : names.english;
                       })()
-                    : orderItem.name || orderItem.product?.name || "Item"}
+                    : orderItem.name || orderItem.product?.name || t("item")}
                 </span>
                 <span className="text-gray-500 dark:text-gray-400">
                   {" "}
-                  {currency()}{" "}
                   {productsLoading
-                    ? "..."
+                    ? t("loadingIndicator")
                     : (orderItem.product_id
                         ? getProductPrice(orderItem.product_id)
                         : orderItem.price || orderItem.product?.price || 0
-                      ).toFixed(2)}
+                      ).toFixed(2)} {currency()}
                 </span>
               </div>
             ))
@@ -537,30 +536,29 @@ const OrdersManagement = () => {
                 <span className="text-gray-900 dark:text-white">
                   {product.quantity || 1}x{" "}
                   {productsLoading
-                    ? "..."
+                    ? t("loadingIndicator")
                     : product.id
                     ? (() => {
                         const names = getProductNameBothLanguages(product.id);
                         return isRTL ? names.arabic : names.english;
                       })()
-                    : product.name || product.nameEn || "Item"}
+                    : product.name || product.nameEn || t("item")}
                 </span>
                 <span className="text-gray-500 dark:text-gray-400">
                   {" "}
-                  {currency()}{" "}
                   {productsLoading
-                    ? "..."
+                    ? t("loadingIndicator")
                     : (product.id
                         ? getProductPrice(product.id)
                         : product.price || 0
-                      ).toFixed(2)}
+                      ).toFixed(2)} {currency()}
                 </span>
               </div>
             ))
           ) : (
             <div className="text-sm">
               <span className="text-gray-900 dark:text-white">
-                {typeof item.items === "number" ? item.items : 0} items
+                {typeof item.items === "number" ? item.items : 0} {t("items")}
               </span>
             </div>
           )}
@@ -572,7 +570,7 @@ const OrdersManagement = () => {
       accessor: "totalAmount",
       render: (item) => (
         <span className="font-medium text-gray-900 dark:text-white">
-          {currency()} {(item.total_amount || 0).toFixed(2)}
+          {(item.total_amount || 0).toFixed(2)} {currency()}
         </span>
       ),
     },
@@ -841,7 +839,7 @@ const OrdersManagement = () => {
                 {t("totalRevenue")}
               </p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {currency()} {stats.totalRevenue}
+                {stats.totalRevenue} {currency()} 
               </p>
             </div>
             <User className="w-8 h-8 text-purple-500" />
@@ -859,7 +857,7 @@ const OrdersManagement = () => {
             </h3>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
             {/* Search */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -913,30 +911,35 @@ const OrdersManagement = () => {
                 ))}
               </select>
             </div>
+          </div>
 
-            {/* Date Range */}
+          {/* Date Range - Second Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {t("dateRange")}
+                {t("startDate")}
               </label>
-              <div className="flex gap-2">
-                <input
-                  type="date"
-                  value={dateRange.start}
-                  onChange={(e) =>
-                    setDateRange({ ...dateRange, start: e.target.value })
-                  }
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                />
-                <input
-                  type="date"
-                  value={dateRange.end}
-                  onChange={(e) =>
-                    setDateRange({ ...dateRange, end: e.target.value })
-                  }
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                />
-              </div>
+              <input
+                type="date"
+                value={dateRange.start}
+                onChange={(e) =>
+                  setDateRange({ ...dateRange, start: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {t("endDate")}
+              </label>
+              <input
+                type="date"
+                value={dateRange.end}
+                onChange={(e) =>
+                  setDateRange({ ...dateRange, end: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+              />
             </div>
           </div>
 
@@ -1001,20 +1004,20 @@ const OrdersManagement = () => {
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("name")}:</strong>{" "}
                     {customersLoading
-                      ? "..."
+                      ? t("loadingIndicator")
                       : getCustomerName(selectedOrder.customer)}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("phone")}:</strong>{" "}
                     {customersLoading
-                      ? "..."
-                      : getCustomerPhone(selectedOrder.customer) || "N/A"}
+                      ? t("loadingIndicator")
+                      : getCustomerPhone(selectedOrder.customer) || t("notAvailable")}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("address")}:</strong>{" "}
                     {customersLoading
-                      ? "..."
-                      : getCustomerAddress(selectedOrder.customer) || "N/A"}
+                      ? t("loadingIndicator")
+                      : getCustomerAddress(selectedOrder.customer) || t("notAvailable")}
                   </p>
                 </div>
 
@@ -1025,14 +1028,14 @@ const OrdersManagement = () => {
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("name")}:</strong>{" "}
                     {sellersLoading
-                      ? "..."
+                      ? t("loadingIndicator")
                       : getSellerName(selectedOrder.sellerId)}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("email")}:</strong>{" "}
                     {sellersLoading
-                      ? "..."
-                      : getSellerEmail(selectedOrder.sellerId) || "N/A"}
+                      ? t("loadingIndicator")
+                      : getSellerEmail(selectedOrder.sellerId) || t("notAvailable")}
                   </p>
                 </div>
 
@@ -1051,8 +1054,8 @@ const OrdersManagement = () => {
                     )}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    <strong>{t("total")}:</strong> {currency()}{" "}
-                    {(selectedOrder.total_amount || 0).toFixed(2)}
+                    <strong>{t("total")}:</strong> 
+                    {(selectedOrder.total_amount || 0).toFixed(2)} {currency()}
                   </p>
                 </div>
               </div>
@@ -1078,7 +1081,7 @@ const OrdersManagement = () => {
                       <span className="text-sm text-gray-900 dark:text-white">
                         {item.quantity || 1}x{" "}
                         {productsLoading
-                          ? "..."
+                          ? t("loadingIndicator")
                           : item.product_id
                           ? (() => {
                               const names = getProductNameBothLanguages(
@@ -1108,14 +1111,13 @@ const OrdersManagement = () => {
                                 </span>
                               );
                             })()
-                          : item.name || item.product?.name || "Item"}
+                          : item.name || item.product?.name || t("item")}
                       </span>
                       <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        {currency()}{" "}
                         {(item.product_id
                           ? getProductPrice(item.product_id)
                           : item.price || item.product?.price || 0
-                        ).toFixed(2)}
+                        ).toFixed(2)} {currency()}
                       </span>
                     </div>
                   ))}

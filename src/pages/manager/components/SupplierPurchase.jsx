@@ -30,20 +30,23 @@ import {
   formatDateTimeEnglish,
 } from "../../../utils";
 import { supplierService } from "../../../services/supplierService";
+import { productService } from "../../../services/productService";
 import { useCurrency } from "../../../hooks";
 import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 
 const SupplierPurchase = () => {
   const { t, i18n } = useTranslation();
   const dispatch = useDispatch();
-  const { isRTL } = useSelector((state) => state.language);
+  const { isRTL, currentLanguage } = useSelector((state) => state.language);
   const { currency } = useCurrency();
 
   // Smart currency formatter based on current language
   const formatCurrencySmart = (amount) => {
+    const currencyDisplay = currency();
+    const numAmount = parseFloat(amount) || 0;
     return i18n.language === "ar"
-      ? formatCurrency(amount)
-      : formatCurrencyEnglish(amount, currency());
+      ? formatCurrency(numAmount, currencyDisplay)
+      : formatCurrencyEnglish(numAmount, currencyDisplay);
   };
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -57,6 +60,7 @@ const SupplierPurchase = () => {
   const [suppliersMap, setSuppliersMap] = useState({});
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [products, setProducts] = useState([]);
 
   // Load suppliers and create a mapping of ID to name
   const loadSuppliers = async () => {
@@ -73,6 +77,18 @@ const SupplierPurchase = () => {
     } catch (error) {
       console.error("Error loading suppliers:", error);
       setSuppliersMap({});
+    }
+  };
+
+  // Load products from API
+  const loadProducts = async () => {
+    try {
+      const response = await productService.getProducts();
+      const productsList = Array.isArray(response) ? response : response.results || response || [];
+      setProducts(productsList);
+    } catch (error) {
+      console.error("Error loading products:", error);
+      setProducts([]);
     }
   };
 
@@ -112,11 +128,12 @@ const SupplierPurchase = () => {
     const loadData = async () => {
       dispatch(fetchTenantInfo());
       await loadSuppliers();
+      await loadProducts();
       await loadPurchaseOrders();
     };
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [dispatch]);
 
   // Calculate stats
   const totalOrders = purchaseOrders.length;
@@ -144,6 +161,56 @@ const SupplierPurchase = () => {
   // Helper function to get supplier name by ID
   const getSupplierName = (supplierId) => {
     return suppliersMap[supplierId] || "N/A";
+  };
+
+  // Helper function to get item name based on current language
+  const getItemName = (item) => {
+    if (!item) return "";
+    
+    // Check if item has separate Arabic and English name fields
+    const arabicName = item.item_arabic_name || item.arabic_name || item.name_ar;
+    const englishName = item.item_english_name || item.english_name || item.name_en;
+    
+    // Return name based on current language
+    if (currentLanguage === "ar") {
+      return arabicName || item.item_name || item.name || "";
+    } else {
+      return englishName || item.item_name || item.name || "";
+    }
+  };
+
+  // Helper function to get product barcode from API based on item name
+  const getItemBarcode = (item) => {
+    if (!item) return null;
+    
+    // First check if item already has barcode
+    if (item.barcode) {
+      return item.barcode;
+    }
+    
+    // Get item name to search for product
+    const itemName = getItemName(item);
+    const originalItemName = item.item_name || item.name;
+    
+    if (!itemName && !originalItemName) return null;
+    
+    // Search for product in products list by matching all possible name fields
+    const matchingProduct = products.find(
+      (product) =>
+        // Match by displayed name (based on current language)
+        product.arabic_name === itemName ||
+        product.english_name === itemName ||
+        product.name === itemName ||
+        product.nameEn === itemName ||
+        // Match by original item name
+        product.arabic_name === originalItemName ||
+        product.english_name === originalItemName ||
+        product.name === originalItemName ||
+        product.nameEn === originalItemName
+    );
+    
+    // Return barcode from product if found
+    return matchingProduct?.barcode || null;
   };
 
   // Filter purchase orders
@@ -181,7 +248,7 @@ const SupplierPurchase = () => {
     },
     {
       title: t("totalSpent"),
-      value: formatCurrencySmart(totalSpent),
+      value: `${totalSpent.toFixed(2)} ${currency()}`,
       icon: TrendingUp,
       color: "purple",
     },
@@ -300,7 +367,7 @@ const SupplierPurchase = () => {
               key={index}
               className="text-sm text-gray-600 dark:text-gray-400"
             >
-              {item.item_name} × {item.quantity}
+              {getItemName(item)} × {item.quantity}
               {item.barcode
                 ? ` • ${t("barcode")}: ${item.barcode}`
                 : ""}
@@ -324,7 +391,7 @@ const SupplierPurchase = () => {
       accessor: "totalAmount",
       render: (order) => (
         <div className="font-semibold text-gray-900 dark:text-white">
-          {formatCurrencySmart(calculateOrderTotal(order))}
+          {`${calculateOrderTotal(order).toFixed(2)} ${currency()}`}
         </div>
       ),
     },
@@ -626,7 +693,7 @@ const SupplierPurchase = () => {
                               {t("itemName")}
                             </label>
                             <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {item.item_name}
+                              {getItemName(item)}
                             </p>
                           </div>
                           <div>
@@ -634,7 +701,7 @@ const SupplierPurchase = () => {
                               {t("barcode")}
                             </label>
                             <p className="text-sm text-gray-900 dark:text-white">
-                              {item.barcode || "-"}
+                              {getItemBarcode(item) || "-"}
                             </p>
                           </div>
                           <div>
@@ -659,7 +726,7 @@ const SupplierPurchase = () => {
                             </label>
                             <p className="text-sm font-semibold text-gray-900 dark:text-white">
                               {formatCurrencySmart(
-                                (item.quantity || 0) * (item.unit_price || 0)
+                                (item.quantity || 0) * (item.unit_price || 0) 
                               )}
                             </p>
                           </div>
@@ -706,7 +773,7 @@ const SupplierPurchase = () => {
                     </span>
                   </div>
                   <span className="text-2xl font-bold text-blue-800 dark:text-blue-300">
-                    {formatCurrencySmart(calculateOrderTotal(viewData))}
+                    {`${calculateOrderTotal(viewData).toFixed(2)} ${currency()}`}
                   </span>
                 </div>
               </div>
@@ -791,7 +858,7 @@ const SupplierPurchase = () => {
                 <div className="flex items-center gap-2">
                   <DollarSign className="w-4 h-4 text-gray-500" />
                   <span className="text-gray-900 dark:text-white font-semibold">
-                    {formatCurrencySmart(calculateOrderTotal(deleteConfirm))}
+                    {`${calculateOrderTotal(deleteConfirm).toFixed(2)} ${currency()}`}
                   </span>
                 </div>
               </div>

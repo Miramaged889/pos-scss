@@ -30,6 +30,7 @@ import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 import DataTable from "../../../components/Common/DataTable";
 import { SellerInvoiceForm } from "../../../components/Forms";
 import { useCurrency } from "../../../hooks";
+import { currencyService } from "../../../services";
 
 const SupplierInvoicesManagement = () => {
   const { t } = useTranslation();
@@ -54,11 +55,40 @@ const SupplierInvoicesManagement = () => {
   const [formModal, setFormModal] = useState(false);
   const [formMode, setFormMode] = useState("add");
   const [selectedInvoiceForForm, setSelectedInvoiceForForm] = useState(null);
+  const [paymentMethods, setPaymentMethods] = useState([]);
 
   useEffect(() => {
     dispatch(fetchSupplierInvoices());
     dispatch(fetchSuppliers());
     dispatch(fetchTenantInfo());
+    
+    // Fetch payment methods from API
+    const fetchPaymentMethods = async () => {
+      try {
+        const response = await currencyService.getCurrencies();
+        const currenciesList = Array.isArray(response)
+          ? response
+          : response.results || response.data || [];
+        
+        // Filter only active currencies and map to payment methods format
+        const activePaymentMethods = currenciesList
+          .filter((currency) => currency.is_active === true)
+          .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+          .map((currency) => ({
+            id: currency.id?.toString() || String(currency.id || ""),
+            name: currency.name || currency.code || "",
+            code: currency.code || "",
+            icon: currency.icon || null,
+          }));
+        
+        setPaymentMethods(activePaymentMethods);
+      } catch (error) {
+        console.error("Error fetching payment methods:", error);
+        setPaymentMethods([]);
+      }
+    };
+
+    fetchPaymentMethods();
   }, [dispatch]);
 
   // Clear error when component unmounts
@@ -119,10 +149,6 @@ const SupplierInvoicesManagement = () => {
       filtered = filtered.filter(
         (invoice) =>
           invoice.id
-            ?.toString()
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          invoice.order_id
             ?.toString()
             .toLowerCase()
             .includes(searchTerm.toLowerCase()) ||
@@ -204,32 +230,96 @@ const SupplierInvoicesManagement = () => {
     );
   };
 
-  const getPaymentMethodBadge = (method) => {
-    const methodConfig = {
-      "Bank Transfer": {
-        color:
-          "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-        text: t("bankTransfer"),
-      },
-      Check: {
-        color:
-          "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
-        text: t("check"),
-      },
-      Cash: {
-        color:
-          "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-        text: t("cash"),
-      },
-    };
+  // Get payment method details by ID
+  const getPaymentMethodDetails = (methodId) => {
+    if (!methodId) return null;
+    const methodIdStr = String(methodId);
+    return paymentMethods.find(
+      (method) => method.id === methodIdStr || method.id?.toString() === methodIdStr
+    );
+  };
 
-    const config = methodConfig[method] || methodConfig["Bank Transfer"];
+  // Get payment method name
+  const getPaymentMethodName = (methodId) => {
+    const method = getPaymentMethodDetails(methodId);
+    if (method) return method.name;
+    
+    // Fallback for old string-based methods
+    if (typeof methodId === "string") {
+      switch (methodId) {
+        case "Bank Transfer":
+          return t("bankTransfer");
+        case "Check":
+          return t("check");
+        case "Cash":
+          return t("cash");
+        case "cash":
+          return t("cash");
+        case "card":
+          return t("card");
+        case "knet":
+          return t("knet");
+        case "digital":
+          return t("digital");
+        default:
+          return methodId;
+      }
+    }
+    
+    return methodId?.toString() || t("unknown");
+  };
+
+  // Get payment method color based on code or name
+  const getPaymentMethodColor = (methodId) => {
+    const method = getPaymentMethodDetails(methodId);
+    
+    if (method) {
+      const code = method.code?.toLowerCase() || method.name?.toLowerCase() || "";
+      if (code.includes("cash") || code.includes("نقد")) {
+        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
+      }
+      if (code.includes("card") || code.includes("credit")) {
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
+      }
+      if (code.includes("transfer") || code.includes("bank")) {
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
+      }
+      if (code.includes("check")) {
+        return "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300";
+      }
+    }
+    
+    // Fallback for old string-based methods
+    if (typeof methodId === "string") {
+      switch (methodId) {
+        case "Bank Transfer":
+          return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
+        case "Check":
+          return "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300";
+        case "Cash":
+        case "cash":
+          return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
+        case "card":
+        case "knet":
+        case "digital":
+          return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
+        default:
+          return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300";
+      }
+    }
+    
+    return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
+  };
+
+  const getPaymentMethodBadge = (method) => {
+    const color = getPaymentMethodColor(method);
+    const text = getPaymentMethodName(method);
 
     return (
       <span
-        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${config.color}`}
+        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${color}`}
       >
-        {config.text}
+        {text}
       </span>
     );
   };
@@ -241,15 +331,6 @@ const SupplierInvoicesManagement = () => {
       render: (item) => (
         <span className="font-medium text-gray-900 dark:text-white">
           {item.id}
-        </span>
-      ),
-    },
-    {
-      header: t("orderId"),
-      accessor: "order_id",
-      render: (item) => (
-        <span className="text-sm text-gray-600 dark:text-gray-400">
-          {item.order_id}
         </span>
       ),
     },
@@ -281,10 +362,10 @@ const SupplierInvoicesManagement = () => {
           return (
             <div>
               <p className="font-medium text-gray-900 dark:text-white">
-                {currency()}{total.toFixed(2)}
+                {total.toFixed(2)}{currency()}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Tax: {currency()}{tax.toFixed(2)}
+                Tax: {tax.toFixed(2)}{currency()}
               </p>
             </div>
           );
@@ -292,9 +373,9 @@ const SupplierInvoicesManagement = () => {
           console.warn("Error calculating item total:", error, item);
           return (
             <div>
-              <p className="font-medium text-gray-900 dark:text-white">{currency()}0.00</p>
+              <p className="font-medium text-gray-900 dark:text-white">0.00{currency()}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Tax: {currency()}0.00
+                Tax: 0.00{currency()}
               </p>
             </div>
           );
@@ -533,7 +614,7 @@ const SupplierInvoicesManagement = () => {
                 {t("totalAmount")}
               </p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {currency()}{stats.totalAmount}
+                {stats.totalAmount} {currency()}
               </p>
             </div>
             <DollarSign className="w-8 h-8 text-purple-500" />
@@ -551,7 +632,7 @@ const SupplierInvoicesManagement = () => {
             </h3>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Search */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -606,27 +687,37 @@ const SupplierInvoicesManagement = () => {
             </div>
 
             {/* Date Range */}
-            <div>
+            <div className="md:col-span-2 lg:col-span-3">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 {t("dateRange")}
               </label>
               <div className="flex gap-2">
-                <input
-                  type="date"
-                  value={dateRange.start}
-                  onChange={(e) =>
-                    setDateRange({ ...dateRange, start: e.target.value })
-                  }
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                />
-                <input
-                  type="date"
-                  value={dateRange.end}
-                  onChange={(e) =>
-                    setDateRange({ ...dateRange, end: e.target.value })
-                  }
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                />
+                <div className="flex-1">
+                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                    {t("from")}
+                  </label>
+                  <input
+                    type="date"
+                    value={dateRange.start}
+                    onChange={(e) =>
+                      setDateRange({ ...dateRange, start: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                    {t("to")}
+                  </label>
+                  <input
+                    type="date"
+                    value={dateRange.end}
+                    onChange={(e) =>
+                      setDateRange({ ...dateRange, end: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -697,9 +788,6 @@ const SupplierInvoicesManagement = () => {
                     <strong>{t("email")}:</strong>{" "}
                     {getSupplierEmail(selectedInvoice.supplier)}
                   </p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    <strong>{t("orderId")}:</strong> {selectedInvoice.order_id}
-                  </p>
                 </div>
 
                 <div>
@@ -715,7 +803,7 @@ const SupplierInvoicesManagement = () => {
                     {getPaymentMethodBadge(selectedInvoice.payment_method)}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    <strong>{t("total")}:</strong> {currency()}
+                    <strong>{t("total")}:</strong> 
                     {(() => {
                       try {
                         const itemsTotal =
@@ -727,14 +815,14 @@ const SupplierInvoicesManagement = () => {
                           }, 0) || 0;
                         const tax = parseFloat(selectedInvoice.tax) || 0;
                         const total = itemsTotal + tax;
-                        return total.toFixed(2);
+                        return total.toFixed(2) + currency();
                       } catch (error) {
                         console.warn(
                           "Error calculating total:",
                           error,
                           selectedInvoice
                         );
-                        return "0.00";
+                        return "0.00" + currency();
                       }
                     })()}
                   </p>
@@ -760,7 +848,7 @@ const SupplierInvoicesManagement = () => {
                             {quantity}x {item.item_name}
                           </span>
                           <span className="text-sm font-medium text-gray-900 dark:text-white">
-                            {currency()}{subtotal.toFixed(2)}
+                            {subtotal.toFixed(2)}{currency()}
                           </span>
                         </div>
                       );
@@ -776,7 +864,7 @@ const SupplierInvoicesManagement = () => {
                             {item.item_name || "Unknown Item"}
                           </span>
                           <span className="text-sm font-medium text-gray-900 dark:text-white">
-                            {currency()}0.00
+                            0.00{currency()}
                           </span>
                         </div>
                       );

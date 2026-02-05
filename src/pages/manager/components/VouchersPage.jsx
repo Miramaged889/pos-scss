@@ -41,6 +41,7 @@ import {
 } from "../../../store/slices/voucherSlice";
 import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 import { useCurrency } from "../../../hooks";
+import { currencyService } from "../../../services";
 
 const VouchersPage = () => {
   const { t } = useTranslation();
@@ -58,10 +59,39 @@ const VouchersPage = () => {
   const [selectedVoucher, setSelectedVoucher] = useState(null);
   const [editingVoucher, setEditingVoucher] = useState(null);
   const [modalMode, setModalMode] = useState("add");
+  const [paymentMethods, setPaymentMethods] = useState([]);
 
   useEffect(() => {
     dispatch(fetchVouchers());
     dispatch(fetchTenantInfo());
+    
+    // Fetch payment methods from API
+    const fetchPaymentMethods = async () => {
+      try {
+        const response = await currencyService.getCurrencies();
+        const currenciesList = Array.isArray(response)
+          ? response
+          : response.results || response.data || [];
+        
+        // Filter only active currencies and map to payment methods format
+        const activePaymentMethods = currenciesList
+          .filter((currency) => currency.is_active === true)
+          .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+          .map((currency) => ({
+            id: currency.id?.toString() || String(currency.id || ""),
+            name: currency.name || currency.code || "",
+            code: currency.code || "",
+            icon: currency.icon || null,
+          }));
+        
+        setPaymentMethods(activePaymentMethods);
+      } catch (error) {
+        console.error("Error fetching payment methods:", error);
+        setPaymentMethods([]);
+      }
+    };
+
+    fetchPaymentMethods();
   }, [dispatch]);
 
   // Separate vouchers by type
@@ -104,37 +134,93 @@ const VouchersPage = () => {
     );
   };
 
-  const getPaymentMethodBadge = (method) => {
-    const methodConfig = {
-      cash: {
-        color:
-          "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-        text: t("cash"),
-      },
-      bank_transfer: {
-        color:
-          "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-        text: t("bankTransfer"),
-      },
-      credit_card: {
-        color:
-          "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
-        text: t("creditCard"),
-      },
-      check: {
-        color:
-          "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
-        text: t("check"),
-      },
-    };
+  // Get payment method details by ID
+  const getPaymentMethodDetails = (methodId) => {
+    if (!methodId) return null;
+    const methodIdStr = String(methodId);
+    return paymentMethods.find(
+      (method) => method.id === methodIdStr || method.id?.toString() === methodIdStr
+    );
+  };
 
-    const config = methodConfig[method] || methodConfig.cash;
+  // Get payment method name
+  const getPaymentMethodName = (methodId) => {
+    const method = getPaymentMethodDetails(methodId);
+    if (method) return method.name;
+
+    // Fallback for old string-based methods
+    if (typeof methodId === "string") {
+      switch (methodId.toLowerCase()) {
+        case "cash":
+          return t("cash");
+        case "card":
+          return t("card");
+        case "knet":
+          return t("knet");
+        case "digital":
+          return t("digital");
+        case "bank_transfer":
+          return t("bankTransfer");
+        case "credit_card":
+          return t("creditCard");
+        case "check":
+          return t("check");
+        default:
+          return methodId;
+      }
+    }
+
+    return methodId?.toString() || t("unknown");
+  };
+
+  const getPaymentMethodColor = (methodId) => {
+    const method = getPaymentMethodDetails(methodId);
+    
+    if (method) {
+      const code = method.code?.toLowerCase() || method.name?.toLowerCase() || "";
+      if (code.includes("cash") || code.includes("نقد")) {
+        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
+      }
+      if (code.includes("card") || code.includes("credit")) {
+        return "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300";
+      }
+      if (code.includes("bank") || code.includes("transfer")) {
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
+      }
+      if (code.includes("check")) {
+        return "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300";
+      }
+    }
+
+    // Fallback for old string-based methods
+    if (typeof methodId === "string") {
+      const methodStr = methodId.toLowerCase();
+      if (methodStr === "cash") {
+        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
+      }
+      if (methodStr === "card" || methodStr === "knet" || methodStr === "digital" || methodStr === "credit_card") {
+        return "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300";
+      }
+      if (methodStr === "bank_transfer") {
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
+      }
+      if (methodStr === "check") {
+        return "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300";
+      }
+    }
+
+    return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
+  };
+
+  const getPaymentMethodBadge = (methodId) => {
+    const color = getPaymentMethodColor(methodId);
+    const text = getPaymentMethodName(methodId);
 
     return (
       <span
-        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${config.color}`}
+        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${color}`}
       >
-        {config.text}
+        {text}
       </span>
     );
   };
@@ -384,14 +470,25 @@ const VouchersPage = () => {
     toast.success(t("voucherPrinted"));
   };
 
-  const getPaymentMethodText = (method) => {
-    const methods = {
-      cash: "نقداً",
-      bank_transfer: "تحويل بنكي",
-      credit_card: "بطاقة ائتمان",
-      check: "شيك",
-    };
-    return methods[method] || method;
+  const getPaymentMethodText = (methodId) => {
+    const method = getPaymentMethodDetails(methodId);
+    if (method) return method.name;
+
+    // Fallback for old string-based methods
+    if (typeof methodId === "string") {
+      const methods = {
+        cash: "نقداً",
+        bank_transfer: "تحويل بنكي",
+        credit_card: "بطاقة ائتمان",
+        check: "شيك",
+        card: "بطاقة",
+        knet: "كنت",
+        digital: "رقمي",
+      };
+      return methods[methodId.toLowerCase()] || methodId;
+    }
+
+    return methodId?.toString() || "غير معروف";
   };
 
   const getStats = () => {

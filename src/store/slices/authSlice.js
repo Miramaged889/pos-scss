@@ -116,13 +116,39 @@ export const getProfile = createAsyncThunk(
   }
 );
 
-const initialState = {
-  user: null,
-  role: null,
-  isAuthenticated: false,
-  loading: false,
-  error: null,
+// Load initial state from localStorage if available
+const loadAuthFromStorage = () => {
+  try {
+    const storedAuth = localStorage.getItem("auth_state");
+    if (storedAuth) {
+      const parsed = JSON.parse(storedAuth);
+      // Only restore if token exists
+      const token = localStorage.getItem("auth_token");
+      if (token && parsed.user && parsed.role) {
+        return {
+          user: parsed.user,
+          role: parsed.role,
+          isAuthenticated: true,
+          loading: false,
+          error: null,
+        };
+      }
+    }
+  } catch (error) {
+    console.error("Error loading auth from storage:", error);
+    // Clear invalid stored data
+    localStorage.removeItem("auth_state");
+  }
+  return {
+    user: null,
+    role: null,
+    isAuthenticated: false,
+    loading: false,
+    error: null,
+  };
 };
+
+const initialState = loadAuthFromStorage();
 
 const authSlice = createSlice({
   name: "auth",
@@ -137,6 +163,16 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
       state.loading = false;
       state.error = null;
+      
+      // Clear auth state from localStorage
+      localStorage.removeItem("auth_state");
+    },
+    // Action to restore auth state from localStorage
+    restoreAuth: (state) => {
+      const restored = loadAuthFromStorage();
+      state.user = restored.user;
+      state.role = restored.role;
+      state.isAuthenticated = restored.isAuthenticated;
     },
   },
   extraReducers: (builder) => {
@@ -152,6 +188,19 @@ const authSlice = createSlice({
         state.role = action.payload.role;
         state.isAuthenticated = true;
         state.error = null;
+        
+        // Save auth state to localStorage
+        try {
+          localStorage.setItem(
+            "auth_state",
+            JSON.stringify({
+              user: action.payload.user,
+              role: action.payload.role,
+            })
+          );
+        } catch (error) {
+          console.error("Error saving auth state to storage:", error);
+        }
       })
       .addCase(loginUser.rejected, (state, action) => {
         state.loading = false;
@@ -169,6 +218,9 @@ const authSlice = createSlice({
         state.role = null;
         state.isAuthenticated = false;
         state.error = null;
+        
+        // Clear auth state from localStorage
+        localStorage.removeItem("auth_state");
       })
       .addCase(logoutUser.rejected, (state, action) => {
         state.loading = false;
@@ -177,6 +229,9 @@ const authSlice = createSlice({
         state.user = null;
         state.role = null;
         state.isAuthenticated = false;
+        
+        // Clear auth state from localStorage
+        localStorage.removeItem("auth_state");
       })
 
       // Refresh token
@@ -187,6 +242,9 @@ const authSlice = createSlice({
         state.user = null;
         state.role = null;
         state.isAuthenticated = false;
+        
+        // Clear auth state from localStorage
+        localStorage.removeItem("auth_state");
       })
 
       // Get profile
@@ -199,6 +257,21 @@ const authSlice = createSlice({
         state.user = action.payload;
         state.isAuthenticated = true;
         state.error = null;
+        
+        // Update auth state in localStorage if role exists
+        if (state.role) {
+          try {
+            localStorage.setItem(
+              "auth_state",
+              JSON.stringify({
+                user: action.payload,
+                role: state.role,
+              })
+            );
+          } catch (error) {
+            console.error("Error saving auth state to storage:", error);
+          }
+        }
       })
       .addCase(getProfile.rejected, (state, action) => {
         state.loading = false;
@@ -208,6 +281,6 @@ const authSlice = createSlice({
   },
 });
 
-export const { clearError, clearAuth } = authSlice.actions;
+export const { clearError, clearAuth, restoreAuth } = authSlice.actions;
 export { ROLES };
 export default authSlice.reducer;

@@ -33,7 +33,7 @@ import {
 } from "../../../utils/formatters";
 import { CustomerInvoiceForm } from "../../../components/Forms/SellerForms";
 import { fetchCustomerInvoices } from "../../../store/slices/customerInvoiceSlice";
-import { customerInvoiceService } from "../../../services";
+import { customerInvoiceService, currencyService } from "../../../services";
 import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 import { useCurrency } from "../../../hooks";
 
@@ -61,11 +61,40 @@ const InvoicesManagement = () => {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState([]);
 
   // Fetch customer invoices and tenant info on component mount
   useEffect(() => {
     dispatch(fetchCustomerInvoices());
     dispatch(fetchTenantInfo());
+    
+    // Fetch payment methods from API
+    const fetchPaymentMethods = async () => {
+      try {
+        const response = await currencyService.getCurrencies();
+        const currenciesList = Array.isArray(response)
+          ? response
+          : response.results || response.data || [];
+        
+        // Filter only active currencies and map to payment methods format
+        const activePaymentMethods = currenciesList
+          .filter((currency) => currency.is_active === true)
+          .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+          .map((currency) => ({
+            id: currency.id?.toString() || String(currency.id || ""),
+            name: currency.name || currency.code || "",
+            code: currency.code || "",
+            icon: currency.icon || null,
+          }));
+        
+        setPaymentMethods(activePaymentMethods);
+      } catch (error) {
+        console.error("Error fetching payment methods:", error);
+        setPaymentMethods([]);
+      }
+    };
+
+    fetchPaymentMethods();
   }, [dispatch]);
 
   // Close dropdown when clicking outside
@@ -179,6 +208,68 @@ const InvoicesManagement = () => {
   const handleSubmitCustomerInvoice = () => {
     // Form already dispatches the action, just close the modal
     setIsCustomerInvoiceOpen(false);
+  };
+
+  // Get payment method details by ID
+  const getPaymentMethodDetails = (methodId) => {
+    if (!methodId) return null;
+    const methodIdStr = String(methodId);
+    return paymentMethods.find(
+      (method) => method.id === methodIdStr || method.id?.toString() === methodIdStr
+    );
+  };
+
+  // Get payment method name
+  const getPaymentMethodName = (methodId) => {
+    const method = getPaymentMethodDetails(methodId);
+    if (method) return method.name;
+
+    // Fallback for old string-based methods
+    if (typeof methodId === "string") {
+      switch (methodId.toLowerCase()) {
+        case "cash":
+          return t("cash");
+        case "card":
+          return t("card");
+        case "knet":
+          return t("knet");
+        case "digital":
+          return t("digital");
+        default:
+          return methodId;
+      }
+    }
+
+    return methodId?.toString() || t("unknown");
+  };
+
+  const getPaymentMethodIcon = (methodId) => {
+    const method = getPaymentMethodDetails(methodId);
+
+    // If method has an icon, you could use it here
+    // For now, we'll use default icons based on code or name
+    if (method) {
+      const code = method.code?.toLowerCase() || method.name?.toLowerCase() || "";
+      if (code.includes("card") || code.includes("credit")) {
+        return <CreditCard className="w-4 h-4" />;
+      }
+      if (code.includes("cash") || code.includes("نقد")) {
+        return <DollarSign className="w-4 h-4" />;
+      }
+    }
+
+    // Fallback for old string-based methods
+    if (typeof methodId === "string") {
+      const methodStr = methodId.toLowerCase();
+      if (methodStr === "card" || methodStr === "knet" || methodStr === "digital") {
+        return <CreditCard className="w-4 h-4" />;
+      }
+      if (methodStr === "cash") {
+        return <DollarSign className="w-4 h-4" />;
+      }
+    }
+
+    return <CreditCard className="w-4 h-4" />;
   };
 
   const handleEditInvoice = (invoice) => {
@@ -368,7 +459,7 @@ const InvoicesManagement = () => {
           payment.amount,
           `"${t(payment.status)}"`,
           `"${formatDateTimeEnglish(payment.paymentDate)}"`,
-          `"${t(payment.method)}"`,
+          `"${getPaymentMethodName(payment.method)}"`,
         ].join(",")
       ),
     ].join("\n");
@@ -389,20 +480,6 @@ const InvoicesManagement = () => {
     setShowExportDropdown(false);
   };
 
-  const getPaymentMethodIcon = (method) => {
-    switch (method) {
-      case "card":
-        return <CreditCard className="w-4 h-4" />;
-      case "cash":
-        return <DollarSign className="w-4 h-4" />;
-      case "knet":
-        return <CreditCard className="w-4 h-4" />;
-      case "digital":
-        return <CreditCard className="w-4 h-4" />;
-      default:
-        return <CreditCard className="w-4 h-4" />;
-    }
-  };
 
   const handleViewPayment = (payment) => {
     setSelectedPayment(payment);
@@ -433,17 +510,7 @@ const InvoicesManagement = () => {
 الضريبة / Tax: ${formatCurrencyEnglish(tax, currency())}
 الإجمالي / Total: ${formatCurrencyEnglish(total, currency())}
 
-طريقة الدفع / Payment Method: ${
-      payment.method === "cash"
-        ? t("cash")
-        : payment.method === "card"
-        ? t("card")
-        : payment.method === "knet"
-        ? t("knet")
-        : payment.method === "digital"
-        ? t("digital")
-        : payment.method
-    }
+طريقة الدفع / Payment Method: ${getPaymentMethodName(payment.method)}
 الحالة / Status: ${t(payment.status)}
 
 =================================
@@ -507,15 +574,7 @@ const InvoicesManagement = () => {
             {getPaymentMethodIcon(payment.method)}
           </div>
           <span className="capitalize font-medium">
-            {payment.method === "cash"
-              ? t("cash")
-              : payment.method === "card"
-              ? t("card")
-              : payment.method === "knet"
-              ? t("knet")
-              : payment.method === "digital"
-              ? t("digital")
-              : payment.method}
+            {getPaymentMethodName(payment.method)}
           </span>
         </div>
       ),
@@ -967,15 +1026,7 @@ const InvoicesManagement = () => {
                     >
                       {getPaymentMethodIcon(selectedPayment.method)}
                       <span className="text-gray-900 dark:text-white capitalize">
-                        {selectedPayment.method === "cash"
-                          ? t("cash")
-                          : selectedPayment.method === "card"
-                          ? t("card")
-                          : selectedPayment.method === "knet"
-                          ? t("knet")
-                          : selectedPayment.method === "digital"
-                          ? t("digital")
-                          : selectedPayment.method}
+                        {getPaymentMethodName(selectedPayment.method)}
                       </span>
                     </div>
                   </div>

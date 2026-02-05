@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import FormField from "../FormField";
+import { currencyService } from "../../../services";
 
 const ExpenseVoucherForm = ({
   isOpen,
@@ -48,6 +49,8 @@ const ExpenseVoucherForm = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false);
 
   // Load voucher data when component mounts or voucher changes
   useEffect(() => {
@@ -96,6 +99,38 @@ const ExpenseVoucherForm = ({
     }
   }, [isOpen, mode, voucher]);
 
+  // Fetch payment methods from API
+  useEffect(() => {
+    const fetchPaymentMethods = async () => {
+      if (!isOpen) return;
+      try {
+        setLoadingPaymentMethods(true);
+        const response = await currencyService.getCurrencies();
+        const currenciesList = Array.isArray(response)
+          ? response
+          : response.results || response.data || [];
+        
+        // Filter only active currencies and map to payment methods format
+        const activePaymentMethods = currenciesList
+          .filter((currency) => currency.is_active === true)
+          .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+          .map((currency) => ({
+            value: currency.id?.toString() || String(currency.id || ""),
+            label: currency.name || currency.code || "",
+          }));
+        
+        setPaymentMethods(activePaymentMethods);
+      } catch (error) {
+        console.error("Error fetching payment methods:", error);
+        setPaymentMethods([]);
+      } finally {
+        setLoadingPaymentMethods(false);
+      }
+    };
+
+    fetchPaymentMethods();
+  }, [isOpen]);
+
   const categoryOptions = [
     { value: "office_supplies", label: t("officeSupplies") },
     { value: "maintenance", label: t("maintenance") },
@@ -105,12 +140,6 @@ const ExpenseVoucherForm = ({
     { value: "equipment", label: t("equipment") },
     { value: "services", label: t("services") },
     { value: "other", label: t("other") },
-  ];
-
-  const paymentMethodOptions = [
-    { value: "cash", label: t("cash") },
-    { value: "bank_transfer", label: t("bankTransfer") },
-    { value: "check", label: t("check") },
   ];
 
   const handleInputChange = (field, value) => {
@@ -407,11 +436,16 @@ const ExpenseVoucherForm = ({
               <FormField
                 label={t("paymentMethod")}
                 type="select"
-                value={formData.paymentMethod}
+                value={formData.paymentMethod || ""}
                 onChange={handleFieldChange("paymentMethod")}
-                options={paymentMethodOptions}
+                options={[
+                  { value: "", label: t("selectPaymentMethod") },
+                  ...paymentMethods,
+                ]}
                 required
                 icon={CreditCard}
+                disabled={loadingPaymentMethods}
+                helperText={loadingPaymentMethods ? t("loading") : ""}
               />
             </div>
           </div>

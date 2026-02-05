@@ -71,11 +71,32 @@ const FormField = ({
                 {placeholder}
               </option>
             )}
-            {options.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
+            {options.map((option, index) => {
+              // Normalize value to string/primitive
+              const optionValue = 
+                option.value === null || option.value === undefined
+                  ? ""
+                  : typeof option.value === "object"
+                  ? JSON.stringify(option.value)
+                  : String(option.value);
+              
+              // Normalize label to string/primitive
+              const optionLabel =
+                option.label === null || option.label === undefined
+                  ? ""
+                  : typeof option.label === "object"
+                  ? JSON.stringify(option.label)
+                  : String(option.label);
+              
+              // Create unique key using value and index
+              const uniqueKey = `${optionValue}-${index}`;
+              
+              return (
+                <option key={uniqueKey} value={optionValue}>
+                  {optionLabel}
+                </option>
+              );
+            })}
           </select>
         );
 

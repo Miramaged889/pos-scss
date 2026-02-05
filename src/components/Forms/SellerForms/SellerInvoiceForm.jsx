@@ -17,6 +17,7 @@ import {
 import { toast } from "react-hot-toast";
 
 import FormField from "../FormField";
+import { financialService } from "../../../services";
 
 const SellerInvoiceForm = ({
   isOpen,
@@ -46,11 +47,59 @@ const SellerInvoiceForm = ({
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false);
   const [newItem, setNewItem] = useState({
     item_name: "",
     quantity: 1,
     unit_price: 0,
   });
+
+  // Fetch payment methods when form opens
+  useEffect(() => {
+    if (isOpen) {
+      const fetchPaymentMethods = async () => {
+        try {
+          setLoadingPaymentMethods(true);
+          const response = await financialService.getPaymentMethods();
+          const methodsList = Array.isArray(response) ? response : response.data || [];
+          // Filter active payment methods and map to options format
+          const activeMethods = methodsList
+            .filter((method) => method.is_active !== false)
+            .map((method) => ({
+              value: method.id?.toString() || method.code || method.name || "",
+              label: method.name || method.code || method.arabic_name || method.english_name || "",
+            }));
+          setPaymentMethods(activeMethods);
+          
+          // Set default payment method if form is empty and we have methods
+          if (activeMethods.length > 0) {
+            setFormData((prev) => {
+              // Only set default if payment_method is not already set
+              if (!prev.payment_method) {
+                return {
+                  ...prev,
+                  payment_method: activeMethods[0].value,
+                };
+              }
+              return prev;
+            });
+          }
+        } catch (error) {
+          console.error("Error fetching payment methods:", error);
+          // Fallback to default payment methods if API fails
+          setPaymentMethods([
+            { value: "Bank Transfer", label: t("bankTransfer") },
+            { value: "Check", label: t("check") },
+            { value: "Cash", label: t("cash") },
+          ]);
+        } finally {
+          setLoadingPaymentMethods(false);
+        }
+      };
+      fetchPaymentMethods();
+    }
+  }, [isOpen, t]);
 
   useEffect(() => {
     if (isOpen) {
@@ -397,11 +446,12 @@ const SellerInvoiceForm = ({
                 value={formData.payment_method}
                 onChange={handleFieldChange("payment_method")}
                 options={[
-                  { value: "Bank Transfer", label: t("bankTransfer") },
-                  { value: "Check", label: t("check") },
-                  { value: "Cash", label: t("cash") },
+                  { value: "", label: t("selectPaymentMethod") },
+                  ...paymentMethods,
                 ]}
                 required
+                disabled={loadingPaymentMethods}
+                error={errors.payment_method}
               />
             </div>
           </div>
@@ -426,39 +476,54 @@ const SellerInvoiceForm = ({
                 {t("addNewItem")}
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <input
-                  type="text"
-                  value={newItem.item_name}
-                  onChange={(e) =>
-                    handleNewItemChange("item_name", e.target.value)
-                  }
-                  placeholder={t("itemName")}
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                />
-                <input
-                  type="number"
-                  value={newItem.quantity}
-                  onChange={(e) =>
-                    handleNewItemChange("quantity", parseInt(e.target.value))
-                  }
-                  placeholder={t("quantity")}
-                  min="1"
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                />
-                <input
-                  type="number"
-                  value={newItem.unit_price}
-                  onChange={(e) =>
-                    handleNewItemChange(
-                      "unit_price",
-                      parseFloat(e.target.value)
-                    )
-                  }
-                  placeholder={t("unitPrice")}
-                  min="0"
-                  step="0.01"
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {t("itemName")}
+                  </label>
+                  <input
+                    type="text"
+                    value={newItem.item_name}
+                    onChange={(e) =>
+                      handleNewItemChange("item_name", e.target.value)
+                    }
+                    placeholder={t("itemName")}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {t("quantity")}
+                  </label>
+                  <input
+                    type="number"
+                    value={newItem.quantity}
+                    onChange={(e) =>
+                      handleNewItemChange("quantity", parseInt(e.target.value))
+                    }
+                    placeholder={t("quantity")}
+                    min="1"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {t("unitPrice")}
+                  </label>
+                  <input
+                    type="number"
+                    value={newItem.unit_price}
+                    onChange={(e) =>
+                      handleNewItemChange(
+                        "unit_price",
+                        parseFloat(e.target.value)
+                      )
+                    }
+                    placeholder={t("unitPrice")}
+                    min="0"
+                    step="0.01"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
               </div>
               <button
                 type="button"

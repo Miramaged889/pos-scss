@@ -10,6 +10,10 @@ import {
   Calendar,
   FileText,
   User,
+  Plus,
+  Trash2,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 import FormField from "../FormField";
 import { fetchOrders } from "../../../store/slices/ordersSlice";
@@ -22,15 +26,9 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const { orders } = useSelector((state) => state.orders);
   const [formData, setFormData] = useState({
     orderId: "",
-    orderItemId: "", // Store the actual order item ID for API
     customerId: "",
     customerName: "",
-    productId: "",
-    productName: "",
-    quantity: 1,
-    reason: "",
-    description: "",
-    refundAmount: 0,
+    items: [], // Array of { product_id, quantity, return_reason }
   });
   const [errors, setErrors] = useState({});
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -38,29 +36,48 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const [customerOrders, setCustomerOrders] = useState([]);
   const [orderProducts, setOrderProducts] = useState([]);
   const [products, setProducts] = useState([]);
+  const [selectedProducts, setSelectedProducts] = useState(new Set()); // Track selected product IDs
 
   useEffect(() => {
     if (editData) {
-      setFormData((prev) => ({
-        ...prev,
-        ...editData,
-        orderId: editData.orderId || "",
-        orderItemId: editData.orderItemId || "",
+      // For editing, convert single return to items format
+      const items = editData.items || [
+        {
+          product_id: editData.productId || editData.product_id,
+          quantity: editData.quantity || 1,
+          return_reason: editData.reason || editData.returnReason || editData.return_reason || "",
+        },
+      ];
+
+      setFormData({
+        orderId: editData.orderId || editData.order_id || "",
         customerId: editData.customerId || "",
         customerName: editData.customerName || "",
-        productId: editData.productId || "",
-        productName: editData.productName || "",
-        quantity: editData.quantity || 1,
-        reason: editData.reason || editData.returnReason || "",
-        description: editData.description || "",
-        refundAmount: editData.refundAmount || 0,
-      }));
+        items: items.map(item => ({
+          product_id: parseInt(item.product_id || item.productId),
+          quantity: parseInt(item.quantity || 1),
+          return_reason: item.return_reason || item.reason || "",
+        })),
+      });
 
-      const relatedOrder =
-        orders.find(
-          (o) => o.id === (editData.orderId || editData.orderItemId)
-        ) || null;
+      const relatedOrder = orders.find(
+        (o) => o.id === (editData.orderId || editData.order_id)
+      ) || null;
       setSelectedOrder(relatedOrder);
+      
+      // Set selected products (ensure they're numbers)
+      setSelectedProducts(new Set(
+        items.map(item => parseInt(item.product_id || item.productId)).filter(id => !isNaN(id))
+      ));
+    } else {
+      // Reset form for new return
+      setFormData({
+        orderId: "",
+        customerId: "",
+        customerName: "",
+        items: [],
+      });
+      setSelectedProducts(new Set());
     }
   }, [editData, orders]);
 
@@ -114,7 +131,7 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
             id: item.product_id, // Use actual product ID
             itemId: item.id, // Store the order item ID for API
             name:
-              product?.name || product?.nameEn || `Product ${item.product_id}`, // Get product name
+              product?.arabic_name || product?.english_name || product?.name || product?.nameEn || `Product ${item.product_id}`, // Get product name
             quantity: item.quantity,
             price: product?.price || 0, // Get product price
           };
@@ -130,8 +147,10 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
             id: product.id, // Use actual product ID
             itemId: order.id, // Use order ID as item ID
             name:
+              fullProduct?.arabic_name || fullProduct?.english_name ||
               fullProduct?.name ||
               fullProduct?.nameEn ||
+              product.arabic_name || product.english_name ||
               product.name ||
               product.nameEn ||
               `Product ${product.id}`, // Get product name
@@ -153,6 +172,7 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
               id: order.product_id || order.productId,
               itemId: order.id,
               name:
+                product?.arabic_name || product?.english_name ||
                 product?.name ||
                 product?.nameEn ||
                 `Product ${order.product_id || order.productId}`,
@@ -172,6 +192,7 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
             id: order.product_id || order.productId, // Use actual product ID
             itemId: order.id, // Use order ID as item ID for single-item orders
             name:
+              product?.arabic_name || product?.english_name ||
               product?.name ||
               product?.nameEn ||
               order.product_name ||
@@ -188,7 +209,7 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
           {
             id: order.product.id, // Use actual product ID
             itemId: order.id, // Use order ID as item ID
-            name: order.product.name,
+            name: order.product.arabic_name || order.product.english_name || order.product.name || order.product.nameEn,
             quantity: order.quantity,
             price: order.product.price || 0,
           },
@@ -217,8 +238,10 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
                   id: product.id,
                   itemId: order.id,
                   name:
+                    fullProduct?.arabic_name || fullProduct?.english_name ||
                     fullProduct?.name ||
                     fullProduct?.nameEn ||
+                    product.arabic_name || product.english_name ||
                     product.name ||
                     product.nameEn ||
                     `Product ${product.id}`,
@@ -237,6 +260,7 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
                     id: order[field].id,
                     itemId: order.id,
                     name:
+                      product.arabic_name || product.english_name ||
                       product.name ||
                       product.nameEn ||
                       `Product ${order[field].id}`,
@@ -256,6 +280,7 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
                     id: order[field],
                     itemId: order.id,
                     name:
+                      product.arabic_name || product.english_name ||
                       product.name ||
                       product.nameEn ||
                       `Product ${order[field]}`,
@@ -296,13 +321,9 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
     const customer = customers.find((c) => c.id === parseInt(customerId));
     if (customer) {
       // Filter orders for this customer based on customer ID
-      // Try different possible field names for customer ID
       const filteredOrders = orders.filter((o) => {
-        // Check customerId field (number)
         if (o.customerId === parseInt(customerId)) return true;
-        // Check customer field (string like "Customer #7")
         if (o.customer && o.customer.includes(`#${customerId}`)) return true;
-        // Check customer_id field
         if (o.customer_id === parseInt(customerId)) return true;
         return false;
       });
@@ -312,14 +333,11 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
         customerId: customer.id,
         customerName: customer.customer_name || customer.name || "",
         orderId: "",
-        orderItemId: "",
-        productId: "",
-        productName: "",
-        quantity: 1,
-        refundAmount: 0,
+        items: [],
       }));
       setSelectedOrder(null);
       setOrderProducts([]);
+      setSelectedProducts(new Set());
     }
   };
 
@@ -338,53 +356,90 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
 
       setFormData((prev) => ({
         ...prev,
-        orderId: order.id, // Store order ID for reference
-        orderItemId: "", // Reset order item ID until product is selected
-        productId: "",
-        productName: "",
-        quantity: 1,
-        refundAmount: 0,
+        orderId: order.id,
+        items: [],
       }));
+      setSelectedProducts(new Set());
     }
   };
 
-  const handleProductSelect = (productId) => {
-    const product = orderProducts.find((p) => p.id === parseInt(productId));
-    if (product) {
-      const orderItemIdentifier =
-        product.itemId ??
-        product.orderItemId ??
-        product.order_item_id ??
-        product.order_item ??
-        product.id;
-
+  const handleProductToggle = (productId) => {
+    const productIdNum = parseInt(productId);
+    const newSelected = new Set(selectedProducts);
+    if (newSelected.has(productIdNum)) {
+      newSelected.delete(productIdNum);
+      // Remove item from formData.items
       setFormData((prev) => ({
         ...prev,
-        productId: product.id, // This is the actual product ID
-        productName: product.name,
-        orderItemId: orderItemIdentifier, // Store the order item ID for API
-        quantity: 1, // Reset to 1, user can adjust
-        refundAmount: product.price * 1, // Calculate based on single item price
+        items: prev.items.filter(
+          (item) => parseInt(item.product_id) !== productIdNum
+        ),
       }));
+    } else {
+      newSelected.add(productIdNum);
+      const product = orderProducts.find((p) => p.id === productIdNum);
+      if (product) {
+        // Add item to formData.items with default values
+        setFormData((prev) => ({
+          ...prev,
+          items: [
+            ...prev.items,
+            {
+              product_id: product.id,
+              quantity: 1,
+              return_reason: "",
+            },
+          ],
+        }));
+      }
     }
+    setSelectedProducts(newSelected);
   };
 
-  const handleQuantityChange = (quantity) => {
-    const product = orderProducts.find(
-      (p) => p.id === parseInt(formData.productId)
-    );
+  const handleItemQuantityChange = (productId, quantity) => {
+    const productIdNum = parseInt(productId);
+    const product = orderProducts.find((p) => p.id === productIdNum);
     if (product) {
       const qty = parseInt(quantity) || 1;
-      // Don't allow more than the original quantity
       const maxQty = product.quantity || 1;
       const finalQty = Math.min(qty, maxQty);
 
       setFormData((prev) => ({
         ...prev,
-        quantity: finalQty,
-        refundAmount: product.price * finalQty,
+        items: prev.items.map((item) =>
+          parseInt(item.product_id) === productIdNum
+            ? { ...item, quantity: finalQty }
+            : item
+        ),
       }));
     }
+  };
+
+  const handleItemReasonChange = (productId, reason) => {
+    const productIdNum = parseInt(productId);
+    setFormData((prev) => ({
+      ...prev,
+      items: prev.items.map((item) =>
+        parseInt(item.product_id) === productIdNum
+          ? { ...item, return_reason: reason }
+          : item
+      ),
+    }));
+  };
+
+  const removeItem = (productId) => {
+    const productIdNum = parseInt(productId);
+    setSelectedProducts((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(productIdNum);
+      return newSet;
+    });
+    setFormData((prev) => ({
+      ...prev,
+      items: prev.items.filter(
+        (item) => parseInt(item.product_id) !== productIdNum
+      ),
+    }));
   };
 
   const validateForm = () => {
@@ -398,17 +453,19 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
       newErrors.customerId = t("customerRequired");
     }
 
-    if (!formData.productId) {
-      newErrors.productId = t("productRequired");
+    if (!formData.items || formData.items.length === 0) {
+      newErrors.items = t("atLeastOneProductRequired");
     }
 
-    if (!formData.quantity || formData.quantity < 1) {
-      newErrors.quantity = t("validQuantityRequired");
-    }
-
-    if (!formData.reason) {
-      newErrors.reason = t("reasonRequired");
-    }
+    // Validate each item
+    formData.items.forEach((item, index) => {
+      if (!item.quantity || item.quantity < 1) {
+        newErrors[`item_${index}_quantity`] = t("validQuantityRequired");
+      }
+      if (!item.return_reason || item.return_reason.trim() === "") {
+        newErrors[`item_${index}_reason`] = t("reasonRequired");
+      }
+    });
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -418,13 +475,12 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
     e.preventDefault();
     if (validateForm()) {
       const returnData = {
-        ...formData,
-        id: editData?.id || `RTN-${Date.now()}`,
-        returnDate: editData?.returnDate || new Date().toISOString(),
-        // Ensure we're sending the correct identifiers
-        orderId: formData.orderId,
-        orderItemId: formData.orderItemId,
-        productId: formData.productId,
+        order_id: parseInt(formData.orderId),
+        items: formData.items.map((item) => ({
+          product_id: parseInt(item.product_id),
+          quantity: parseInt(item.quantity),
+          return_reason: item.return_reason,
+        })),
       };
 
       // Let the parent component handle API operations
@@ -436,20 +492,15 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
   const handleClose = () => {
     setFormData({
       orderId: "",
-      orderItemId: "",
       customerId: "",
       customerName: "",
-      productId: "",
-      productName: "",
-      quantity: 1,
-      reason: "",
-      description: "",
-      refundAmount: 0,
+      items: [],
     });
     setErrors({});
     setSelectedOrder(null);
     setCustomerOrders([]);
     setOrderProducts([]);
+    setSelectedProducts(new Set());
     onClose();
   };
 
@@ -564,42 +615,136 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
 
           {/* Product Selection - Third Step (shown after order selected) */}
           {formData.orderId && orderProducts.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FormField
-                label={t("selectProduct")}
-                name="productId"
-                type="select"
-                value={formData.productId}
-                onChange={(e) => handleProductSelect(e.target.value)}
-                error={errors.productId}
-                required
-                icon={<Package className="w-4 h-4" />}
-                options={[
-                  { value: "", label: t("selectProduct") },
-                  ...orderProducts.map((product) => ({
-                    value: product.id,
-                    label: `${product.name} (${t("qty")}: ${product.quantity})`,
-                  })),
-                ]}
-              />
+            <div className="space-y-4">
+              <div className={`${isRTL ? "text-right" : "text-left"}`}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  {t("selectProductsToReturn")} *
+                </label>
+                {errors.items && (
+                  <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+                    {errors.items}
+                  </p>
+                )}
+              </div>
 
-              <FormField
-                label={t("quantity")}
-                name="quantity"
-                type="number"
-                value={formData.quantity}
-                onChange={(e) => handleQuantityChange(e.target.value)}
-                error={errors.quantity}
-                required
-                min="1"
-                max={
-                  orderProducts.find(
-                    (p) => p.id === parseInt(formData.productId)
-                  )?.quantity || 999
-                }
-                icon={<Package className="w-4 h-4" />}
-                disabled={!formData.productId}
-              />
+              {/* Products List with Checkboxes */}
+              <div className="space-y-3 max-h-64 overflow-y-auto">
+                {orderProducts.map((product) => {
+                  const isSelected = selectedProducts.has(parseInt(product.id));
+                  const item = formData.items.find(
+                    (item) => parseInt(item.product_id) === parseInt(product.id)
+                  );
+                  const itemIndex = formData.items.findIndex(
+                    (item) => parseInt(item.product_id) === parseInt(product.id)
+                  );
+
+                  return (
+                    <div
+                      key={product.id}
+                      className={`border rounded-lg p-4 transition-all ${
+                        isSelected
+                          ? "border-orange-500 bg-orange-50 dark:bg-orange-900/20"
+                          : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <button
+                          type="button"
+                          onClick={() => handleProductToggle(product.id)}
+                          className="mt-1 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                        >
+                          {isSelected ? (
+                            <CheckSquare className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                          ) : (
+                            <Square className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+                          )}
+                        </button>
+
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-2">
+                            <div>
+                              <h4 className="font-medium text-gray-900 dark:text-white">
+                                {product.arabic_name || product.english_name || product.name || product.nameEn}
+                              </h4>
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                {t("availableQty")}: {product.quantity} |{" "}
+                                {t("price")}: {product.price?.toFixed(2) || "0.00"}
+                              </p>
+                            </div>
+                            {isSelected && (
+                              <button
+                                type="button"
+                                onClick={() => removeItem(product.id)}
+                                className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+
+                          {isSelected && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                  {t("quantity")} *
+                                </label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max={product.quantity}
+                                  value={item?.quantity || 1}
+                                  onChange={(e) =>
+                                    handleItemQuantityChange(
+                                      product.id,
+                                      e.target.value
+                                    )
+                                  }
+                                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 dark:focus:ring-orange-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                />
+                                {errors[`item_${itemIndex}_quantity`] && (
+                                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                                    {errors[`item_${itemIndex}_quantity`]}
+                                  </p>
+                                )}
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                  {t("returnReason")} *
+                                </label>
+                                <select
+                                  value={item?.return_reason || ""}
+                                  onChange={(e) =>
+                                    handleItemReasonChange(
+                                      product.id,
+                                      e.target.value
+                                    )
+                                  }
+                                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 dark:focus:ring-orange-400 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                >
+                                  <option value="">
+                                    {t("selectReason")}
+                                  </option>
+                                  {returnReasons.map((reason) => (
+                                    <option key={reason.value} value={reason.value}>
+                                      {reason.label}
+                                    </option>
+                                  ))}
+                                </select>
+                                {errors[`item_${itemIndex}_reason`] && (
+                                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                                    {errors[`item_${itemIndex}_reason`]}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -608,66 +753,62 @@ const ReturnForm = ({ isOpen, onClose, onSubmit, editData = null }) => {
             <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
               <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-300">
                 <AlertTriangle className="w-5 h-5" />
-                <p className="text-sm">
-                  {t("noProductsFoundInOrder")} (Debug: orderProducts.length ={" "}
-                  {orderProducts.length})
-                </p>
+                <p className="text-sm">{t("noProductsFoundInOrder")}</p>
               </div>
             </div>
           )}
 
-          {/* Return Reason */}
-          <FormField
-            label={t("returnReason")}
-            name="reason"
-            type="select"
-            value={formData.reason}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, reason: e.target.value }))
-            }
-            error={errors.reason}
-            required
-            icon={<AlertTriangle className="w-4 h-4" />}
-            options={[
-              { value: "", label: t("selectReason") },
-              ...returnReasons,
-            ]}
-          />
-
-          {/* Description */}
-          <FormField
-            label={t("description")}
-            name="description"
-            type="textarea"
-            value={formData.description}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, description: e.target.value }))
-            }
-            error={errors.description}
-            required
-            placeholder={t("desribelssueDetails")}
-            rows={3}
-          />
-
-          {/* Refund Amount */}
-          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-            <div
-              className={`flex items-center gap-2 mb-2 ${
-                isRTL ? "flex-row" : ""
-              }`}
-            >
-              <DollarSign className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              <label className="text-sm font-medium text-blue-800 dark:text-blue-300">
-                {t("refundAmount")}
-              </label>
+          {/* Summary */}
+          {formData.items.length > 0 && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+              <div
+                className={`flex items-center gap-2 mb-3 ${
+                  isRTL ? "flex-row" : ""
+                }`}
+              >
+                <Package className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <label className="text-sm font-medium text-blue-800 dark:text-blue-300">
+                  {t("returnSummary")}
+                </label>
+              </div>
+              <div className="space-y-2">
+                {formData.items.map((item) => {
+                  const product = orderProducts.find(
+                    (p) => parseInt(p.id) === parseInt(item.product_id)
+                  );
+                  return (
+                    <div
+                      key={item.product_id}
+                      className="flex justify-between items-center text-sm"
+                    >
+                      <span className="text-gray-700 dark:text-gray-300">
+                        {product?.name} x {item.quantity}
+                      </span>
+                      <span className="text-blue-800 dark:text-blue-300 font-medium">
+                        {((product?.price || 0) * (item.quantity || 1)).toFixed(2)} {t("currency")}
+                      </span>
+                    </div>
+                  );
+                })}
+                <div className="border-t border-blue-200 dark:border-blue-800 pt-2 mt-2 flex justify-between items-center">
+                  <span className="font-semibold text-blue-900 dark:text-blue-200">
+                    {t("totalRefund")}:
+                  </span>
+                  <span className="font-bold text-lg text-blue-900 dark:text-blue-200">
+                    {formData.items
+                      .reduce((sum, item) => {
+                        const product = orderProducts.find(
+                          (p) => parseInt(p.id) === parseInt(item.product_id)
+                        );
+                        return sum + (product?.price || 0) * (item.quantity || 0);
+                      }, 0)
+                      .toFixed(2)}{" "}
+                    {t("currency")}
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className="text-2xl font-bold text-blue-800 dark:text-blue-300">
-              {formData.refundAmount.toFixed(2)} {t("currency")}
-            </div>
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-              {t("calculatedAutomatically")}
-            </p>
-          </div>
+          )}
 
           {/* Form Actions */}
           <div

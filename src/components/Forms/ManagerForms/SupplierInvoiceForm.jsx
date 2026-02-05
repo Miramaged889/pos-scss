@@ -17,6 +17,7 @@ import {
 import { toast } from "react-hot-toast";
 
 import FormField from "../FormField";
+import { financialService } from "../../../services";
 
 const SupplierInvoiceForm = ({
   isOpen,
@@ -46,11 +47,45 @@ const SupplierInvoiceForm = ({
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false);
   const [newItem, setNewItem] = useState({
     item_name: "",
     quantity: 1,
     unit_price: 0,
   });
+
+  // Fetch payment methods when form opens
+  useEffect(() => {
+    if (isOpen) {
+      const fetchPaymentMethods = async () => {
+        try {
+          setLoadingPaymentMethods(true);
+          const response = await financialService.getPaymentMethods();
+          const methodsList = Array.isArray(response) ? response : response.data || [];
+          // Filter active payment methods and map to options format
+          const activeMethods = methodsList
+            .filter((method) => method.is_active !== false)
+            .map((method) => ({
+              value: method.id?.toString() || method.code || method.name || "",
+              label: method.name || method.code || method.arabic_name || method.english_name || "",
+            }));
+          setPaymentMethods(activeMethods);
+        } catch (error) {
+          console.error("Error fetching payment methods:", error);
+          // Fallback to default payment methods if API fails
+          setPaymentMethods([
+            { value: "Bank Transfer", label: t("bankTransfer") },
+            { value: "Check", label: t("check") },
+            { value: "Cash", label: t("cash") },
+          ]);
+        } finally {
+          setLoadingPaymentMethods(false);
+        }
+      };
+      fetchPaymentMethods();
+    }
+  }, [isOpen, t]);
 
   useEffect(() => {
     if (isOpen) {
@@ -397,11 +432,12 @@ const SupplierInvoiceForm = ({
                 value={formData.payment_method}
                 onChange={handleFieldChange("payment_method")}
                 options={[
-                  { value: "Bank Transfer", label: t("bankTransfer") },
-                  { value: "Check", label: t("check") },
-                  { value: "Cash", label: t("cash") },
+                  { value: "", label: t("selectPaymentMethod") },
+                  ...paymentMethods,
                 ]}
                 required
+                disabled={loadingPaymentMethods}
+                error={errors.payment_method}
               />
             </div>
           </div>

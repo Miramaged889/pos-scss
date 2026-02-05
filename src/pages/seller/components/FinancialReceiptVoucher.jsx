@@ -28,7 +28,7 @@ import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 import { useCurrency } from "../../../hooks";
 
 const FinancialReceiptVoucher = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { isRTL } = useSelector((state) => state.language);
   const dispatch = useDispatch();
   const { currency } = useCurrency();
@@ -175,6 +175,7 @@ const FinancialReceiptVoucher = () => {
   };
 
   const handlePrintReceipt = (receipt) => {
+    const currencyDisplay = currency();
     const printWindow = window.open("", "_blank");
     const printContent = `
       <!DOCTYPE html>
@@ -269,7 +270,7 @@ const FinancialReceiptVoucher = () => {
               <label>مبلغ وقدره:</label>
               <input type="text" value="${
                 receipt.amount
-              } ريال" readonly class="amount">
+              } ${currencyDisplay}" readonly class="amount">
             </div>
             
             <div class="form-row">
@@ -450,6 +451,29 @@ const FinancialReceiptVoucher = () => {
       receipt.receivedFrom ||
       ""
     );
+  };
+
+  // Helper function to get status display based on language
+  const getStatusDisplay = (status) => {
+    const isArabic = i18n.language === "ar" || isRTL;
+    
+    if (!status) return isArabic ? "مكتمل" : "Completed";
+    
+    const statusLower = status.toLowerCase();
+    
+    // Map status values to translations
+    if (statusLower === "completed" || statusLower === "مكتمل") {
+      return isArabic ? "مكتمل" : t("completed");
+    } else if (statusLower === "pending" || statusLower === "قيد الانتظار") {
+      return isArabic ? "قيد الانتظار" : t("pending");
+    } else if (statusLower === "cancelled" || statusLower === "ملغي") {
+      return isArabic ? "ملغي" : t("cancelled");
+    } else if (statusLower === "failed" || statusLower === "فشل") {
+      return isArabic ? "فشل" : t("failed");
+    }
+    
+    // Default: return as is or translate if available
+    return t(status) || status;
   };
 
   // Show loading state
@@ -1148,7 +1172,7 @@ const FinancialReceiptVoucher = () => {
                         {getReceivedFromValue(receipt)}
                       </td>
                       <td className="py-3 px-4 text-sm font-semibold text-green-600 dark:text-green-400">
-                        {receipt.amount} ريال
+                        {receipt.amount} {currency()}
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">
                         {receipt.receiver}
@@ -1159,7 +1183,7 @@ const FinancialReceiptVoucher = () => {
                       <td className="py-3 px-4">
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                           <CheckCircle className="w-3 h-3 ml-1 rtl:ml-0 rtl:mr-1" />
-                          مكتمل
+                          {getStatusDisplay(receipt.status)}
                         </span>
                       </td>
                       <td className="py-3 px-4">

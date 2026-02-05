@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import FormField from "../FormField";
-import { supplierService } from "../../../services/supplierService";
+import { supplierService, currencyService } from "../../../services";
 
 const PaymentVoucherForm = ({
   isOpen,
@@ -52,6 +52,8 @@ const PaymentVoucherForm = ({
   const [isDragging, setIsDragging] = useState(false);
   const [suppliers, setSuppliers] = useState([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false);
 
   // Fetch suppliers from API
   const fetchSuppliers = useCallback(async () => {
@@ -73,6 +75,38 @@ const PaymentVoucherForm = ({
       fetchSuppliers();
     }
   }, [isOpen, fetchSuppliers]);
+
+  // Fetch payment methods from API
+  useEffect(() => {
+    const fetchPaymentMethods = async () => {
+      if (!isOpen) return;
+      try {
+        setLoadingPaymentMethods(true);
+        const response = await currencyService.getCurrencies();
+        const currenciesList = Array.isArray(response)
+          ? response
+          : response.results || response.data || [];
+        
+        // Filter only active currencies and map to payment methods format
+        const activePaymentMethods = currenciesList
+          .filter((currency) => currency.is_active === true)
+          .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+          .map((currency) => ({
+            value: currency.id?.toString() || String(currency.id || ""),
+            label: currency.name || currency.code || "",
+          }));
+        
+        setPaymentMethods(activePaymentMethods);
+      } catch (error) {
+        console.error("Error fetching payment methods:", error);
+        setPaymentMethods([]);
+      } finally {
+        setLoadingPaymentMethods(false);
+      }
+    };
+
+    fetchPaymentMethods();
+  }, [isOpen]);
 
   // Load voucher data when component mounts or voucher changes
   useEffect(() => {
@@ -124,12 +158,6 @@ const PaymentVoucherForm = ({
     }
   }, [isOpen, mode, voucher]);
 
-  const paymentMethodOptions = [
-    { value: "cash", label: t("cash") },
-    { value: "bank_transfer", label: t("bankTransfer") },
-    { value: "credit_card", label: t("creditCard") },
-    { value: "check", label: t("check") },
-  ];
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({
@@ -459,11 +487,16 @@ const PaymentVoucherForm = ({
               <FormField
                 label={t("paymentMethod")}
                 type="select"
-                value={formData.paymentMethod}
+                value={formData.paymentMethod || ""}
                 onChange={handleFieldChange("paymentMethod")}
-                options={paymentMethodOptions}
+                options={[
+                  { value: "", label: t("selectPaymentMethod") },
+                  ...paymentMethods,
+                ]}
                 required
                 icon={CreditCard}
+                disabled={loadingPaymentMethods}
+                helperText={loadingPaymentMethods ? t("loading") : ""}
               />
 
               <FormField

@@ -6,7 +6,20 @@
 import { apiService, API_ENDPOINTS } from "./api";
 
 // Helper to convert payment method to API format
+// Now payment_method is an ID from currency service, so convert to integer
 const convertPaymentMethodToAPI = (method) => {
+  // If method is already a number or numeric string, return as integer
+  if (method === null || method === undefined || method === "") {
+    return null;
+  }
+  
+  // Try to parse as integer (for new API-based payment methods)
+  const parsed = parseInt(method);
+  if (!isNaN(parsed)) {
+    return parsed;
+  }
+  
+  // Fallback for old string-based methods (for backward compatibility)
   const methodMap = {
     cash: "Cash",
     bank_transfer: "Bank Transfer",
@@ -17,7 +30,25 @@ const convertPaymentMethodToAPI = (method) => {
 };
 
 // Helper to convert payment method from API format
+// API may return ID (number) or string name
 const convertPaymentMethodFromAPI = (method) => {
+  // If method is a number or numeric string, return as string (for use as value in select)
+  if (method === null || method === undefined) {
+    return "";
+  }
+  
+  // If it's a number, return as string
+  if (typeof method === "number") {
+    return method.toString();
+  }
+  
+  // Try to parse as number
+  const parsed = parseInt(method);
+  if (!isNaN(parsed)) {
+    return parsed.toString();
+  }
+  
+  // Fallback for old string-based methods (for backward compatibility)
   const methodMap = {
     Cash: "cash",
     "Bank Transfer": "bank_transfer",
@@ -39,17 +70,23 @@ const getVoucherType = (voucherType) => {
 
 // Helper to map frontend data to API format
 const mapFrontendToDb = (frontendVoucher) => {
+  const paymentMethodValue = convertPaymentMethodToAPI(frontendVoucher.paymentMethod);
+  
   const dbData = {
     voucher_number: frontendVoucher.voucherNumber || `VOU-${Date.now()}`,
     voucher_type: frontendVoucher.voucherType || "Supplier",
     date: frontendVoucher.date,
     amount: frontendVoucher.amount.toString(),
-    payment_method: convertPaymentMethodToAPI(frontendVoucher.paymentMethod),
     category: frontendVoucher.category || "General",
     recipient: frontendVoucher.recipient || frontendVoucher.supplier,
     description: frontendVoucher.description || "",
     notes: frontendVoucher.notes || "",
   };
+
+  // Only add payment_method if it has a value (null or integer)
+  if (paymentMethodValue !== null && paymentMethodValue !== undefined) {
+    dbData.payment_method = paymentMethodValue;
+  }
 
   // Add supplier ID if it's a payment voucher and supplierId exists
   if (frontendVoucher.supplierId && frontendVoucher.supplierId !== "") {
