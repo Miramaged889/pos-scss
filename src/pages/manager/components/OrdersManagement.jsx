@@ -19,8 +19,14 @@ import {
   Users,
   X,
   Save,
+  FileSpreadsheet,
+  FileText,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 import DataTable from "../../../components/Common/DataTable";
 import {
@@ -32,9 +38,21 @@ import {
   productService,
   customerService,
   tenantUsersService,
+  currencyService,
 } from "../../../services";
 import { fetchTenantInfo } from "../../../store/slices/tenantSlice";
 import { useCurrency } from "../../../hooks";
+
+// Add CSS to hide scrollbar
+const scrollbarHideStyle = `
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+`;
 
 const OrdersManagement = () => {
   const { t } = useTranslation();
@@ -68,6 +86,8 @@ const OrdersManagement = () => {
   const [customersLoading, setCustomersLoading] = useState(false);
   const [sellersData, setSellersData] = useState([]);
   const [sellersLoading, setSellersLoading] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(false);
 
   // Fetch products from API
   const fetchProducts = async () => {
@@ -106,6 +126,66 @@ const OrdersManagement = () => {
     } finally {
       setSellersLoading(false);
     }
+  };
+
+  // Fetch payment methods from API
+  const fetchPaymentMethods = async () => {
+    try {
+      setPaymentMethodsLoading(true);
+      const response = await currencyService.getCurrencies();
+      const currenciesList = Array.isArray(response) 
+        ? response 
+        : response.results || response.data || [];
+      const activeMethods = currenciesList
+        .filter((currency) => currency.is_active !== false)
+        .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+        .map((currency) => ({
+          id: currency.id,
+          name: currency.name || currency.code || "",
+          code: currency.code || "",
+        }));
+      setPaymentMethods(activeMethods);
+    } catch (error) {
+      console.error("Error fetching payment methods:", error);
+      setPaymentMethods([]);
+    } finally {
+      setPaymentMethodsLoading(false);
+    }
+  };
+
+  // Get payment method details by ID
+  const getPaymentMethodDetails = (methodId) => {
+    if (!methodId) return null;
+    const methodIdStr = String(methodId);
+    return paymentMethods.find(
+      (method) => String(method.id) === methodIdStr
+    );
+  };
+
+  // Get payment method name (used in exports and displays)
+  const getPaymentMethodName = (methodId) => {
+    if (!methodId) return t("notAvailable");
+    
+    const method = getPaymentMethodDetails(methodId);
+    if (method) return method.name;
+    
+    // Fallback for old string-based methods
+    if (typeof methodId === "string") {
+      switch (methodId.toLowerCase()) {
+        case "cash":
+          return t("cash");
+        case "card":
+          return t("card");
+        case "knet":
+          return t("kent");
+        case "digital":
+          return t("digital");
+        default:
+          return methodId;
+      }
+    }
+    
+    return methodId?.toString() || t("unknown");
   };
 
   // Helper function to get both English and Arabic product names
@@ -363,6 +443,7 @@ const OrdersManagement = () => {
     fetchProducts();
     fetchCustomersData();
     fetchSellersData();
+    fetchPaymentMethods();
   }, [dispatch]);
 
   useEffect(() => {
@@ -424,6 +505,35 @@ const OrdersManagement = () => {
   };
 
   const getPaymentMethodBadge = (method) => {
+    // If method is a number (ID), get name from payment methods
+    if (typeof method === "number" || (typeof method === "string" && !isNaN(parseInt(method)))) {
+      const methodId = typeof method === "number" ? method : parseInt(method);
+      const methodDetails = getPaymentMethodDetails(methodId);
+      if (methodDetails) {
+        const code = methodDetails.code?.toLowerCase() || methodDetails.name?.toLowerCase() || "";
+        let color = "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300";
+        
+        if (code.includes("cash") || code.includes("نقد")) {
+          color = "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
+        } else if (code.includes("card") || code.includes("credit")) {
+          color = "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
+        } else if (code.includes("transfer") || code.includes("bank")) {
+          color = "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
+        } else if (code.includes("check")) {
+          color = "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300";
+        }
+        
+        return (
+          <span
+            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${color}`}
+          >
+            {methodDetails.name}
+          </span>
+        );
+      }
+    }
+    
+    // Fallback for old string-based methods
     const methodConfig = {
       cash: {
         color:
@@ -582,7 +692,7 @@ const OrdersManagement = () => {
     {
       header: t("payment"),
       accessor: "paymentMethod",
-      render: (item) => getPaymentMethodBadge(item.paymentMethod || "cash"),
+      render: (item) => getPaymentMethodBadge(item.payment_type || item.paymentMethod || "cash"),
     },
     {
       header: t("date"),
@@ -643,11 +753,116 @@ const OrdersManagement = () => {
 
   const handleEditOrder = (order) => {
     setSelectedOrder(order);
-    setEditForm({
+    
+    // Handle customer ID - Check customerId first, then customer
+    let customerId = "";
+    if (order.customerId !== null && order.customerId !== undefined) {
+      customerId = String(order.customerId);
+    } else if (order.customer !== null && order.customer !== undefined) {
+      if (typeof order.customer === 'object') {
+        customerId = order.customer.id ? String(order.customer.id) : "";
+      } else if (typeof order.customer === 'number') {
+        customerId = String(order.customer);
+      }
+      // If customer is a string like "Customer #2", extract the ID
+      else if (typeof order.customer === 'string' && order.customer.includes('#')) {
+        const match = order.customer.match(/#(\d+)/);
+        if (match) customerId = match[1];
+      }
+    }
+    
+    // Handle seller ID - Check sellerId first, then seller
+    let sellerId = "";
+    if (order.sellerId !== null && order.sellerId !== undefined) {
+      sellerId = String(order.sellerId);
+    } else if (order.seller !== null && order.seller !== undefined) {
+      if (typeof order.seller === 'object') {
+        sellerId = order.seller.id ? String(order.seller.id) : "";
+      } else {
+        sellerId = String(order.seller);
+      }
+    }
+    
+    // Handle payment_type - API returns direct number
+    let paymentTypeValue = "";
+    if (order.payment_type !== null && order.payment_type !== undefined) {
+      paymentTypeValue = String(order.payment_type);
+    } else if (order.paymentMethod) {
+      paymentTypeValue = String(order.paymentMethod);
+    }
+    
+    // Handle items array - Check both 'items' and 'products' arrays
+    let itemsArray = [];
+    
+    // First try 'items' array (from API endpoint seller/orders/1/)
+    if (Array.isArray(order.items) && order.items.length > 0 && typeof order.items[0] === 'object') {
+      itemsArray = order.items.map(item => {
+        const productId = item.product_id || item.product?.id || item.id || "";
+        return {
+          id: item.id || null,
+          product_id: String(productId),
+          quantity: Number(item.quantity) || 1
+        };
+      });
+    }
+    // If items is just a number, try 'products' array
+    else if (Array.isArray(order.products) && order.products.length > 0) {
+      itemsArray = order.products.map(product => {
+        const productId = product.id || product.product_id || "";
+        return {
+          id: product.item_id || null, // Some APIs return item_id for the order item
+          product_id: String(productId),
+          quantity: Number(product.quantity) || 1
+        };
+      });
+    }
+    
+    // Handle date - API returns ISO string
+    let dateValue = "";
+    const dateStr = order.date || order.createdAt || order.orderDate;
+    if (dateStr) {
+      try {
+        const dateObj = new Date(dateStr);
+        if (!isNaN(dateObj.getTime())) {
+          dateValue = dateObj.toISOString().split("T")[0];
+        }
+      } catch (e) {
+        console.error("Error parsing date:", e);
+      }
+    }
+    
+    // Handle delivery_option
+    const deliveryOption = order.delivery_option || order.deliveryOption || "pickup";
+    
+    // Handle amounts - convert numbers to strings
+    const discount = order.discount !== null && order.discount !== undefined 
+      ? String(order.discount) 
+      : "0.00";
+    const subtotal = order.subtotal !== null && order.subtotal !== undefined 
+      ? String(order.subtotal) 
+      : String(order.total_amount || "0.00");
+    const totalAmount = order.total_amount !== null && order.total_amount !== undefined 
+      ? String(order.total_amount) 
+      : String(order.totalAmount || order.total || "0.00");
+    
+    // Handle notes - check multiple possible fields
+    const notes = order.notes || order.generalNotes || order.kitchenNotes || "";
+    
+    const formData = {
       status: order.status || "pending",
-      notes: order.notes || "",
-      deliveryDate: order.deliveryDate ? order.deliveryDate.split("T")[0] : "",
-    });
+      customer: customerId,
+      seller: sellerId,
+      payment_type: paymentTypeValue,
+      delivery_option: deliveryOption,
+      discount: discount,
+      subtotal: subtotal,
+      total_amount: totalAmount,
+      date: dateValue,
+      notes: notes,
+      items: itemsArray,
+    };
+    
+    setEditForm(formData);
     setEditModal(true);
   };
 
@@ -660,16 +875,29 @@ const OrdersManagement = () => {
     if (!selectedOrder) return;
 
     try {
+      // Prepare items array - only include items with valid product_id
+      const itemsToSend = editForm.items
+        .filter(item => item.product_id)
+        .map(item => ({
+          id: item.id || undefined,
+          product_id: parseInt(item.product_id),
+          quantity: parseInt(item.quantity) || 1
+        }));
+
       const updates = {
         status: editForm.status,
-        notes: editForm.notes,
-        deliveryDate: editForm.deliveryDate
-          ? `${editForm.deliveryDate}T${
-              (selectedOrder.deliveryDate || new Date().toISOString()).split(
-                "T"
-              )[1]
-            }`
-          : selectedOrder.deliveryDate,
+        customer: editForm.customer ? parseInt(editForm.customer) : null,
+        seller: editForm.seller ? parseInt(editForm.seller) : null,
+        payment_type: editForm.payment_type ? parseInt(editForm.payment_type) : null,
+        delivery_option: editForm.delivery_option || "pickup",
+        discount: editForm.discount || "0.00",
+        subtotal: editForm.subtotal || "0.00",
+        total_amount: editForm.total_amount || editForm.subtotal || "0.00",
+        date: editForm.date
+          ? `${editForm.date}T${(selectedOrder.date || selectedOrder.createdAt || new Date().toISOString()).split("T")[1] || "00:00:00.000000Z"}`
+          : selectedOrder.date || selectedOrder.createdAt,
+        notes: editForm.notes || "",
+        items: itemsToSend,
       };
 
       await dispatch(updateOrder({ id: selectedOrder.id, updates }));
@@ -697,10 +925,158 @@ const OrdersManagement = () => {
     }
   };
 
-  const handleExportOrders = () => {
-    console.log("Export orders");
-    // Implement export functionality
-    toast.success(t("ordersExported"));
+  // Export to Excel
+  const handleExportToExcel = () => {
+    try {
+      // Prepare data for export
+      const exportData = filteredOrders.map((order) => {
+        const customerId = order.customer;
+        const sellerId = order.sellerId;
+        
+        // Get items as string
+        let itemsStr = "";
+        if (Array.isArray(order.items)) {
+          itemsStr = order.items
+            .map((item) => {
+              const names = getProductNameBothLanguages(item.product_id);
+              const productName = isRTL ? names.arabic : names.english;
+              return `${item.quantity || 1}x ${productName}`;
+            })
+            .join(", ");
+        } else if (Array.isArray(order.products)) {
+          itemsStr = order.products
+            .map((product) => {
+              const names = getProductNameBothLanguages(product.id);
+              const productName = isRTL ? names.arabic : names.english;
+              return `${product.quantity || 1}x ${productName}`;
+            })
+            .join(", ");
+        }
+
+        return {
+          [t("orderId")]: order.id,
+          [t("customer")]: getCustomerName(customerId),
+          [t("phone")]: getCustomerPhone(customerId) || t("notAvailable"),
+          [t("seller")]: getSellerName(sellerId),
+          [t("email")]: getSellerEmail(sellerId) || t("notAvailable"),
+          [t("items")]: itemsStr,
+          [t("total")]: (order.total_amount || 0).toFixed(2),
+          [t("status")]: t(order.status || "pending"),
+          [t("paymentMethod")]: getPaymentMethodName(order.payment_type || order.paymentMethod || "cash"),
+          [t("date")]: order.createdAt || order.orderDate || order.date
+            ? new Date(order.createdAt || order.orderDate || order.date).toLocaleDateString()
+            : t("notAvailable"),
+        };
+      });
+
+      // Create workbook and worksheet
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, t("orders"));
+
+      // Generate filename with current date
+      const filename = `${t("orders")}_${new Date().toISOString().split("T")[0]}.xlsx`;
+
+      // Save file
+      XLSX.writeFile(wb, filename);
+      toast.success(t("ordersExportedToExcel"));
+    } catch (error) {
+      console.error("Error exporting to Excel:", error);
+      toast.error(t("errorExportingOrders"));
+    }
+  };
+
+  // Export to PDF
+  const handleExportToPDF = () => {
+    try {
+      const doc = new jsPDF();
+
+      // Title
+      doc.setFontSize(18);
+      doc.text(t("ordersManagement"), 14, 15);
+
+      // Date
+      doc.setFontSize(10);
+      doc.text(
+        `${t("date")}: ${new Date().toLocaleDateString()}`,
+        14,
+        22
+      );
+
+      // Prepare table data
+      const tableData = filteredOrders.map((order) => {
+        const customerId = order.customer;
+        const sellerId = order.sellerId;
+        
+        // Get items as string
+        let itemsStr = "";
+        if (Array.isArray(order.items)) {
+          itemsStr = order.items
+            .map((item) => {
+              const names = getProductNameBothLanguages(item.product_id);
+              const productName = isRTL ? names.arabic : names.english;
+              return `${item.quantity || 1}x ${productName}`;
+            })
+            .join(", ");
+        } else if (Array.isArray(order.products)) {
+          itemsStr = order.products
+            .map((product) => {
+              const names = getProductNameBothLanguages(product.id);
+              const productName = isRTL ? names.arabic : names.english;
+              return `${product.quantity || 1}x ${productName}`;
+            })
+            .join(", ");
+        }
+
+        return [
+          order.id,
+          getCustomerName(customerId),
+          getCustomerPhone(customerId) || t("notAvailable"),
+          getSellerName(sellerId),
+          itemsStr || t("notAvailable"),
+          (order.total_amount || 0).toFixed(2),
+          t(order.status || "pending"),
+          getPaymentMethodName(order.payment_type || order.paymentMethod || "cash"),
+          order.createdAt || order.orderDate || order.date
+            ? new Date(order.createdAt || order.orderDate || order.date).toLocaleDateString()
+            : t("notAvailable"),
+        ];
+      });
+
+      // Table columns
+      const columns = [
+        t("orderId"),
+        t("customer"),
+        t("phone"),
+        t("seller"),
+        t("items"),
+        t("total"),
+        t("status"),
+        t("paymentMethod"),
+        t("date"),
+      ];
+
+      // Add table
+      autoTable(doc, {
+        head: [columns],
+        body: tableData,
+        startY: 28,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [66, 139, 202] },
+        alternateRowStyles: { fillColor: [245, 245, 245] },
+        margin: { top: 28 },
+      });
+
+      // Generate filename with current date
+      const filename = `${t("orders")}_${new Date().toISOString().split("T")[0]}.pdf`;
+
+      // Save file
+      doc.save(filename);
+      toast.success(t("ordersExportedToPDF"));
+    } catch (error) {
+      console.error("Error exporting to PDF:", error);
+      toast.error(t("errorExportingOrders"));
+    }
   };
 
   const clearFilters = () => {
@@ -766,8 +1142,10 @@ const OrdersManagement = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <>
+      <style>{scrollbarHideStyle}</style>
+      <div className="space-y-6">
+        {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -778,13 +1156,31 @@ const OrdersManagement = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={handleExportOrders}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            {t("export")}
-          </button>
+          <div className="relative group">
+            <button
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              {t("export")}
+              <ChevronDown className="w-4 h-4" />
+            </button>
+            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+              <button
+                onClick={handleExportToExcel}
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors first:rounded-t-lg last:rounded-b-lg"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                {t("exportToExcel")}
+              </button>
+              <button
+                onClick={handleExportToPDF}
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors first:rounded-t-lg last:rounded-b-lg"
+              >
+                <FileText className="w-4 h-4 text-red-600" />
+                {t("exportToPDF")}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1050,7 +1446,7 @@ const OrdersManagement = () => {
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     <strong>{t("paymentMethod")}:</strong>{" "}
                     {getPaymentMethodBadge(
-                      selectedOrder.paymentMethod || "cash"
+                      selectedOrder.payment_type || selectedOrder.paymentMethod || "cash"
                     )}
                   </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -1142,7 +1538,7 @@ const OrdersManagement = () => {
       {/* Edit Modal */}
       {editModal && selectedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                 {t("editOrder")} - {selectedOrder.id}
@@ -1155,7 +1551,138 @@ const OrdersManagement = () => {
               </button>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 scrollbar-hide">
+              {/* Items Management */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t("items")}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditForm({
+                        ...editForm,
+                        items: [...(editForm.items || []), { id: null, product_id: "", quantity: 1 }]
+                      });
+                    }}
+                    className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                  >
+                    <Plus className="w-3 h-3" />
+                    {t("addItem")}
+                  </button>
+                </div>
+                <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700 max-h-64 overflow-y-auto scrollbar-hide">
+                  {editForm.items && editForm.items.length > 0 ? (
+                    <div className="space-y-3">
+                      {editForm.items.map((item, index) => (
+                        <div
+                          key={index}
+                          className="flex gap-2 items-start p-2 bg-white dark:bg-gray-800 rounded"
+                        >
+                          <div className="flex-1">
+                            <select
+                              value={String(item.product_id || "")}
+                              onChange={(e) => {
+                                const newItems = [...editForm.items];
+                                newItems[index].product_id = e.target.value;
+                                setEditForm({ ...editForm, items: newItems });
+                              }}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                              disabled={productsLoading}
+                            >
+                              <option value="">{productsLoading ? t("loading") : t("selectProduct")}</option>
+                              {products.map((product) => {
+                                const names = getProductNameBothLanguages(product.id);
+                                const displayName = isRTL ? names.arabic : names.english;
+                                return (
+                                  <option key={product.id} value={String(product.id)}>
+                                    {displayName} - {product.price} {currency()}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                          </div>
+                          <div className="w-20">
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.quantity || 1}
+                              onChange={(e) => {
+                                const newItems = [...editForm.items];
+                                newItems[index].quantity = parseInt(e.target.value) || 1;
+                                setEditForm({ ...editForm, items: newItems });
+                              }}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                              placeholder={t("qty")}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newItems = editForm.items.filter((_, i) => i !== index);
+                              setEditForm({ ...editForm, items: newItems });
+                            }}
+                            className="p-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                            title={t("remove")}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                      {t("noItems")}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {t("customer")}
+                  </label>
+                  <select
+                    value={editForm.customer || ""}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, customer: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                    disabled={customersLoading}
+                  >
+                    <option value="">{customersLoading ? t("loading") : t("noCustomer")}</option>
+                    {customers.map((customer) => (
+                      <option key={customer.id} value={customer.id}>
+                        {customer.customer_name || customer.name || `${t("customerNumber")}${customer.id}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {t("seller")}
+                  </label>
+                  <select
+                    value={editForm.seller || ""}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, seller: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                    disabled={sellersLoading}
+                  >
+                    <option value="">{sellersLoading ? t("loading") : t("selectSeller")}</option>
+                    {sellersData.map((seller) => (
+                      <option key={seller.id} value={seller.id}>
+                        {seller.username || seller.name || seller.user_name || `${t("sellerNumber")}${seller.id}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {t("status")}
@@ -1176,13 +1703,100 @@ const OrdersManagement = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t("deliveryDate")}
+                  {t("paymentMethod")}
+                </label>
+                <select
+                  value={editForm.payment_type || ""}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, payment_type: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  disabled={paymentMethodsLoading}
+                >
+                  <option value="">{paymentMethodsLoading ? t("loading") : t("selectPaymentMethod")}</option>
+                  {paymentMethods.map((method) => (
+                    <option key={method.id} value={method.id}>
+                      {method.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {t("deliveryOption")}
+                </label>
+                <select
+                  value={editForm.delivery_option || "pickup"}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, delivery_option: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="pickup">{t("pickup")}</option>
+                  <option value="delivery">{t("delivery")}</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {t("subtotal")}
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editForm.subtotal || "0.00"}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, subtotal: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {t("discount")}
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editForm.discount || "0.00"}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, discount: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {t("total")}
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editForm.total_amount || editForm.subtotal || "0.00"}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, total_amount: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {t("date")}
                 </label>
                 <input
                   type="date"
-                  value={editForm.deliveryDate}
+                  value={editForm.date || ""}
                   onChange={(e) =>
-                    setEditForm({ ...editForm, deliveryDate: e.target.value })
+                    setEditForm({ ...editForm, date: e.target.value })
                   }
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                 />
@@ -1193,7 +1807,7 @@ const OrdersManagement = () => {
                   {t("notes")}
                 </label>
                 <textarea
-                  value={editForm.notes}
+                  value={editForm.notes || ""}
                   onChange={(e) =>
                     setEditForm({ ...editForm, notes: e.target.value })
                   }
@@ -1274,7 +1888,8 @@ const OrdersManagement = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 };
 
