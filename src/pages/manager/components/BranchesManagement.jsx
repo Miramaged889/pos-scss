@@ -131,7 +131,7 @@ const BranchesManagement = () => {
     setFormData({
       name: branch.name || "",
       contact_email: branch.contact_email || "",
-      contact_phone: branch.contact_phone || "",
+      contact_phone: String(branch.contact_phone || ""),
     });
     setSelectedBranch(branch);
     setShowEditModal(true);
@@ -147,17 +147,17 @@ const BranchesManagement = () => {
     }
 
     // Validate required fields
-    if (!formData.name.trim()) {
+    if (!formData.name || !formData.name.trim()) {
       toast.error(t("branchNameRequired"));
       return;
     }
 
-    if (!formData.contact_email.trim()) {
+    if (!formData.contact_email || !formData.contact_email.trim()) {
       toast.error(t("contactEmailRequired"));
       return;
     }
 
-    if (!formData.contact_phone.trim()) {
+    if (!formData.contact_phone || !String(formData.contact_phone).trim()) {
       toast.error(t("contactPhoneRequired"));
       return;
     }
@@ -171,7 +171,7 @@ const BranchesManagement = () => {
 
     // Validate phone number (basic validation)
     const phoneRegex = /^[0-9+\-\s()]+$/;
-    if (!phoneRegex.test(formData.contact_phone)) {
+    if (!phoneRegex.test(String(formData.contact_phone))) {
       toast.error(t("invalidPhoneFormat"));
       return;
     }
