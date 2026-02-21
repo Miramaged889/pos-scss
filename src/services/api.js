@@ -36,7 +36,7 @@ export const API_ENDPOINTS = {
   AUTH: {
     LOGIN: "/tenuser/login/",
     LOGOUT: "/auth/logout/",
-    REFRESH: "/auth/refresh/",
+    REFRESH: "/tenuser/token/refresh/",
     PROFILE: "/auth/profile/",
   },
 
@@ -81,24 +81,6 @@ export const API_ENDPOINTS = {
     DELETE: "seller/orders/:id/",
     GET: "seller/orders/:id/",
   },
-
-  // // Payments
-  // PAYMENTS: {
-  //   LIST: "/payments",
-  //   CREATE: "/payments",
-  //   UPDATE: "/payments/:id",
-  //   DELETE: "/payments/:id",
-  //   GET: "/payments/:id",
-  // },
-
-  // // Purchase Orders
-  // PURCHASE_ORDERS: {
-  //   LIST: "/purchase-orders",
-  //   CREATE: "/purchase-orders",
-  //   UPDATE: "/purchase-orders/:id",
-  //   DELETE: "/purchase-orders/:id",
-  //   GET: "/purchase-orders/:id",
-  // },
 
   // supplier purchase
   SUPPLIER_PURCHASE: {
@@ -280,7 +262,7 @@ const handleResponse = async (response) => {
       errorData.message ||
         errorData.detail ||
         errorData.error ||
-        `HTTP error! status: ${response.status} - ${response.statusText}`
+        `HTTP error! status: ${response.status} - ${response.statusText}`,
     );
 
     // Attach response data to error object
@@ -299,6 +281,46 @@ const handleResponse = async (response) => {
   }
 
   return await response.text();
+};
+
+// Token refresh state management / إدارة حالة تجديد التوكن
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+
+  failedQueue = [];
+};
+
+// Token refresh function / دالة تجديد التوكن
+const refreshAccessToken = async () => {
+  const refreshToken = localStorage.getItem("refresh_token");
+
+  if (!refreshToken) {
+    throw new Error("No refresh token available");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/tenuser/token/refresh/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ refresh: refreshToken }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to refresh token");
+  }
+
+  const data = await response.json();
+  return data.access;
 };
 
 // Generic API request function
@@ -339,6 +361,59 @@ const apiRequest = async (url, options = {}) => {
 
   try {
     const response = await fetch(finalUrl, config);
+
+    // Handle 401 Unauthorized - Token expired / معالجة خطأ 401 - انتهاء صلاحية التوكن
+    if (response.status === 401 && !options._retry) {
+      if (isRefreshing) {
+        // If already refreshing, queue this request / إذا كان يتم التجديد، أضف الطلب للقائمة
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            config.headers.Authorization = `Bearer ${token}`;
+            return fetch(finalUrl, { ...config, _retry: true });
+          })
+          .then((response) => handleResponse(response));
+      }
+
+      // Start refreshing token / بدء تجديد التوكن
+      isRefreshing = true;
+      options._retry = true;
+
+      try {
+        const newAccessToken = await refreshAccessToken();
+
+        // Save new access token / حفظ التوكن الجديد
+        localStorage.setItem("auth_token", newAccessToken);
+
+        // Update headers with new token / تحديث الهيدر بالتوكن الجديد
+        config.headers.Authorization = `Bearer ${newAccessToken}`;
+
+        // Process queued requests / معالجة الطلبات في قائمة الانتظار
+        processQueue(null, newAccessToken);
+
+        // Retry the original request / إعادة محاولة الطلب الأصلي
+        isRefreshing = false;
+        const retryResponse = await fetch(finalUrl, config);
+        return await handleResponse(retryResponse);
+      } catch (refreshError) {
+        // Token refresh failed, logout user / فشل تجديد التوكن، تسجيل خروج المستخدم
+        processQueue(refreshError, null);
+        isRefreshing = false;
+
+        // Clear tokens and redirect to login / مسح التوكنات والتوجيه لصفحة الدخول
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("refresh_token");
+
+        // Redirect to login page / التوجيه لصفحة الدخول
+        if (typeof window !== "undefined") {
+          window.location.href = "/login";
+        }
+
+        throw refreshError;
+      }
+    }
+
     return await handleResponse(response);
   } catch (error) {
     // For development, provide more helpful error messages
@@ -527,6 +602,43 @@ export const replaceUrlParams = (endpoint, params) => {
     url = url.replace(`:${key}`, params[key]);
   });
   return url;
+};
+
+// Manual token refresh function for components / دالة تجديد يدوية للمكونات
+export const manualRefreshToken = async () => {
+  try {
+    const newAccessToken = await refreshAccessToken();
+    localStorage.setItem("auth_token", newAccessToken);
+    return { success: true, access: newAccessToken };
+  } catch (error) {
+    // Clear tokens on failure / مسح التوكنات عند الفشل
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("refresh_token");
+    return { success: false, error: error.message };
+  }
+};
+
+// Check if token is expired / التحقق من انتهاء صلاحية التوكن
+export const isTokenExpired = (token) => {
+  if (!token) return true;
+
+  try {
+    // JWT tokens have 3 parts separated by dots
+    const parts = token.split(".");
+    if (parts.length !== 3) return true;
+
+    // Decode the payload (second part)
+    const payload = JSON.parse(atob(parts[1]));
+
+    // Check expiration time (exp is in seconds, Date.now() is in milliseconds)
+    if (!payload.exp) return true;
+
+    const currentTime = Math.floor(Date.now() / 1000);
+    return payload.exp < currentTime;
+  } catch (error) {
+    console.error("Token expiration check failed:", error);
+    return false;
+  }
 };
 
 export default apiService;
